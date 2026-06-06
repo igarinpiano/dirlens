@@ -62,16 +62,16 @@ npm uninstall -g dirlens
 
 ### macOS / Linux（スクリプト直接インストール）
 
-```bash
-# 実行権限を付与
-chmod +x dirlens
+GitHubリポジトリから `dirlens.py` をダウンロードして使用します。
 
+```bash
 # /usr/local/bin にインストール（どこからでも呼べるようになる）
-sudo cp dirlens /usr/local/bin/
+sudo install -m 755 dirlens.py /usr/local/bin/dirlens
 
 # ── または sudo なしでユーザーローカルにインストール ──
 mkdir -p ~/.local/bin
-cp dirlens ~/.local/bin/
+cp dirlens.py ~/.local/bin/dirlens
+chmod +x ~/.local/bin/dirlens
 
 # ~/.zshrc（zsh）または ~/.bashrc（bash）に以下を追記：
 export PATH="$HOME/.local/bin:$PATH"
@@ -89,7 +89,7 @@ dirlens --help
 
 ### Windows（スクリプト直接インストール）
 
-1. `dirlens` を **`dirlens.py`** に改名して任意のフォルダへ置く  
+1. `dirlens.py` と `dirlens.bat` を任意のフォルダへ置く  
    （例: `C:\Users\ユーザー名\bin\`）
 
 2. 同じフォルダに **`dirlens.bat`** を置く（同梱のものを使用）:
@@ -178,3 +178,4 @@ dirlens --no-color > tree.txt
 - **シンボリックリンク先のディレクトリ**は展開せず `→` マークで表示
 - 権限がないディレクトリは `[アクセス拒否]` と表示してスキップ
 - 非常に深いディレクトリ（1万階層以上）は `-d` で深さを制限してください
+- **ホームフォルダ（`~/`）やルート（`/`）で実行すると固まる場合があります** — サイズ計算は `-d` の表示制限に関わらず底まで全再帰するため、`~/Library` や iCloud Drive など大容量・ネットワークマウントのディレクトリで時間がかかります。プロジェクトフォルダなど範囲を絞って実行してください
