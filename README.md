@@ -1,4 +1,4 @@
-# treelens 🌳
+# dirlens 🌳
 
 ファイルサイズ付きのディレクトリツリーを表示するコマンドラインツール。  
 **Python 3.8+ のみで動作**（追加ライブラリ不要）。
@@ -43,19 +43,19 @@ Desktop/ (3.74 MB)
 Node.js が入っていれば、どの OS でも同じコマンドでインストールできます。
 
 ```bash
-npm install -g treelens
+npm install -g dirlens
 ```
 
 インストール確認：
 
 ```bash
-treelens --help
+dirlens --help
 ```
 
 アンインストール：
 
 ```bash
-npm uninstall -g treelens
+npm uninstall -g dirlens
 ```
 
 ---
@@ -64,14 +64,14 @@ npm uninstall -g treelens
 
 ```bash
 # 実行権限を付与
-chmod +x treelens
+chmod +x dirlens
 
 # /usr/local/bin にインストール（どこからでも呼べるようになる）
-sudo cp treelens /usr/local/bin/
+sudo cp dirlens /usr/local/bin/
 
 # ── または sudo なしでユーザーローカルにインストール ──
 mkdir -p ~/.local/bin
-cp treelens ~/.local/bin/
+cp dirlens ~/.local/bin/
 
 # ~/.zshrc（zsh）または ~/.bashrc（bash）に以下を追記：
 export PATH="$HOME/.local/bin:$PATH"
@@ -82,32 +82,35 @@ source ~/.zshrc   # または source ~/.bashrc
 インストール確認：
 
 ```bash
-treelens --help
+dirlens --help
 ```
 
 ---
 
 ### Windows（スクリプト直接インストール）
 
-1. `treelens` を **`treelens.py`** に改名して任意のフォルダへ置く  
+1. `dirlens` を **`dirlens.py`** に改名して任意のフォルダへ置く  
    （例: `C:\Users\ユーザー名\bin\`）
 
-2. 同じフォルダに **`treelens.bat`** を置く（同梱のものを使用）:
+2. 同じフォルダに **`dirlens.bat`** を置く（同梱のものを使用）:
+
    ```batch
    @echo off
-   python "%~dp0treelens.py" %*
+   python "%~dp0dirlens.py" %*
    ```
 
 3. そのフォルダを **システム環境変数 PATH** に追加：
    - スタートメニュー →「環境変数を編集」→ PATH に追記
    - または PowerShell（管理者）:
+
      ```powershell
      [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\Users\ユーザー名\bin", "User")
      ```
 
 4. 新しいターミナルを開いて確認：
+
    ```cmd
-   treelens --help
+   dirlens --help
    ```
 
 > **メモ**: Windows Terminal や VS Code のターミナルではカラー表示されます。  
@@ -119,28 +122,28 @@ treelens --help
 
 ```bash
 # カレントディレクトリを表示
-treelens
+dirlens
 
 # 特定のディレクトリを表示
-treelens ~/Desktop
+dirlens ~/Desktop
 
 # 深さ 2 階層まで表示（大きなディレクトリに便利）
-treelens -d 2
+dirlens -d 2
 
 # 隠しファイル・ディレクトリ (.xxx) も表示
-treelens -a
+dirlens -a
 
 # サイズの大きい順に並べる
-treelens -s
+dirlens -s
 
 # カラーなし（パイプ・ファイル書き出し向け）
-treelens --no-color
+dirlens --no-color
 
 # 組み合わせ例：Desktop を深さ 3・サイズ順で表示
-treelens ~/Desktop -d 3 -s
+dirlens ~/Desktop -d 3 -s
 
 # テキストファイルに書き出す
-treelens --no-color > tree.txt
+dirlens --no-color > tree.txt
 ```
 
 ---

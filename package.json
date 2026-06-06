@@ -1,13 +1,14 @@
 {
-  "name": "treelens",
+  "name": "dirlens",
   "version": "1.0.0",
   "description": "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール",
   "bin": {
-    "treelens": "./treelens"
+    "dirlens": "./bin/dirlens"
   },
   "files": [
-    "treelens",
-    "treelens.bat",
+    "bin/",
+    "dirlens",
+    "dirlens.bat",
     "README.md"
   ],
   "keywords": [
@@ -17,10 +18,10 @@
     "directory",
     "terminal"
   ],
-  "author": "igarinpiano",
-  "license": "Apache-2.0",
+  "author": "igarin",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/igarinpiano/treelens.git"
+    "url": "https://github.com/igarinpiano/dirlens.git"
   }
 }

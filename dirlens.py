@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-treelens – ファイルサイズ付きディレクトリツリー表示ツール
+dirlens – ファイルサイズ付きディレクトリツリー表示ツール
 対応環境: macOS / Linux / Windows  (Python 3.8+)
 """
 
@@ -144,17 +144,17 @@ def main():
     sys.setrecursionlimit(10_000)
 
     ap = argparse.ArgumentParser(
-        prog="treelens",
+        prog="dirlens",
         description="ファイルサイズ付きのディレクトリツリーを表示します",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "使用例:\n"
-            "  treelens                  カレントディレクトリを表示\n"
-            "  treelens ~/Desktop        指定したディレクトリを表示\n"
-            "  treelens -d 2             深さ 2 階層まで表示\n"
-            "  treelens -a               隠しファイル (.xxx) も表示\n"
-            "  treelens -s               サイズの大きい順に表示\n"
-            "  treelens --no-color       カラーなしで表示"
+            "  dirlens                  カレントディレクトリを表示\n"
+            "  dirlens ~/Desktop        指定したディレクトリを表示\n"
+            "  dirlens -d 2             深さ 2 階層まで表示\n"
+            "  dirlens -a               隠しファイル (.xxx) も表示\n"
+            "  dirlens -s               サイズの大きい順に表示\n"
+            "  dirlens --no-color       カラーなしで表示"
         ),
     )
     ap.add_argument("path",              nargs="?", default=".", help="対象ディレクトリ（省略時はカレント）")
