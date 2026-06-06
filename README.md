@@ -8,13 +8,13 @@
 ## 出力例
 
 ```
-Desktop/ (3.74 MB)
-├── EmptyDir/ (0 bytes)
-├── Project/ (712 KB)
-│   ├── assets/ (512 KB)
-│   │   └── images/ (512 KB)
+Desktop/ (2 dirs, 2 files, 3.74 MB)
+├── EmptyDir/ (0 dirs, 0 files, 0 bytes)
+├── Project/ (2 dirs, 1 file, 712 KB)
+│   ├── assets/ (1 dir, 0 files, 512 KB)
+│   │   └── images/ (0 dirs, 1 file, 512 KB)
 │   │       └── logo.png (512 KB)
-│   ├── src/ (80 KB)
+│   ├── src/ (0 dirs, 1 file, 80 KB)
 │   │   └── util.py (80 KB)
 │   └── main.py (120 KB)
 ├── archive.zip (3 MB)
@@ -31,7 +31,8 @@ Desktop/ (3.74 MB)
 - **カラー表示** — ディレクトリ・ファイル・シンボリックリンクを色で識別
 - **自動サイズ変換** — bytes / KB / MB / GB / TB
 - **ディレクトリサイズ** — サブディレクトリの合計サイズを自動計算
-- **隠しファイル対応** — `-a` で表示切り替え
+- **アイテム数表示** — 各ディレクトリの直下にある dirs / files 数を表示
+- **隠しファイル対応** — `-a` で表示切り替え（アイテム数にも反映）
 - **サイズ順ソート** — `-s` で大きいものから表示
 
 ---
