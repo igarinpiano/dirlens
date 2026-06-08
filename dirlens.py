@@ -308,7 +308,7 @@ def main():
             "  dirlens --date           最終更新日時を表示\n"
             "  dirlens -t py            .py ファイルのみ表示\n"
             "  dirlens -m               Markdown コードブロックで出力\n"
-            "  dirlens --no-color       カラーなしで表示"
+            "  dirlens --no-color       カラーなしで表示\n"
             "  dirlens > dirlens.txt    dirlens.txtに書き出す"
         ),
     )
