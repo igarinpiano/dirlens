@@ -166,7 +166,7 @@ dirlens -g -t py --date
 dirlens -g -m
 
 # テキストファイルに書き出す
-dirlens --no-color > tree.txt
+dirlens --no-color > dirlens.txt
 ```
 
 ---

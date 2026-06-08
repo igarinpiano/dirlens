@@ -309,6 +309,7 @@ def main():
             "  dirlens -t py            .py ファイルのみ表示\n"
             "  dirlens -m               Markdown コードブロックで出力\n"
             "  dirlens --no-color       カラーなしで表示"
+            "  dirlens > dirlens.txt    dirlens.txtに書き出す"
         ),
     )
     ap.add_argument("path",              nargs="?", default=".", help="対象ディレクトリ（省略時はカレント）")
