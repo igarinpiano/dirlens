@@ -553,7 +553,7 @@ def main():
     render(str(target), "", 0, cfg, stats, active_pats)
 
     print()
-    summary = f"  {stats['dirs']} ディレクトリ,  {stats['files']} ファイル"
+    summary = f"  合計  {stats['dirs']} ディレクトリ,  {stats['files']} ファイル"
     if args.gitignore:  summary += "  (.gitignore 適用済み)"
     if cfg.type_ext:    summary += f"  (フィルタ: {cfg.type_ext})"
     if cfg.excludes:    summary += f"  (除外: {', '.join(cfg.excludes)})"

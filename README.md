@@ -102,7 +102,7 @@ Desktop/ (2 dirs, 2 files, 3.74 MB)
 ├── archive.zip (3 MB)
 └── readme.txt (50 KB)
 
-  5 ディレクトリ,  5 ファイル
+  合計  5 ディレクトリ,  5 ファイル
   .py ×2  .txt ×1  .zip ×1  .png ×1
 ```
 
