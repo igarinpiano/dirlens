@@ -94,6 +94,11 @@ def copy_to_clipboard(text):
     except Exception:
         return False
 
+import re as _re
+def strip_ansi(text):
+    """ANSIエスケープシーケンスを除去する。"""
+    return _re.sub(r'\033\[[0-9;]*[mK]', '', text)
+
 
 # ─── 絵文字 ───────────────────────────────────────────────────
 _EMOJI_EXT = {
@@ -460,6 +465,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "使用例:\n"
+            "  dirlens --ai                AIチャット貼り付け用形式で出力（推奨）\n"
             "  dirlens -g -m -c            gitignore除外→Markdown→クリップボードコピー\n"
             "  dirlens --bar               ディスク占有率バーを表示\n"
             "  dirlens --min-size 1M       1MB以上のファイルのみ\n"
@@ -501,7 +507,16 @@ def main():
                     help="HTMLレポートを生成 (デフォルト: dirlens.html)")
     ap.add_argument("-c", "--copy",      action="store_true",
                     help="出力をクリップボードにコピー")
+    ap.add_argument("--ai",             action="store_true",
+                    help="-g --date -m -c のショートカット。AIチャットへの貼り付けに最適化")
     args = ap.parse_args()
+
+    # --ai は -g --date -m -c のショートカット
+    if args.ai:
+        args.gitignore = True
+        args.date      = True
+        args.markdown  = True
+        args.copy      = True
 
     if args.no_color or args.markdown or args.json:
         USE_COLOR = False
@@ -573,8 +588,8 @@ def main():
     if args.copy:
         sys.stdout = _old
         text = _buf.getvalue()
-        print(text, end="")
-        ok = copy_to_clipboard(text)
+        print(text, end="")                    # ターミナルにはカラーつきで表示
+        ok = copy_to_clipboard(strip_ansi(text))  # クリップボードにはANSIコードなし
         msg = "✓ クリップボードにコピーしました" if ok \
               else "✗ コピー失敗 (pbcopy / xclip / wl-copy が必要)"
         print(c(msg, BOLD, GREEN if ok else DIM), file=sys.stderr)
