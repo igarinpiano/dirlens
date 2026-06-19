@@ -26,21 +26,27 @@ def _enable_color():
 USE_COLOR = _enable_color()
 RESET = "\033[0m"; BOLD = "\033[1m"; DIM = "\033[2m"
 BLUE = "\033[34m"; CYAN = "\033[36m"; GREEN = "\033[32m"; MAGENTA = "\033[35m"
+RED = "\033[31m"
 
 def c(text, *codes):
     return ("".join(codes) + text + RESET) if USE_COLOR else text
 
 
 # ─── フォーマット ─────────────────────────────────────────────
-def fmt_size(n):
-    if n == 0: return "0 bytes"
+def fmt_size(n, partial=False):
+    sfx = "+" if partial else ""
+    if n == 0: return f"0{sfx} bytes"
     for unit, f in (("TB",1<<40),("GB",1<<30),("MB",1<<20),("KB",1<<10)):
         if n >= f:
-            return f"{str(f'{n/f:.2f}').rstrip('0').rstrip('.')} {unit}"
-    return f"{n} {'byte' if n==1 else 'bytes'}"
+            return f"{str(f'{n/f:.2f}').rstrip('0').rstrip('.')}{sfx} {unit}"
+    return f"{n}{sfx} {'byte' if (n==1 and not partial) else 'bytes'}"
 
-def fmt_count(nd, nf):
-    return f"{nd} {'dir' if nd==1 else 'dirs'}, {nf} {'file' if nf==1 else 'files'}"
+def fmt_count(nd, nf, denied=False):
+    sfx = "+" if denied else ""
+    # denied=True のとき数が不明なので複数形固定
+    d_word = "dir"  if (nd == 1 and not denied) else "dirs"
+    f_word = "file" if (nf == 1 and not denied) else "files"
+    return f"{nd}{sfx} {d_word}, {nf}{sfx} {f_word}"
 
 def fmt_date(mtime):
     sec = int((datetime.datetime.now() - datetime.datetime.fromtimestamp(mtime)).total_seconds())
@@ -208,8 +214,10 @@ def _extend_pats(active_pats, path, cfg):
 _sz_cache = {}
 
 def dir_size(path):
+    """ディレクトリの合計サイズを返す。(size, has_errors) のタプル。"""
     if path in _sz_cache: return _sz_cache[path]
     total = 0
+    has_errors = False
     try:
         with os.scandir(path) as it:
             for e in it:
@@ -217,11 +225,16 @@ def dir_size(path):
                     if e.is_file(follow_symlinks=False):
                         total += e.stat(follow_symlinks=False).st_size
                     elif e.is_dir(follow_symlinks=False):
-                        total += dir_size(e.path)
-                except OSError: pass
-    except OSError: pass
-    _sz_cache[path] = total
-    return total
+                        sub_sz, sub_err = dir_size(e.path)
+                        total += sub_sz
+                        if sub_err: has_errors = True
+                except OSError:
+                    has_errors = True
+    except OSError:
+        has_errors = True
+    result = (total, has_errors)
+    _sz_cache[path] = result
+    return result
 
 def _prefetch_sizes(root_path):
     try:
@@ -266,7 +279,7 @@ class Cfg:
 # ─── 共通フィルタリング ───────────────────────────────────────
 def _filter(path, cfg, active_pats):
     try: raw = list(os.scandir(path))
-    except PermissionError: return [], []
+    except PermissionError: return None, None  # アクセス拒否シグナル
 
     entries = [e for e in raw if cfg.show_all or not e.name.startswith(".")]
 
@@ -316,12 +329,14 @@ def _filter(path, cfg, active_pats):
 def count_entries(path, cfg, active_pats):
     pats = _extend_pats(active_pats, path, cfg)
     dirs, files = _filter(path, cfg, pats)
-    return len(dirs), len(files)
+    if dirs is None: return 0, 0, True   # アクセス拒否
+    return len(dirs), len(files), False
 
 def _has_content(path, depth, cfg, active_pats):
     if cfg.max_depth is not None and depth >= cfg.max_depth: return False
     pats = _extend_pats(active_pats, path, cfg)
     dirs, files = _filter(path, cfg, pats)
+    if dirs is None: return False  # アクセス拒否は空とみなす
     if files: return True
     for d in dirs:
         if _has_content(d.path, depth + 1, cfg, pats): return True
@@ -349,7 +364,7 @@ def _sort_entries(dirs, files, cfg):
         dirs.sort(key=ectime,  reverse=not rev)
         files.sort(key=ectime, reverse=not rev)
     elif cfg.by_size:            # -S: サイズ順（大きい順）
-        dirs.sort(key=lambda e: dir_size(e.path), reverse=not rev)
+        dirs.sort(key=lambda e: dir_size(e.path)[0], reverse=not rev)
         files.sort(key=esz, reverse=not rev)
     else:                        # デフォルト: アルファベット順
         dirs.sort(key=lambda e: e.name.casefold(), reverse=rev)
@@ -374,13 +389,16 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
 
     cur_pats = _extend_pats(active_pats, path, cfg)
     dirs, files = _filter(path, cfg, cur_pats)
+    if dirs is None:  # アクセス拒否
+        print(f"{prefix}{LAST}{c('[アクセス拒否]', BOLD, RED)}")
+        return
 
     if cfg.prune:
         dirs = [d for d in dirs if _has_content(d.path, depth + 1, cfg, cur_pats)]
 
     dirs, files = _sort_entries(dirs, files, cfg)
     combined = (files + dirs) if cfg.files_first else (dirs + files)
-    cur_dir_size = dir_size(path)
+    cur_dir_size, _ = dir_size(path)
 
     def esz(e):
         try: return e.stat(follow_symlinks=True).st_size
@@ -409,12 +427,12 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
                        (cfg.follow_syms and entry.is_symlink() and entry.is_dir(follow_symlinks=True))
 
         if is_dir_entry:
-            sz     = dir_size(entry.path)
-            nd, nf = count_entries(entry.path, cfg, cur_pats)
+            sz, sz_err     = dir_size(entry.path)
+            nd, nf, denied = count_entries(entry.path, cfg, cur_pats)
             stats["dirs"] += 1
 
             emoji = (get_emoji(entry.name, is_dir=True) + " ") if cfg.show_emoji else ""
-            parts = [fmt_count(nd, nf), fmt_size(sz)]
+            parts = [fmt_count(nd, nf, denied), fmt_size(sz, sz_err)]
             if cfg.show_date:
                 try: parts.append(fmt_date(entry.stat(follow_symlinks=False).st_mtime))
                 except OSError: pass
@@ -433,7 +451,7 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
                 stats["extensions"].get(ext or "(no ext)", 0) + 1
 
             emoji = (get_emoji(entry.name) + " ") if cfg.show_emoji else ""
-            parts = [fmt_size(sz)]
+            parts = [fmt_size(sz)]   # ファイルサイズは stat() で正確に取れるので + なし
             if cfg.show_date:
                 mt = emtime(entry)
                 if mt: parts.append(fmt_date(mt))
@@ -449,10 +467,12 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
 def build_json_tree(path, depth, cfg, active_pats):
     cur_pats = _extend_pats(active_pats, path, cfg)
     dirs, files = _filter(path, cfg, cur_pats)
+    denied = dirs is None
+    if denied: dirs, files = [], []
     if cfg.prune:
         dirs = [d for d in dirs if _has_content(d.path, depth + 1, cfg, cur_pats)]
     dirs, files = _sort_entries(dirs, files, cfg)
-    sz = dir_size(path)
+    sz, sz_err = dir_size(path)
 
     def esz(e):
         try: return e.stat(follow_symlinks=True).st_size
@@ -476,9 +496,10 @@ def build_json_tree(path, depth, cfg, active_pats):
     name = os.path.basename(path) or path
     return {
         "name": name, "type": "directory",
-        "size": sz, "size_human": fmt_size(sz),
+        "size": sz, "size_human": fmt_size(sz, sz_err),
         "path": os.path.relpath(path, cfg.root) if path != cfg.root else ".",
-        "item_count": {"dirs": len(dirs), "files": len(files)},
+        "item_count": {"dirs": len(dirs), "files": len(files),
+                       "permission_denied": denied},
         "children": children,
     }
 
@@ -488,10 +509,12 @@ def generate_html(root_path, cfg, active_pats):
     def _node(path, depth, cur_pats):
         pats = _extend_pats(cur_pats, path, cfg)
         dirs, files = _filter(path, cfg, pats)
+        denied = dirs is None
+        if denied: dirs, files = [], []
         if cfg.prune:
             dirs = [d for d in dirs if _has_content(d.path, depth + 1, cfg, pats)]
         dirs, files = _sort_entries(dirs, files, cfg)
-        sz = dir_size(path)
+        sz, sz_err = dir_size(path)
         name = os.path.basename(path) or path
 
         def esz(e):
@@ -505,8 +528,9 @@ def generate_html(root_path, cfg, active_pats):
                 if cfg.max_depth is None or depth < cfg.max_depth:
                     ch += _node(entry.path, depth + 1, pats)
                 else:
+                    e_sz, e_err = dir_size(entry.path)
                     ch += (f'<div class="item dir-leaf">📁 {entry.name}/'
-                           f' <span class="sz">{fmt_size(dir_size(entry.path))}</span></div>\n')
+                           f' <span class="sz">{fmt_size(e_sz, e_err)}</span></div>\n')
             else:
                 f_sz = esz(entry)
                 sym = ""
@@ -521,7 +545,7 @@ def generate_html(root_path, cfg, active_pats):
         nd, nf = len(dirs), len(files)
         opened = " open" if depth == 0 else ""
         return (f'<details{opened}><summary>📁 <strong>{name}/</strong>'
-                f' <span class="sz">({fmt_count(nd, nf)}, {fmt_size(sz)})</span>'
+                f' <span class="sz">({fmt_count(nd, nf, denied)}, {fmt_size(sz, sz_err)})</span>'
                 f'</summary><div class="ch">{ch}</div></details>\n')
 
     root_name = os.path.basename(root_path) or root_path
@@ -709,10 +733,11 @@ def main():
 
     if args.markdown: print("```")
 
-    root_sz          = dir_size(str(target))
-    root_nd, root_nf = count_entries(str(target), cfg, active_pats)
-    root_label       = target.name if target.name else str(target)
-    root_parts       = [fmt_count(root_nd, root_nf), fmt_size(root_sz)]
+    root_sz,  root_sz_err          = dir_size(str(target))
+    root_nd, root_nf, root_denied  = count_entries(str(target), cfg, active_pats)
+    root_label = target.name if target.name else str(target)
+
+    root_parts = [fmt_count(root_nd, root_nf, root_denied), fmt_size(root_sz, root_sz_err)]
     if args.date:
         try: root_parts.append(fmt_date(target.stat().st_mtime))
         except OSError: pass
