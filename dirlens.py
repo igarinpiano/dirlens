@@ -497,10 +497,11 @@ _ENTRY_NAMES_LOWER = {
 }
 
 
-def build_project_index(root, cfg):
+def build_project_index(root, cfg, active_pats=None):
     """テスト欠落検知・エントリーポイント検出・import依存グラフのため、
     プロジェクト全体を一度だけスキャンする。
     .gitignore は -G 指定時のみ尊重する。-G なしで巨大な node_modules 等があると遅くなる場合がある。
+    active_pats: ルートの .gitignore パターン（main() で読み込み済みのものを渡す）。
     戻り値: (untested_relpaths, entry_relpaths, imports_map, imported_by_map, external_map)
     """
     all_names = set()
@@ -566,7 +567,7 @@ def build_project_index(root, cfg):
                 except (OSError, json.JSONDecodeError, AttributeError, ValueError):
                     pass
 
-    walk(root, [])
+    walk(root, active_pats or [])
 
     untested = set()
     for relpath, stem, ext in source_files:
@@ -1381,7 +1382,8 @@ def main():
 
     if cfg.show_tests or cfg.show_entry or cfg.show_imports:
         (cfg.untested_set, cfg.entry_set,
-         cfg.imports_map, cfg.imported_by_map, cfg.external_map) = build_project_index(str(target), cfg)
+         cfg.imports_map, cfg.imported_by_map, cfg.external_map) = \
+            build_project_index(str(target), cfg, active_pats)
     if cfg.show_git:
         cfg.git_map = load_git_log(str(target))
 
