@@ -1,6 +1,6 @@
 {
   "name": "dirlens",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール",
   "bin": {
     "dirlens": "./dirlens.py"
