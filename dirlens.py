@@ -296,12 +296,30 @@ def fmt_tokens(n):
         return f"~{s}K tok"
     return f"~{n} tok"
 
+def count_lines(path, limit_bytes=5_000_000):
+    """テキストファイルの行数を数える。バイナリ等は None。"""
+    if _is_probably_binary(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            data = f.read(limit_bytes)
+    except OSError:
+        return None
+    if b"\x00" in data[:8192]:
+        return None
+    if not data:
+        return 0
+    return data.count(b"\n") + (0 if data.endswith(b"\n") else 1)
+
 
 # --- git連携（-H / --git） ------------------------------------
 def load_git_log(root, max_commits=2000):
-    """直近コミット履歴から各ファイルの最終更新コミット情報を取得する。
-    gitが無い／リポジトリでない場合は空dictを返す（エラーにはしない）。
+    """直近コミット履歴から各ファイルの最終更新コミット情報と変更回数を取得する。
+    gitが無い／リポジトリでない場合は空dict/空dictを返す（エラーにはしない）。
     パフォーマンスのため履歴は直近 max_commits 件までに限定（古いファイルは情報なしになる場合あり）。
+    戻り値: (file_map, change_counts)
+      file_map: {relpath: {"hash","date","author","subject"}}  最終コミット情報
+      change_counts: {relpath: int}  走査した履歴内での変更回数（ホットスポット検出用）
     """
     try:
         proc = subprocess.run(
@@ -312,9 +330,10 @@ def load_git_log(root, max_commits=2000):
         )
     except (subprocess.CalledProcessError, FileNotFoundError,
             subprocess.TimeoutExpired, OSError):
-        return {}
+        return {}, {}
 
     file_map = {}
+    change_counts = {}
     current = None
     for raw in proc.stdout.split("\n"):
         line = raw.strip("\r")
@@ -330,7 +349,8 @@ def load_git_log(root, max_commits=2000):
             fp = line.strip().replace("\\", "/")
             if fp not in file_map:
                 file_map[fp] = current
-    return file_map
+            change_counts[fp] = change_counts.get(fp, 0) + 1
+    return file_map, change_counts
 
 def fmt_git(g):
     if not g: return None
@@ -496,18 +516,70 @@ _ENTRY_NAMES_LOWER = {
     "makefile", "dockerfile", "docker-compose.yml", "docker-compose.yaml",
 }
 
+# --- 設定ファイル検出（-F / --config） ---------------------------
+_CONFIG_NAMES_LOWER = {
+    ".env", ".env.local", ".env.example", ".env.development", ".env.production",
+    "tsconfig.json", "jsconfig.json", "babel.config.js", ".babelrc",
+    "webpack.config.js", "vite.config.js", "vite.config.ts", "rollup.config.js",
+    "eslint.config.js", ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".prettierrc",
+    "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "pipfile",
+    "cargo.toml", "go.mod", "go.sum",
+    "dockerfile", "docker-compose.yml", "docker-compose.yaml",
+    ".gitignore", ".gitattributes",
+    "tox.ini", "pytest.ini", "jest.config.js", "jest.config.ts",
+    "next.config.js", "next.config.ts", "nuxt.config.js", "svelte.config.js",
+    "tailwind.config.js", "tailwind.config.ts", "postcss.config.js",
+    ".npmrc", ".nvmrc", ".python-version", ".ruby-version",
+    "makefile", "cmakelists.txt",
+}
+
+def detect_cycles(imports_map):
+    """importsグラフ（ローカル依存のみ）から循環依存を検出する（DFSベース、best-effort）。
+    重複するサイクル（同じファイル集合）は1つにまとめる。
+    戻り値: [[file1, file2, ..., file1], ...]  各リストは循環の経路（先頭=末尾で1周）
+    """
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {}
+    stack = []
+    cycles = []
+    seen_keys = set()
+
+    def dfs(node):
+        color[node] = GRAY
+        stack.append(node)
+        for nxt in imports_map.get(node, []):
+            c = color.get(nxt, WHITE)
+            if c == WHITE:
+                dfs(nxt)
+            elif c == GRAY:
+                idx = stack.index(nxt)
+                cycle = stack[idx:] + [nxt]
+                key = frozenset(cycle[:-1])
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    cycles.append(cycle)
+        stack.pop()
+        color[node] = BLACK
+
+    for node in sorted(imports_map.keys()):
+        if color.get(node, WHITE) == WHITE:
+            dfs(node)
+    return cycles
+
 
 def build_project_index(root, cfg, active_pats=None):
-    """テスト欠落検知・エントリーポイント検出・import依存グラフのため、
+    """テスト欠落検知・エントリーポイント検出・設定ファイル検出・import依存グラフのため、
     プロジェクト全体を一度だけスキャンする。
     .gitignore は -G 指定時のみ尊重する。-G なしで巨大な node_modules 等があると遅くなる場合がある。
     active_pats: ルートの .gitignore パターン（main() で読み込み済みのものを渡す）。
-    戻り値: (untested_relpaths, entry_relpaths, imports_map, imported_by_map, external_map)
+    戻り値: (untested_relpaths, entry_relpaths, config_relpaths,
+             imports_map, imported_by_map, external_map, cycles)
     """
     all_names = set()
     all_relpaths = set()
     source_files = []
     entry_set = set()
+    config_set = set()
     py_module_map = {}
     go_module_name = [None]  # nonlocalの代わりにリストで包む
 
@@ -534,6 +606,8 @@ def build_project_index(root, cfg, active_pats=None):
                 source_files.append((relpath, stem, ext.lower()))
             if e.name.lower() in _ENTRY_NAMES_LOWER:
                 entry_set.add(relpath)
+            if e.name.lower() in _CONFIG_NAMES_LOWER:
+                config_set.add(relpath)
             if ext.lower() == ".py":
                 py_module_map[_py_module_key(relpath)] = relpath
             if e.name == "go.mod":
@@ -670,7 +744,8 @@ def build_project_index(root, cfg, active_pats=None):
                 external_map[relpath] = seen[:10]
 
     imported_by_map = {k: sorted(v) for k, v in imported_by_acc.items()}
-    return untested, entry_set, imports_map, imported_by_map, external_map
+    cycles = detect_cycles(imports_map) if cfg.show_imports else []
+    return untested, entry_set, config_set, imports_map, imported_by_map, external_map, cycles
 
 
 # --- シンボルアウトライン（-O / --outline） ----------------------
@@ -702,9 +777,25 @@ _OUTLINE_PATTERNS = {
 for _e in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
     _OUTLINE_PATTERNS[_e] = _JS_TS_PATTERNS
 
+def _is_public_symbol(ext, line, name):
+    """言語ごとの公開API判定（best-effort）。
+    Python: アンダースコア始まりでない / JS-TS: exportキーワードを含む行 /
+    Go: 識別子が大文字始まり（言語の公開規約そのもの） / Rust: pubキーワードを含む行。
+    """
+    if ext == ".py":
+        return not name.startswith("_")
+    if ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
+        return bool(re.search(r'\bexport\b', line))
+    if ext == ".go":
+        return bool(name) and name[0:1].isupper()
+    if ext == ".rs":
+        return bool(re.search(r'\bpub\b', line))
+    return True  # 不明な場合は除外しない（保守的に倒す）
+
 def extract_outline(path, ext, limit_lines=4000):
     """対応言語（Python/JS/TS/Go/Rust）の関数・クラス名を正規表現で簡易抽出する。
     対応外の拡張子は None を返す（「対応していない」ことを明示するため空リストとは区別）。
+    戻り値: [(kind, name, is_public), ...]
     """
     patterns = _OUTLINE_PATTERNS.get(ext)
     if not patterns:
@@ -723,14 +814,15 @@ def extract_outline(path, ext, limit_lines=4000):
         for pat, kind in patterns:
             m = pat.match(line)
             if m:
-                out.append((kind, m.group(m.lastindex)))
+                name = m.group(m.lastindex)
+                out.append((kind, name, _is_public_symbol(ext, line, name)))
                 break
     return out
 
 def fmt_outline(outline, limit=5):
     if not outline:
         return None
-    items = [f"{kind} {name}" for kind, name in outline]
+    items = [f"{kind} {name}" for kind, name, _pub in outline]
     shown = items[:limit]
     s = ", ".join(shown)
     if len(items) > limit:
@@ -746,10 +838,12 @@ def _file_extras(entry, relpath, cfg):
     if cfg.show_tokens:
         if _is_probably_binary(entry.name):
             extras["tokens"] = None
+            extras["lines"] = None
         else:
             try: sz = entry.stat(follow_symlinks=True).st_size
             except OSError: sz = None
             extras["tokens"] = estimate_tokens(entry.path, actual_size=sz)
+            extras["lines"] = count_lines(entry.path)
 
     if cfg.show_git:
         extras["git"] = cfg.git_map.get(relpath)
@@ -760,11 +854,17 @@ def _file_extras(entry, relpath, cfg):
     if cfg.show_entry:
         extras["is_entry"] = relpath in cfg.entry_set
 
+    if cfg.show_config:
+        extras["is_config"] = relpath in cfg.config_set
+
     if cfg.show_tests:
         extras["no_test"] = relpath in cfg.untested_set
 
     if cfg.show_outline:
-        extras["outline"] = extract_outline(entry.path, ext)
+        outline = extract_outline(entry.path, ext)
+        if outline and cfg.public_only:
+            outline = [item for item in outline if item[2]]
+        extras["outline"] = outline
 
     if cfg.show_imports:
         extras["imports"] = cfg.imports_map.get(relpath, [])
@@ -813,16 +913,21 @@ class Cfg:
         self.show_entry    = args.entry        # -N
         self.show_outline  = args.outline      # -O
         self.show_imports  = args.imports      # -M
+        self.show_config   = args.config       # -F
+        self.public_only   = args.api          # -A（-Oと併用時のみ意味を持つ）
         self.has_extras    = any([self.show_tokens, self.show_git, self.show_todo,
                                    self.show_tests, self.show_entry, self.show_outline,
-                                   self.show_imports])
+                                   self.show_imports, self.show_config])
         # main() 側で必要に応じて埋める
-        self.git_map        = {}
-        self.untested_set   = set()
-        self.entry_set      = set()
-        self.imports_map    = {}
-        self.imported_by_map = {}
-        self.external_map   = {}
+        self.git_map          = {}
+        self.git_change_counts = {}
+        self.untested_set     = set()
+        self.entry_set        = set()
+        self.config_set       = set()
+        self.imports_map      = {}
+        self.imported_by_map  = {}
+        self.external_map     = {}
+        self.cycles           = []
 
 
 # ─── 共通フィルタリング ───────────────────────────────────────
@@ -1003,7 +1108,10 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
             entry_mark = ""
             if extras.get("is_entry"):
                 entry_mark = "🎯 " if cfg.show_emoji else "* "
-                stats["entries"] += 1
+
+            config_mark = ""
+            if extras.get("is_config"):
+                config_mark = "⚙ " if not entry_mark else ""
 
             emoji = (get_emoji(entry.name) + " ") if cfg.show_emoji else ""
             parts = [fmt_size(sz)]
@@ -1014,6 +1122,8 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
             if cfg.show_tokens and extras.get("tokens") is not None:
                 parts.append(fmt_tokens(extras["tokens"]))
                 stats["tokens"] += extras["tokens"]
+                if extras.get("lines") is not None:
+                    parts.append(f"{extras['lines']} lines")
 
             if cfg.show_git and extras.get("git"):
                 parts.append(fmt_git(extras["git"]))
@@ -1028,7 +1138,9 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
 
             if cfg.show_tests and extras.get("no_test"):
                 parts.append("テスト無し")
-                stats["no_test"] += 1
+
+            if cfg.show_config and extras.get("is_config"):
+                parts.append("config")
 
             if cfg.show_outline and extras.get("outline"):
                 ostr = fmt_outline(extras["outline"])
@@ -1042,7 +1154,7 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
 
             bar = (" " + fmt_bar(sz, cur_dir_size)) if cfg.show_bar and cur_dir_size else ""
 
-            name = c(f"{entry_mark}{display}{sym_target}",
+            name = c(f"{entry_mark}{config_mark}{display}{sym_target}",
                      MAGENTA if entry.is_symlink() else GREEN)
             meta = c(f"({', '.join(parts)}){bar}", DIM)
             print(f"{prefix}{branch}{perm_prefix}{name} {meta}")
@@ -1051,7 +1163,7 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
 # ─── JSON出力 ─────────────────────────────────────────────────
 def build_json_tree(path, depth, cfg, active_pats, stats=None):
     if stats is None:
-        stats = {"tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0}
+        stats = {"tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0, "configs": 0}
 
     cur_pats = _extend_pats(active_pats, path, cfg)
     dirs, files = _filter(path, cfg, cur_pats)
@@ -1085,6 +1197,7 @@ def build_json_tree(path, depth, cfg, active_pats, stats=None):
                 }
                 if cfg.show_tokens:
                     file_obj["tokens"] = extras.get("tokens")
+                    file_obj["lines"] = extras.get("lines")
                     if extras.get("tokens") is not None:
                         stats["tokens"] += extras["tokens"]
                 if cfg.show_git:
@@ -1098,13 +1211,13 @@ def build_json_tree(path, depth, cfg, active_pats, stats=None):
                             stats["todo_samples"].append((rel, *item))
                 if cfg.show_tests:
                     file_obj["has_test"] = not extras.get("no_test", False)
-                    if extras.get("no_test"): stats["no_test"] += 1
                 if cfg.show_entry:
                     file_obj["is_entry"] = bool(extras.get("is_entry"))
-                    if extras.get("is_entry"): stats["entries"] += 1
+                if cfg.show_config:
+                    file_obj["is_config"] = bool(extras.get("is_config"))
                 if cfg.show_outline:
                     outline = extras.get("outline")
-                    file_obj["outline"] = ([{"kind": k, "name": n} for k, n in outline]
+                    file_obj["outline"] = ([{"kind": k, "name": n, "public": p} for k, n, p in outline]
                                            if outline else outline)  # None=対応外言語
                 if cfg.show_imports:
                     file_obj["imports"] = extras.get("imports") or []
@@ -1316,7 +1429,11 @@ def main():
                     help="関数・クラスの簡易アウトラインを表示（正規表現ベース・対応言語限定）")
     ap.add_argument("-M", "--imports",   action="store_true",
                     help="ローカルなimport/依存関係を解析して表示（Python/JS/TS/Go/Rust対応、"
-                         "正確さは言語による。外部パッケージは対象外）")
+                         "正確さは言語による。外部パッケージは対象外）。循環依存も併せて検出")
+    ap.add_argument("-A", "--api",       action="store_true",
+                    help="公開API（exportされたシンボル）のみに絞り込む（-O を自動的に有効化）")
+    ap.add_argument("-F", "--config",    action="store_true",
+                    help="設定ファイル（.env, tsconfig.json, pyproject.toml等）を検出してマーク")
 
     # ── dirlens独自オプション ─────────────────────────────────
     ap.add_argument("path",              nargs="?", default=".")
@@ -1338,7 +1455,7 @@ def main():
     ap.add_argument("--ai",              action="store_true",
                     help="-G --date -m -C のショートカット（人間がAIチャットに貼り付ける用）")
     ap.add_argument("--agent",           action="store_true",
-                    help="-G -T -H -K -V -N -O のショートカット（エージェント向け解析、クリップボードは使わない）")
+                    help="-G -T -H -K -V -N -O -M -F のショートカット（エージェント向け解析、クリップボードは使わない）")
     args = ap.parse_args()
 
     # ── エイリアスのマージ ────────────────────────────────────
@@ -1367,11 +1484,23 @@ def main():
         args.entry     = True
         args.outline   = True
         args.imports   = True
+        args.config    = True
+
+    # -A（公開APIのみ）は -O（アウトライン）を自動的に有効化する
+    if args.api:
+        args.outline = True
 
     if args.no_color or args.markdown or args.json:
         USE_COLOR = False
 
-    target = Path(args.path).resolve()
+    try:
+        target = Path(args.path).resolve()
+    except PermissionError:
+        # カレントディレクトリ自体がサンドボックス等でアクセス不能な場合、
+        # Path.resolve() 内部の os.getcwd() がここで例外を出す。
+        print(f"エラー: 現在のディレクトリへのアクセス権限がありません。", file=sys.stderr)
+        print(f"絶対パスを明示的に指定してください（例: dirlens /path/to/project）。", file=sys.stderr)
+        sys.exit(1)
     if not target.exists():
         print(f"エラー: '{args.path}' が見つかりません", file=sys.stderr); sys.exit(1)
     if not target.is_dir():
@@ -1380,31 +1509,52 @@ def main():
     cfg = Cfg(args, str(target))
     active_pats = load_gitignore(str(target)) if args.gitignore else []
 
-    if cfg.show_tests or cfg.show_entry or cfg.show_imports:
-        (cfg.untested_set, cfg.entry_set,
-         cfg.imports_map, cfg.imported_by_map, cfg.external_map) = \
+    if cfg.show_tests or cfg.show_entry or cfg.show_config or cfg.show_imports:
+        (cfg.untested_set, cfg.entry_set, cfg.config_set,
+         cfg.imports_map, cfg.imported_by_map, cfg.external_map, cfg.cycles) = \
             build_project_index(str(target), cfg, active_pats)
     if cfg.show_git:
-        cfg.git_map = load_git_log(str(target))
+        cfg.git_map, cfg.git_change_counts = load_git_log(str(target))
 
     _prefetch_sizes(str(target))
 
     # ── JSON ─────────────────────────────────────────────────
     if args.json:
-        stats = {"tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0}
+        stats = {"tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0, "configs": 0}
         tree = build_json_tree(str(target), 0, cfg, active_pats, stats)
         if cfg.has_extras:
             most_depended = None
             if cfg.show_imports and cfg.imported_by_map:
                 top = sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:10]
                 most_depended = [{"path": p, "used_by_count": len(v)} for p, v in top]
+
+            hotspots = None
+            if cfg.show_git and cfg.git_change_counts:
+                top_hot = sorted(cfg.git_change_counts.items(), key=lambda kv: -kv[1])[:10]
+                hotspots = [{"path": p, "change_count": n} for p, n in top_hot]
+
+            reading_order = None
+            if cfg.show_entry and cfg.show_imports and (cfg.entry_set or cfg.imported_by_map):
+                cand = list(sorted(cfg.entry_set))
+                if cfg.imported_by_map:
+                    for p, _ in sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:5]:
+                        if p not in cand: cand.append(p)
+                reading_order = cand[:8]
+
             tree["project_summary"] = {
                 "estimated_tokens": stats["tokens"] if cfg.show_tokens else None,
                 "todo_count": stats["todo_total"] if cfg.show_todo else None,
-                "missing_tests_count": stats["no_test"] if cfg.show_tests else None,
-                "entry_points_count": stats["entries"] if cfg.show_entry else None,
+                "missing_tests_count": len(cfg.untested_set) if cfg.show_tests else None,
+                "entry_points_count": len(cfg.entry_set) if cfg.show_entry else None,
+                "config_files_count": len(cfg.config_set) if cfg.show_config else None,
                 "git_available": bool(cfg.git_map) if cfg.show_git else None,
                 "most_depended_on": most_depended,
+                "hotspots": hotspots,
+                "circular_dependencies": (
+                    [c for c in cfg.cycles] if cfg.show_imports and cfg.cycles else
+                    ([] if cfg.show_imports else None)
+                ),
+                "reading_order_candidates": reading_order,
             }
         print(json.dumps(tree, ensure_ascii=False, indent=2)); return
 
@@ -1434,7 +1584,8 @@ def main():
           f"{c('(' + ', '.join(root_parts) + ')', DIM)}")
 
     stats = {"files": 0, "dirs": 0, "extensions": {},
-             "tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0}
+             "tokens": 0, "todo_total": 0, "todo_samples": [], "no_test": 0, "entries": 0,
+             "configs": 0}
     render(str(target), "", 0, cfg, stats, active_pats)
 
     print()
@@ -1470,16 +1621,45 @@ def main():
             print(c("  TODO/FIXME等: 0件", DIM))
 
     if cfg.show_tests:
-        print(c(f"  テスト未整備: {stats['no_test']} ファイル", DIM))
+        # -L等で表示が深さ制限されていても、テスト欠落検知はプロジェクト全体のスキャン結果。
+        print(c(f"  テスト未整備: {len(cfg.untested_set)} ファイル", DIM))
 
     if cfg.show_entry:
-        print(c(f"  エントリーポイント候補: {stats['entries']} 件検出", DIM))
+        print(c(f"  エントリーポイント候補: {len(cfg.entry_set)} 件検出", DIM))
+
+    if cfg.show_config:
+        print(c(f"  設定ファイル: {len(cfg.config_set)} 件検出", DIM))
 
     if cfg.show_imports and cfg.imported_by_map:
         top = sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:5]
         print(c("  依存度が高いファイル（多くのファイルから参照されている）:", DIM))
         for relpath, importers in top:
             print(c(f"    {relpath}  (used by {len(importers)})", DIM))
+
+    if cfg.show_imports and cfg.cycles:
+        print(c(f"  循環依存: {len(cfg.cycles)} 件検出", DIM))
+        for cycle in cfg.cycles[:5]:
+            print(c(f"    {' → '.join(cycle)}", DIM))
+        if len(cfg.cycles) > 5:
+            print(c(f"    …他 {len(cfg.cycles) - 5} 件", DIM))
+
+    if cfg.show_git and cfg.git_change_counts:
+        top_hot = sorted(cfg.git_change_counts.items(), key=lambda kv: -kv[1])[:5]
+        if top_hot and top_hot[0][1] > 1:  # 1回しか変更されていないなら出す価値が薄い
+            print(c("  変更頻度が高いファイル（直近の履歴内）:", DIM))
+            for relpath, n in top_hot:
+                print(c(f"    {relpath}  ({n} 回変更)", DIM))
+
+    if cfg.show_entry and cfg.show_imports and (cfg.entry_set or cfg.imported_by_map):
+        candidates = list(sorted(cfg.entry_set))
+        if cfg.imported_by_map:
+            for p, _ in sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:3]:
+                if p not in candidates:
+                    candidates.append(p)
+        if candidates:
+            print(c("  読み始めの候補（エントリーポイント→依存度の高い順）:", DIM))
+            for i, p in enumerate(candidates[:5], 1):
+                print(c(f"    {i}. {p}", DIM))
 
     if cfg.show_git and not cfg.git_map:
         print(c("  (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)", DIM))
