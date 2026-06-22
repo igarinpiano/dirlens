@@ -1,9 +1,9 @@
 {
   "name": "dirlens",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール",
   "bin": {
-    "dirlens": "./bin/dirlens.js"
+    "dirlens": "bin/dirlens.js"
   },
   "files": [
     "bin/",
@@ -22,6 +22,6 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/igarinpiano/dirlens.git"
+    "url": "git+https://github.com/igarinpiano/dirlens.git"
   }
 }
