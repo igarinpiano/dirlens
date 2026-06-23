@@ -1,0 +1,23 @@
+#!/bin/sh
+# dirlens - wrapper for dirlens.py
+#
+# Follows symlinks to locate dirlens.py correctly when installed via npm globally.
+# npm installs bin entries as symlinks, so plain dirname "$0" would point to the
+# wrong directory. The while loop resolves the full symlink chain portably on
+# both macOS (BSD readlink) and Linux (GNU readlink).
+#
+# To override the Python interpreter (e.g. in sandboxed environments):
+#   export DIRLENS_PYTHON=/usr/bin/python3
+
+self="$0"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in
+    /*) self="$link" ;;
+    *)  self="$(dirname "$self")/$link" ;;
+  esac
+done
+dir="$(cd "$(dirname "$self")/.." && pwd)"
+
+python="${DIRLENS_PYTHON:-python3}"
+exec "$python" "$dir/dirlens.py" "$@"
