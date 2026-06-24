@@ -1,15 +1,20 @@
 {
   "name": "dirlens",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール",
   "bin": {
     "dirlens": "bin/dirlens"
+  },
+  "scripts": {
+    "version": "node scripts/sync-version.js"
   },
   "files": [
     "bin/",
     "dirlens.py",
     "dirlens.bat",
-    "README.md"
+    "README.md",
+    "AGENT_RULE.md",
+    "AGENT_RULE_STRICT.md"
   ],
   "keywords": [
     "cli",
