@@ -7,27 +7,20 @@
 
 ## インストール
 
-### npm（推奨・全プラットフォーム共通）
-
-Node.js が入っていれば、どの OS でも同じコマンドでインストールできます。
+### npm
 
 ```bash
 npm install -g dirlens
 ```
 
-インストール確認：
+### pip
 
 ```bash
-dirlens --help
+pip install dirlens
 ```
 
-アンインストール：
-
-```bash
-npm uninstall -g dirlens
-```
-
----
+<details>
+<summary>その他のインストール方法</summary>
 
 ### macOS / Linux（スクリプト直接インストール）
 
@@ -84,6 +77,8 @@ dirlens --help
 
 > **メモ**: Windows Terminal や VS Code のターミナルではカラー表示されます。  
 > 旧来のコマンドプロンプト（cmd.exe）ではカラーが出ない場合があります。
+
+</details>
 
 ---
 
