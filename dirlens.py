@@ -2,6 +2,10 @@
 """
 dirlens – ファイルサイズ付きディレクトリツリー表示ツール
 対応環境: macOS / Linux / Windows  (Python 3.8+)
+
+Copyright 2026 Igarin
+Licensed under the Apache License, Version 2.0.
+See the LICENSE file or http://www.apache.org/licenses/LICENSE-2.0
 """
 
 import io, json, os, sys, stat as _stat, argparse, fnmatch, datetime, subprocess, re, ast, html
@@ -209,6 +213,9 @@ def _extend_pats(active_pats, path, cfg):
 
 
 # ─── ディレクトリサイズ ───────────────────────────────────────
+# _prefetch_sizes() が ThreadPoolExecutor から dir_size() を並列に呼ぶため、このキャッシュは
+# 複数スレッドから読み書きされる。dict への単一代入は GIL 下で原子的なので破損はしないが、
+# 同一サブディレクトリが複数スレッドで重複計算されうる（最悪でも無駄な再計算のみで、結果は不変）。
 _sz_cache = {}
 
 def dir_size(path):
@@ -893,6 +900,19 @@ def _file_extras(entry, relpath, cfg):
 # ════════════════════════════════════════════════════════════
 
 
+# ─── 読み始め候補 ─────────────────────────────────────────────
+def reading_order_candidates(cfg, top_n, limit):
+    """「読み始めの候補」を返す（エントリーポイント→依存度の高い順）。
+    JSON・テキスト両出力で共有する。top_n: 依存度上位から補充する件数、limit: 最終件数上限。
+    """
+    cand = sorted(cfg.entry_set)
+    if cfg.imported_by_map:
+        for p, _ in sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:top_n]:
+            if p not in cand:
+                cand.append(p)
+    return cand[:limit]
+
+
 # ─── 設定クラス ───────────────────────────────────────────────
 class Cfg:
     def __init__(self, args, root):
@@ -1373,7 +1393,7 @@ def main():
         epilog=(
             "使用例:\n"
             "  dirlens --ai             AIチャット貼り付け用（人間がコピペする想定）\n"
-            "  dirlens --agent          エージェント向け解析（クリップボードは使わない）\n"
+            "  dirlens --agent          エージェント向け解析（カラーなし・クリップボードは使わない）\n"
             "  dirlens -d               ディレクトリのみ表示（tree -d 互換）\n"
             "  dirlens -L 2             深さ 2 まで表示（tree -L 互換）\n"
             "  dirlens -G --prune       gitignore除外 + 空枝を剪定\n"
@@ -1471,7 +1491,7 @@ def main():
     ap.add_argument("--ai",              action="store_true",
                     help="-G --date -m -C のショートカット（人間がAIチャットに貼り付ける用）")
     ap.add_argument("--agent",           action="store_true",
-                    help="-G -T -H -K -V -N -O -M -F のショートカット（エージェント向け解析、クリップボードは使わない）")
+                    help="-G -T -H -K -V -N -O -M -F --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）")
     args = ap.parse_args()
 
     # ── エイリアスのマージ ────────────────────────────────────
@@ -1490,6 +1510,8 @@ def main():
         args.copy      = True
 
     # --agent: エージェントが自律実行しても安全なショートカット（クリップボードは使わない）
+    # エージェント出力／ログとして扱う前提のため、ANSIカラーも自動で無効化する
+    # （--agent 単体で --no-color を兼ねる）。
     if args.agent:
         args.gitignore = True
         args.date      = True
@@ -1501,6 +1523,7 @@ def main():
         args.outline   = True
         args.imports   = True
         args.config    = True
+        args.no_color  = True
 
     # -A（公開APIのみ）は -O（アウトライン）を自動的に有効化する
     if args.api:
@@ -1551,11 +1574,7 @@ def main():
 
             reading_order = None
             if cfg.show_entry and cfg.show_imports and (cfg.entry_set or cfg.imported_by_map):
-                cand = list(sorted(cfg.entry_set))
-                if cfg.imported_by_map:
-                    for p, _ in sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:5]:
-                        if p not in cand: cand.append(p)
-                reading_order = cand[:8]
+                reading_order = reading_order_candidates(cfg, top_n=5, limit=8)
 
             tree["project_summary"] = {
                 "estimated_tokens": stats["tokens"] if cfg.show_tokens else None,
@@ -1567,7 +1586,7 @@ def main():
                 "most_depended_on": most_depended,
                 "hotspots": hotspots,
                 "circular_dependencies": (
-                    [c for c in cfg.cycles] if cfg.show_imports and cfg.cycles else
+                    list(cfg.cycles) if cfg.show_imports and cfg.cycles else
                     ([] if cfg.show_imports else None)
                 ),
                 "reading_order_candidates": reading_order,
@@ -1667,14 +1686,10 @@ def main():
                 print(c(f"    {relpath}  ({n} 回変更)", DIM))
 
     if cfg.show_entry and cfg.show_imports and (cfg.entry_set or cfg.imported_by_map):
-        candidates = list(sorted(cfg.entry_set))
-        if cfg.imported_by_map:
-            for p, _ in sorted(cfg.imported_by_map.items(), key=lambda kv: -len(kv[1]))[:3]:
-                if p not in candidates:
-                    candidates.append(p)
+        candidates = reading_order_candidates(cfg, top_n=3, limit=5)
         if candidates:
             print(c("  読み始めの候補（エントリーポイント→依存度の高い順）:", DIM))
-            for i, p in enumerate(candidates[:5], 1):
+            for i, p in enumerate(candidates, 1):
                 print(c(f"    {i}. {p}", DIM))
 
     if cfg.show_git and not cfg.git_map:
