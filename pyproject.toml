@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dirlens"
-version = "1.0.21"
+version = "1.0.22"
 description = "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール"
 requires-python = ">=3.8"
 authors = [{name = "igarin"}]

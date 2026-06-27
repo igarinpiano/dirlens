@@ -8,6 +8,9 @@
 #
 # To override the Python interpreter (e.g. in sandboxed environments):
 #   export DIRLENS_PYTHON=/usr/bin/python3
+# Interpreter resolution order: $DIRLENS_PYTHON -> python3 -> python -> py.
+# Windows' official Python often exposes only `python` / `py` (no `python3`),
+# so the wrapper falls back through these instead of hardcoding python3.
 
 self="$0"
 while [ -L "$self" ]; do
@@ -19,5 +22,16 @@ while [ -L "$self" ]; do
 done
 dir="$(cd "$(dirname "$self")/.." && pwd)"
 
-python="${DIRLENS_PYTHON:-python3}"
+if [ -n "$DIRLENS_PYTHON" ]; then
+  python="$DIRLENS_PYTHON"
+elif command -v python3 >/dev/null 2>&1; then
+  python=python3
+elif command -v python >/dev/null 2>&1; then
+  python=python
+elif command -v py >/dev/null 2>&1; then
+  python=py
+else
+  echo "dirlens: Python が見つかりません (python3 / python / py)。Python 3.8+ をインストールしてください。" >&2
+  exit 1
+fi
 exec "$python" "$dir/dirlens.py" "$@"

@@ -7,17 +7,28 @@
 
 ## インストール
 
-### npm
+### pip（全OS推奨・Windowsはこちら）
+
+```bash
+pip install dirlens
+```
+
+`python` または `py` が PATH にあれば、Windows でもネイティブな `dirlens.exe` が
+`Scripts\` に作られ、cmd / PowerShell からそのまま動きます。
+
+### npm（macOS / Linux 向け）
 
 ```bash
 npm install -g dirlens
 ```
 
-### pip
-
-```bash
-pip install dirlens
-```
+> **Windows での注意**: npm 版は `sh` 前提のラッパーで動くため、`sh` の無い素の
+> Windows（cmd / PowerShell）では `指定されたパスが見つかりません。` 等で起動できません。
+> **Windows では `pip install dirlens` を使ってください。**
+> （Git Bash / WSL があれば npm 版も動きますが、pip 版が確実です。）
+>
+> また PowerShell では既定の ExecutionPolicy により npm が生成する `.ps1`
+> シムがブロックされることがあります。その場合も pip 版（`.exe`）なら影響を受けません。
 
 <details>
 <summary>その他のインストール方法</summary>
@@ -58,8 +69,15 @@ dirlens --help
 
    ```batch
    @echo off
-   python "%~dp0dirlens.py" %*
+   where python >nul 2>nul
+   if %errorlevel%==0 (
+     python "%~dp0dirlens.py" %*
+   ) else (
+     py "%~dp0dirlens.py" %*
+   )
    ```
+
+   > `python` が PATH に無い環境（`py` ランチャーのみ）でも動くようフォールバックしています。
 
 3. そのフォルダを **システム環境変数 PATH** に追加：
    - スタートメニュー →「環境変数を編集」→ PATH に追記
