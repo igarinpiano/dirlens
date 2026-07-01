@@ -106,6 +106,20 @@ pub fn execute<F: FsProvider>(
         Arc::new(Vec::new())
     };
 
+    // gitignore 2層: Tier1（git check-ignore）を試し、失敗時は Tier3（内蔵マッチャ）へ縮退
+    if cfg.use_gitignore {
+        let mut tier = "builtin";
+        if cfg.gitignore_prefer_git {
+            if let Some(set) =
+                crate::gitignore::build_git_ignored_set(sess, git, &cfg.root.clone())
+            {
+                sess.git_ignored = Some(set);
+                tier = "git";
+            }
+        }
+        cfg.gitignore_tier = Some(tier);
+    }
+
     if cfg.show_tests || cfg.show_entry || cfg.show_config || cfg.show_imports {
         let idx = build_project_index(sess, &cfg.root.clone(), cfg, &active_pats);
         cfg.untested_set = idx.untested;

@@ -62,6 +62,44 @@ pub fn is_ignored(name: &str, rel_path: &str, is_dir: bool, patterns: &[String])
     result
 }
 
+/// Tier1: git check-ignore による無視集合の事前計算。
+///
+/// ルートから BFS でレベルごとに全エントリを `git check-ignore --stdin -z` へ
+/// 一括投入し、無視された rel パス（"/" 区切り）の集合を作る。無視された
+/// ディレクトリには降りない（その配下が問い合わせられることはないため）。
+/// git が使えない・非 work tree・途中で失敗した場合は None（Tier3 へ縮退）。
+pub fn build_git_ignored_set<F: FsProvider>(
+    sess: &Session<F>,
+    git: &dyn crate::provider::GitProvider,
+    root: &Path,
+) -> Option<std::collections::HashSet<String>> {
+    let mut ignored: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut level_dirs: Vec<std::path::PathBuf> = vec![root.to_path_buf()];
+    while !level_dirs.is_empty() {
+        let mut rels: Vec<String> = Vec::new();
+        let mut children: Vec<crate::provider::Entry> = Vec::new();
+        for d in &level_dirs {
+            if let Ok(entries) = sess.fs.scan_dir(d) {
+                for e in entries {
+                    rels.push(relpath_slash(&e.path, root));
+                    children.push(e);
+                }
+            }
+        }
+        if rels.is_empty() {
+            break;
+        }
+        let resp = git.check_ignore(root, &rels)?;
+        ignored.extend(resp);
+        level_dirs = children
+            .into_iter()
+            .filter(|e| e.is_dir_nofollow && !ignored.contains(&relpath_slash(&e.path, root)))
+            .map(|e| e.path)
+            .collect();
+    }
+    Some(ignored)
+}
+
 /// _extend_pats 相当: 下位ディレクトリの .gitignore をルート相対に書き換えて追加する。
 pub fn extend_pats<F: FsProvider>(
     sess: &Session<F>,

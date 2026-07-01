@@ -258,6 +258,20 @@ fn main() {
         }
     };
 
+    // gitignore 層の選択（テスト・検証用の環境変数。通常は auto = Tier1 を試す）:
+    //   DIRLENS_GITIGNORE=builtin … 内蔵マッチャ（Tier3）を強制
+    //   DIRLENS_COMPAT=python     … Python 版完全互換モード（ゴールデン検証用）
+    let compat_python = std::env::var("DIRLENS_COMPAT").as_deref() == Ok("python");
+    match std::env::var("DIRLENS_GITIGNORE").as_deref() {
+        Ok("builtin") => cfg.gitignore_prefer_git = false,
+        Ok("git") => cfg.gitignore_prefer_git = true,
+        _ => {
+            if compat_python {
+                cfg.gitignore_prefer_git = false;
+            }
+        }
+    }
+
     let mut sess = Session::new(&fs);
 
     // ── トップレベル dir サイズの並列プリフェッチ ──────────────

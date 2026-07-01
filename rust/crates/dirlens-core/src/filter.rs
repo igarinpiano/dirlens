@@ -26,10 +26,11 @@ pub fn filter_entries<F: FsProvider>(
         .filter(|e| cfg.show_all || !e.name.starts_with('.'))
         .collect();
 
-    if !active_pats.is_empty() {
-        entries.retain(|e| {
-            !ignored_by_engine(sess, cfg, e, active_pats)
-        });
+    // Tier1（事前計算済み集合）が有効なら active_pats が空でもフィルタする
+    let engine_active =
+        (cfg.use_gitignore && sess.git_ignored.is_some()) || !active_pats.is_empty();
+    if engine_active {
+        entries.retain(|e| !ignored_by_engine(sess, cfg, e, active_pats));
     }
 
     let mut dirs: Vec<Entry> = entries

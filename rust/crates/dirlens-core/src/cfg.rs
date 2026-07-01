@@ -49,6 +49,13 @@ pub struct Cfg {
     pub public_only: bool,
     pub has_extras: bool,
 
+    /// Tier1（git check-ignore）を試すか。CLI が環境変数
+    /// （DIRLENS_GITIGNORE=builtin / DIRLENS_COMPAT=python）に応じて false にする。
+    /// wasm では GitProvider が常に失敗するため実質 Tier3 固定。
+    pub gitignore_prefer_git: bool,
+    /// 実際に使われた gitignore 層（"git" / "builtin"）。capabilities 出力用。
+    pub gitignore_tier: Option<&'static str>,
+
     // 出力モード
     pub use_color: bool,
     pub markdown: bool,
@@ -124,6 +131,8 @@ impl Cfg {
             show_config: args.config,
             public_only: args.api,
             has_extras,
+            gitignore_prefer_git: true,
+            gitignore_tier: None,
             use_color,
             markdown: args.markdown,
             json: args.json,
