@@ -163,6 +163,9 @@ pub fn execute<F: FsProvider>(
     // ── HTML ─────────────────────────────────────────────────
     if let Some(html_path) = cfg.html.clone() {
         let content = generate_html(sess, cfg, &active_pats);
+        // Windows では Python の text モード書き込み（\n → \r\n 変換）に合わせる
+        #[cfg(windows)]
+        let content = content.replace('\n', "\r\n");
         let size = content.len() as u64;
         return RunResult {
             stdout: format!(

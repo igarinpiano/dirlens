@@ -318,11 +318,14 @@ def load_git_log(root, max_commits=2000):
       change_counts: {relpath: int}  走査した履歴内での変更回数（ホットスポット検出用）
     """
     try:
+        # encoding を明示する: Windows では locale (cp1252 等) でデコードされ、
+        # 非ASCIIのコミットメッセージで UnicodeDecodeError になるため。
         proc = subprocess.run(
             ["git", "-C", root, "log", "-n", str(max_commits),
              "--name-only", "--date=relative",
              "--pretty=format:\x01%H\x02%ad\x02%an\x02%s\x03"],
-            capture_output=True, text=True, timeout=8, check=True,
+            capture_output=True, encoding="utf-8", errors="replace",
+            timeout=8, check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError,
             subprocess.TimeoutExpired, OSError):
@@ -969,6 +972,16 @@ class Cfg:
 
 
 # ─── 共通フィルタリング ───────────────────────────────────────
+def _is_dir_follow(e):
+    """DirEntry.is_dir(follow_symlinks=True) の安全版。
+    Windows では壊れたsymlinkで FileNotFoundError 以外の OSError
+    （WinError 123 等）が伝播してくることがあるため握りつぶす。"""
+    try:
+        return e.is_dir(follow_symlinks=True)
+    except OSError:
+        return False
+
+
 def _filter(path, cfg, active_pats):
     try: raw = list(os.scandir(path))
     except OSError: return None, None  # アクセス拒否・走査中の削除・ELOOP等のシグナル
@@ -987,14 +1000,14 @@ def _filter(path, cfg, active_pats):
     if cfg.follow_syms:
         sym_dirs = [e for e in entries
                     if e.is_symlink() and not e.is_dir(follow_symlinks=False)
-                    and e.is_dir(follow_symlinks=True)]
+                    and _is_dir_follow(e)]
         dirs = dirs + sym_dirs
 
     if cfg.dirs_only:
         files = []
     else:
         files = [e for e in entries if not e.is_dir(follow_symlinks=False)
-                 and not (cfg.follow_syms and e.is_symlink() and e.is_dir(follow_symlinks=True))]
+                 and not (cfg.follow_syms and e.is_symlink() and _is_dir_follow(e))]
 
     if cfg.excludes:
         dirs  = [d for d in dirs  if not any(fnmatch.fnmatch(d.name, p) for p in cfg.excludes)]
@@ -1114,7 +1127,7 @@ def render(path, prefix, depth, cfg, stats, active_pats, _seen=None):
         perm_prefix = fmt_perm_info(entry, cfg)
 
         is_dir_entry = entry.is_dir(follow_symlinks=False) or \
-                       (cfg.follow_syms and entry.is_symlink() and entry.is_dir(follow_symlinks=True))
+                       (cfg.follow_syms and entry.is_symlink() and _is_dir_follow(entry))
 
         if is_dir_entry:
             sz, sz_err     = dir_size(entry.path)

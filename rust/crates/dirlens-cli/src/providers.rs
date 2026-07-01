@@ -78,13 +78,17 @@ impl FsProvider for StdFs {
         let attrs = md.file_attributes();
         let readonly = attrs & 0x1 != 0;
         let is_link = md.file_type().is_symlink();
+        let is_dir_attr = attrs & 0x10 != 0; // FILE_ATTRIBUTE_DIRECTORY（ディレクトリ symlink も立つ）
         let mut mode: u32 = if is_link {
             0o120000
         } else if md.is_dir() {
-            0o040000 | 0o111
+            0o040000
         } else {
             0o100000
         };
+        if is_dir_attr {
+            mode |= 0o111; // CPython: ディレクトリ（とディレクトリ symlink）は実行ビット付与
+        }
         mode |= if readonly { 0o444 } else { 0o666 };
         let ext = path
             .extension()
