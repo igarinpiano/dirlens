@@ -1,0 +1,285 @@
+{
+  "name": "basic",
+  "type": "directory",
+  "size": 312892,
+  "size_human": "305.56 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 5,
+    "files": 10,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": ".hiddendir",
+      "type": "directory",
+      "size": 13,
+      "size_human": "13 bytes",
+      "path": ".hiddendir",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "inner.txt",
+          "type": "file",
+          "size": 13,
+          "size_human": "13 bytes",
+          "ext": ".txt",
+          "path": ".hiddendir/inner.txt"
+        }
+      ]
+    },
+    {
+      "name": "emptydir",
+      "type": "directory",
+      "size": 0,
+      "size_human": "0 bytes",
+      "path": "emptydir",
+      "item_count": {
+        "dirs": 0,
+        "files": 0,
+        "permission_denied": false
+      },
+      "children": []
+    },
+    {
+      "name": "links",
+      "type": "directory",
+      "size": 17,
+      "size_human": "17 bytes",
+      "path": "links",
+      "item_count": {
+        "dirs": 0,
+        "files": 4,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "broken",
+          "type": "file",
+          "size": 0,
+          "size_human": "0 bytes",
+          "ext": "",
+          "path": "links/broken"
+        },
+        {
+          "name": "real.txt",
+          "type": "file",
+          "size": 17,
+          "size_human": "17 bytes",
+          "ext": ".txt",
+          "path": "links/real.txt"
+        },
+        {
+          "name": "to_dir",
+          "type": "file",
+          "size": 128,
+          "size_human": "128 bytes",
+          "ext": "",
+          "path": "links/to_dir"
+        },
+        {
+          "name": "to_file",
+          "type": "file",
+          "size": 172,
+          "size_human": "172 bytes",
+          "ext": "",
+          "path": "links/to_file"
+        }
+      ]
+    },
+    {
+      "name": "loop",
+      "type": "directory",
+      "size": 8,
+      "size_human": "8 bytes",
+      "path": "loop",
+      "item_count": {
+        "dirs": 1,
+        "files": 0,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "inner",
+          "type": "directory",
+          "size": 8,
+          "size_human": "8 bytes",
+          "path": "loop/inner",
+          "item_count": {
+            "dirs": 0,
+            "files": 2,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "back",
+              "type": "file",
+              "size": 96,
+              "size_human": "96 bytes",
+              "ext": "",
+              "path": "loop/inner/back"
+            },
+            {
+              "name": "file.txt",
+              "type": "file",
+              "size": 8,
+              "size_human": "8 bytes",
+              "ext": ".txt",
+              "path": "loop/inner/file.txt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sub",
+      "type": "directory",
+      "size": 627,
+      "size_human": "627 bytes",
+      "path": "sub",
+      "item_count": {
+        "dirs": 1,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "grandchild",
+          "type": "directory",
+          "size": 395,
+          "size_human": "395 bytes",
+          "path": "sub/grandchild",
+          "item_count": {
+            "dirs": 1,
+            "files": 1,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "deeper",
+              "type": "directory",
+              "size": 5,
+              "size_human": "5 bytes",
+              "path": "sub/grandchild/deeper",
+              "item_count": {
+                "dirs": 0,
+                "files": 1,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "leaf.md",
+                  "type": "file",
+                  "size": 5,
+                  "size_human": "5 bytes",
+                  "ext": ".md",
+                  "path": "sub/grandchild/deeper/leaf.md"
+                }
+              ]
+            },
+            {
+              "name": "deep.txt",
+              "type": "file",
+              "size": 390,
+              "size_human": "390 bytes",
+              "ext": ".txt",
+              "path": "sub/grandchild/deep.txt"
+            }
+          ]
+        },
+        {
+          "name": "child.py",
+          "type": "file",
+          "size": 232,
+          "size_human": "232 bytes",
+          "ext": ".py",
+          "path": "sub/child.py"
+        }
+      ]
+    },
+    {
+      "name": ".hidden_file",
+      "type": "file",
+      "size": 7,
+      "size_human": "7 bytes",
+      "ext": "",
+      "path": ".hidden_file"
+    },
+    {
+      "name": "alpha.txt",
+      "type": "file",
+      "size": 1024,
+      "size_human": "1 KB",
+      "ext": ".txt",
+      "path": "alpha.txt"
+    },
+    {
+      "name": "app.log",
+      "type": "file",
+      "size": 200,
+      "size_human": "200 bytes",
+      "ext": ".log",
+      "path": "app.log"
+    },
+    {
+      "name": "Beta.md",
+      "type": "file",
+      "size": 1587,
+      "size_human": "1.55 KB",
+      "ext": ".md",
+      "path": "Beta.md"
+    },
+    {
+      "name": "big.bin",
+      "type": "file",
+      "size": 307200,
+      "size_human": "300 KB",
+      "ext": ".bin",
+      "path": "big.bin"
+    },
+    {
+      "name": "empty.txt",
+      "type": "file",
+      "size": 0,
+      "size_human": "0 bytes",
+      "ext": ".txt",
+      "path": "empty.txt"
+    },
+    {
+      "name": "notes.txt",
+      "type": "file",
+      "size": 500,
+      "size_human": "500 bytes",
+      "ext": ".txt",
+      "path": "notes.txt"
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 172,
+      "size_human": "172 bytes",
+      "ext": ".md",
+      "path": "README.md"
+    },
+    {
+      "name": "single.b",
+      "type": "file",
+      "size": 1,
+      "size_human": "1 byte",
+      "ext": ".b",
+      "path": "single.b"
+    },
+    {
+      "name": "Zeta.txt",
+      "type": "file",
+      "size": 1536,
+      "size_human": "1.5 KB",
+      "ext": ".txt",
+      "path": "Zeta.txt"
+    }
+  ]
+}

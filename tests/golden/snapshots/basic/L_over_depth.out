@@ -1,0 +1,17 @@
+basic/ (4 dirs, 9 files, 305.56 KB)
+├── emptydir/ (0 dirs, 0 files, 0 bytes)
+├── links/ (0 dirs, 4 files, 17 bytes)
+├── loop/ (1 dir, 0 files, 8 bytes)
+├── sub/ (1 dir, 1 file, 627 bytes)
+├── alpha.txt (1 KB)
+├── app.log (200 bytes)
+├── Beta.md (1.55 KB)
+├── big.bin (300 KB)
+├── empty.txt (0 bytes)
+├── notes.txt (500 bytes)
+├── README.md (172 bytes)
+├── single.b (1 byte)
+└── Zeta.txt (1.5 KB)
+
+  合計  4 ディレクトリ,  9 ファイル
+  .txt ×4  .md ×2  .log ×1  .bin ×1  .b ×1

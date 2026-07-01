@@ -1,0 +1,457 @@
+{
+  "name": "multi_lang",
+  "type": "directory",
+  "size": 3457,
+  "size_human": "3.38 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 5,
+    "files": 6,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "docs",
+      "type": "directory",
+      "size": 955,
+      "size_human": "955 bytes",
+      "path": "docs",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "日本語メモ.md",
+          "type": "file",
+          "size": 955,
+          "size_human": "955 bytes",
+          "ext": ".md",
+          "path": "docs/日本語メモ.md",
+          "outline": null
+        }
+      ]
+    },
+    {
+      "name": "go",
+      "type": "directory",
+      "size": 372,
+      "size_human": "372 bytes",
+      "path": "go",
+      "item_count": {
+        "dirs": 1,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "internal",
+          "type": "directory",
+          "size": 127,
+          "size_human": "127 bytes",
+          "path": "go/internal",
+          "item_count": {
+            "dirs": 1,
+            "files": 0,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "util",
+              "type": "directory",
+              "size": 127,
+              "size_human": "127 bytes",
+              "path": "go/internal/util",
+              "item_count": {
+                "dirs": 0,
+                "files": 1,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "util.go",
+                  "type": "file",
+                  "size": 127,
+                  "size_human": "127 bytes",
+                  "ext": ".go",
+                  "path": "go/internal/util/util.go",
+                  "outline": [
+                    {
+                      "kind": "func",
+                      "name": "Public",
+                      "public": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "go.mod",
+          "type": "file",
+          "size": 33,
+          "size_human": "33 bytes",
+          "ext": ".mod",
+          "path": "go/go.mod",
+          "outline": null
+        },
+        {
+          "name": "main.go",
+          "type": "file",
+          "size": 212,
+          "size_human": "212 bytes",
+          "ext": ".go",
+          "path": "go/main.go",
+          "outline": [
+            {
+              "kind": "struct",
+              "name": "Config",
+              "public": true
+            },
+            {
+              "kind": "interface",
+              "name": "Runner",
+              "public": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pkg",
+      "type": "directory",
+      "size": 596,
+      "size_human": "596 bytes",
+      "path": "pkg",
+      "item_count": {
+        "dirs": 0,
+        "files": 5,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "size": 22,
+          "size_human": "22 bytes",
+          "ext": ".py",
+          "path": "pkg/__init__.py",
+          "outline": []
+        },
+        {
+          "name": "circle_a.py",
+          "type": "file",
+          "size": 57,
+          "size_human": "57 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_a.py",
+          "outline": [
+            {
+              "kind": "def",
+              "name": "alpha",
+              "public": true
+            }
+          ]
+        },
+        {
+          "name": "circle_b.py",
+          "type": "file",
+          "size": 58,
+          "size_human": "58 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_b.py",
+          "outline": [
+            {
+              "kind": "def",
+              "name": "beta",
+              "public": true
+            }
+          ]
+        },
+        {
+          "name": "helpers.py",
+          "type": "file",
+          "size": 215,
+          "size_human": "215 bytes",
+          "ext": ".py",
+          "path": "pkg/helpers.py",
+          "outline": [
+            {
+              "kind": "def",
+              "name": "public_fn",
+              "public": true
+            },
+            {
+              "kind": "class",
+              "name": "Helper",
+              "public": true
+            },
+            {
+              "kind": "def",
+              "name": "fetch",
+              "public": true
+            }
+          ]
+        },
+        {
+          "name": "utils.py",
+          "type": "file",
+          "size": 244,
+          "size_human": "244 bytes",
+          "ext": ".py",
+          "path": "pkg/utils.py",
+          "outline": [
+            {
+              "kind": "def",
+              "name": "util_fn",
+              "public": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 883,
+      "size_human": "883 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 1,
+        "files": 4,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "lib",
+          "type": "directory",
+          "size": 355,
+          "size_human": "355 bytes",
+          "path": "src/lib",
+          "item_count": {
+            "dirs": 0,
+            "files": 3,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "data.js",
+              "type": "file",
+              "size": 31,
+              "size_human": "31 bytes",
+              "ext": ".js",
+              "path": "src/lib/data.js",
+              "outline": []
+            },
+            {
+              "name": "types.ts",
+              "type": "file",
+              "size": 82,
+              "size_human": "82 bytes",
+              "ext": ".ts",
+              "path": "src/lib/types.ts",
+              "outline": [
+                {
+                  "kind": "class",
+                  "name": "Kind",
+                  "public": true
+                },
+                {
+                  "kind": "func",
+                  "name": "DEFAULT_KIND",
+                  "public": true
+                }
+              ]
+            },
+            {
+              "name": "util.ts",
+              "type": "file",
+              "size": 242,
+              "size_human": "242 bytes",
+              "ext": ".ts",
+              "path": "src/lib/util.ts",
+              "outline": [
+                {
+                  "kind": "func",
+                  "name": "helper",
+                  "public": true
+                },
+                {
+                  "kind": "func",
+                  "name": "arrowExported",
+                  "public": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "app.test.ts",
+          "type": "file",
+          "size": 64,
+          "size_human": "64 bytes",
+          "ext": ".ts",
+          "path": "src/app.test.ts",
+          "outline": []
+        },
+        {
+          "name": "app.ts",
+          "type": "file",
+          "size": 80,
+          "size_human": "80 bytes",
+          "ext": ".ts",
+          "path": "src/app.ts",
+          "outline": [
+            {
+              "kind": "func",
+              "name": "appMain",
+              "public": true
+            }
+          ]
+        },
+        {
+          "name": "cli.js",
+          "type": "file",
+          "size": 128,
+          "size_human": "128 bytes",
+          "ext": ".js",
+          "path": "src/cli.js",
+          "outline": []
+        },
+        {
+          "name": "index.js",
+          "type": "file",
+          "size": 256,
+          "size_human": "256 bytes",
+          "ext": ".js",
+          "path": "src/index.js",
+          "outline": [
+            {
+              "kind": "class",
+              "name": "App",
+              "public": true
+            },
+            {
+              "kind": "func",
+              "name": "bootstrap",
+              "public": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tests",
+      "type": "directory",
+      "size": 78,
+      "size_human": "78 bytes",
+      "path": "tests",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "test_utils.py",
+          "type": "file",
+          "size": 78,
+          "size_human": "78 bytes",
+          "ext": ".py",
+          "path": "tests/test_utils.py",
+          "outline": [
+            {
+              "kind": "def",
+              "name": "test_util_fn",
+              "public": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dockerfile",
+      "type": "file",
+      "size": 29,
+      "size_human": "29 bytes",
+      "ext": "",
+      "path": "Dockerfile",
+      "outline": null
+    },
+    {
+      "name": "main.py",
+      "type": "file",
+      "size": 321,
+      "size_human": "321 bytes",
+      "ext": ".py",
+      "path": "main.py",
+      "outline": [
+        {
+          "kind": "def",
+          "name": "main",
+          "public": true
+        },
+        {
+          "kind": "class",
+          "name": "AppRunner",
+          "public": true
+        },
+        {
+          "kind": "def",
+          "name": "run",
+          "public": true
+        }
+      ]
+    },
+    {
+      "name": "Makefile",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": "",
+      "path": "Makefile",
+      "outline": null
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "size": 102,
+      "size_human": "102 bytes",
+      "ext": ".json",
+      "path": "package.json",
+      "outline": null
+    },
+    {
+      "name": "pyproject.toml",
+      "type": "file",
+      "size": 42,
+      "size_human": "42 bytes",
+      "ext": ".toml",
+      "path": "pyproject.toml",
+      "outline": null
+    },
+    {
+      "name": "tsconfig.json",
+      "type": "file",
+      "size": 50,
+      "size_human": "50 bytes",
+      "ext": ".json",
+      "path": "tsconfig.json",
+      "outline": null
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": null,
+    "todo_count": null,
+    "missing_tests_count": null,
+    "entry_points_count": null,
+    "config_files_count": null,
+    "git_available": null,
+    "most_depended_on": null,
+    "hotspots": null,
+    "circular_dependencies": null,
+    "reading_order_candidates": null
+  }
+}

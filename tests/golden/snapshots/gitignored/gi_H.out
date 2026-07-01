@@ -1,0 +1,27 @@
+gitignored/ (3 dirs, 5 files, 3.8 KB)
+├── build/ (0 dirs, 1 file, 13 bytes)
+│   └── out.txt (13 bytes)
+├── nested/ (1 dir, 3 files, 116 bytes)
+│   ├── sub/ (0 dirs, 2 files, 28 bytes)
+│   │   ├── local.txt (20 bytes)
+│   │   └── other.txt (8 bytes)
+│   ├── anchored.txt (28 bytes)
+│   ├── kept.txt (8 bytes, "feat: initial import of projec…" (<GITDATE>))
+│   └── local.txt (28 bytes)
+├── src/ (0 dirs, 2 files, 44 bytes)
+│   ├── deep.log (19 bytes)
+│   └── main.py (25 bytes, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>))
+├── app.log (12 bytes)
+├── important.log (17 bytes, "feat: initial import of projec…" (<GITDATE>))
+├── README.md (24 bytes, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>))
+├── temp1.txt (10 bytes)
+└── temporary_notes.md (12 bytes)
+
+  合計  4 ディレクトリ,  13 ファイル
+  .txt ×7  .log ×3  .md ×2  .py ×1
+  変更頻度が高いファイル（直近の履歴内）:
+    src/main.py  (3 回変更)
+    README.md  (2 回変更)
+    .gitignore  (1 回変更)
+    important.log  (1 回変更)
+    nested/kept.txt  (1 回変更)

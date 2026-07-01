@@ -738,7 +738,9 @@ def build_project_index(root, cfg, active_pats=None):
 
             if local_targets:
                 imports_map[relpath] = sorted(local_targets)
-                for t in local_targets:
+                # sorted() で回す: set の順序はハッシュランダム化で実行毎に変わるため、
+                # ここが imported_by_acc の挿入順（＝依存度タイ時の表示順）を非決定論にしていた。
+                for t in sorted(local_targets):
                     imported_by_acc.setdefault(t, set()).add(relpath)
             if external_raw:
                 # 重複除去しつつ最大10件まで

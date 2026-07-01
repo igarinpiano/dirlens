@@ -1,0 +1,27 @@
+edge/ (2 dirs, 13 files, 5.73+ MB)
+├── chain/ (1 dir, 0 files, 11 bytes)
+│   └── a/ (1 dir, 0 files, 11 bytes)
+│       └── b/ (1 dir, 0 files, 11 bytes)
+│           └── c/ (1 dir, 0 files, 11 bytes)
+│               └── d/ (1 dir, 0 files, 11 bytes)
+│                   └── e/ (1 dir, 0 files, 11 bytes)
+│                       └── f/ (0 dirs, 1 file, 11 bytes)
+│                           └── leaf.txt (11 bytes)
+├── denied/ (0+ dirs, 0+ files, 0+ bytes)
+│   └── [アクセス拒否]
+├── 'quote'.txt (7 bytes)
+├── [bracket].txt (17 bytes)
+├── a&b<c>.html (17 bytes)
+├── big6mb.txt (5.72 MB)
+├── binary_in_txt.txt (114 bytes)
+├── cjk.md (4.84 KB)
+├── crlf.txt (20 bytes)
+├── image.png (508 bytes)
+├── invalid_utf8.txt (13 bytes)
+├── only_newline.txt (1 byte)
+├── space name.txt (10 bytes)
+├── todo_many.py (398 bytes)
+└── 日本語ファイル.md (15 bytes)
+
+  合計  8 ディレクトリ,  14 ファイル
+  .txt ×9  .md ×2  .html ×1  .png ×1  .py ×1

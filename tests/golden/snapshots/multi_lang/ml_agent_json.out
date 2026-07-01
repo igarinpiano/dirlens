@@ -1,0 +1,884 @@
+{
+  "name": "multi_lang",
+  "type": "directory",
+  "size": 3457,
+  "size_human": "3.38 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 5,
+    "files": 6,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "docs",
+      "type": "directory",
+      "size": 955,
+      "size_human": "955 bytes",
+      "path": "docs",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "日本語メモ.md",
+          "type": "file",
+          "size": 955,
+          "size_human": "955 bytes",
+          "ext": ".md",
+          "path": "docs/日本語メモ.md",
+          "tokens": 213,
+          "lines": 15,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": false,
+          "outline": null,
+          "imports": [],
+          "imported_by": [],
+          "external_imports": []
+        }
+      ]
+    },
+    {
+      "name": "go",
+      "type": "directory",
+      "size": 372,
+      "size_human": "372 bytes",
+      "path": "go",
+      "item_count": {
+        "dirs": 1,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "internal",
+          "type": "directory",
+          "size": 127,
+          "size_human": "127 bytes",
+          "path": "go/internal",
+          "item_count": {
+            "dirs": 1,
+            "files": 0,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "util",
+              "type": "directory",
+              "size": 127,
+              "size_human": "127 bytes",
+              "path": "go/internal/util",
+              "item_count": {
+                "dirs": 0,
+                "files": 1,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "util.go",
+                  "type": "file",
+                  "size": 127,
+                  "size_human": "127 bytes",
+                  "ext": ".go",
+                  "path": "go/internal/util/util.go",
+                  "tokens": 32,
+                  "lines": 10,
+                  "git": null,
+                  "todos": [
+                    {
+                      "line": 5,
+                      "kind": "TODO",
+                      "text": "// TODO: add caching"
+                    }
+                  ],
+                  "has_test": false,
+                  "is_entry": false,
+                  "is_config": false,
+                  "outline": [
+                    {
+                      "kind": "func",
+                      "name": "Public",
+                      "public": true
+                    },
+                    {
+                      "kind": "func",
+                      "name": "private",
+                      "public": false
+                    }
+                  ],
+                  "imports": [],
+                  "imported_by": [],
+                  "external_imports": [
+                    "strings"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "go.mod",
+          "type": "file",
+          "size": 33,
+          "size_human": "33 bytes",
+          "ext": ".mod",
+          "path": "go/go.mod",
+          "tokens": 8,
+          "lines": 3,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": true,
+          "outline": null,
+          "imports": [],
+          "imported_by": [],
+          "external_imports": []
+        },
+        {
+          "name": "main.go",
+          "type": "file",
+          "size": 212,
+          "size_human": "212 bytes",
+          "ext": ".go",
+          "path": "go/main.go",
+          "tokens": 53,
+          "lines": 21,
+          "git": null,
+          "todos": [],
+          "has_test": false,
+          "is_entry": true,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "struct",
+              "name": "Config",
+              "public": true
+            },
+            {
+              "kind": "interface",
+              "name": "Runner",
+              "public": true
+            },
+            {
+              "kind": "func",
+              "name": "main",
+              "public": false
+            },
+            {
+              "kind": "func",
+              "name": "helperLocal",
+              "public": false
+            }
+          ],
+          "imports": [],
+          "imported_by": [],
+          "external_imports": [
+            "fmt",
+            "example.com/demo/internal/util"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pkg",
+      "type": "directory",
+      "size": 596,
+      "size_human": "596 bytes",
+      "path": "pkg",
+      "item_count": {
+        "dirs": 0,
+        "files": 5,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "size": 22,
+          "size_human": "22 bytes",
+          "ext": ".py",
+          "path": "pkg/__init__.py",
+          "tokens": 6,
+          "lines": 1,
+          "git": null,
+          "todos": [],
+          "has_test": false,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [],
+          "imports": [
+            "pkg/helpers.py"
+          ],
+          "imported_by": [],
+          "external_imports": []
+        },
+        {
+          "name": "circle_a.py",
+          "type": "file",
+          "size": 57,
+          "size_human": "57 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_a.py",
+          "tokens": 14,
+          "lines": 4,
+          "git": null,
+          "todos": [],
+          "has_test": false,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "def",
+              "name": "alpha",
+              "public": true
+            }
+          ],
+          "imports": [
+            "pkg/circle_b.py"
+          ],
+          "imported_by": [
+            "pkg/circle_b.py"
+          ],
+          "external_imports": []
+        },
+        {
+          "name": "circle_b.py",
+          "type": "file",
+          "size": 58,
+          "size_human": "58 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_b.py",
+          "tokens": 14,
+          "lines": 4,
+          "git": null,
+          "todos": [],
+          "has_test": false,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "def",
+              "name": "beta",
+              "public": true
+            }
+          ],
+          "imports": [
+            "pkg/circle_a.py"
+          ],
+          "imported_by": [
+            "pkg/circle_a.py"
+          ],
+          "external_imports": []
+        },
+        {
+          "name": "helpers.py",
+          "type": "file",
+          "size": 215,
+          "size_human": "215 bytes",
+          "ext": ".py",
+          "path": "pkg/helpers.py",
+          "tokens": 53,
+          "lines": 15,
+          "git": null,
+          "todos": [
+            {
+              "line": 4,
+              "kind": "FIXME",
+              "text": "# FIXME: エラーハンドリングが未実装"
+            }
+          ],
+          "has_test": false,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "def",
+              "name": "public_fn",
+              "public": true
+            },
+            {
+              "kind": "def",
+              "name": "_private_fn",
+              "public": false
+            },
+            {
+              "kind": "class",
+              "name": "Helper",
+              "public": true
+            },
+            {
+              "kind": "def",
+              "name": "fetch",
+              "public": true
+            },
+            {
+              "kind": "class",
+              "name": "_HiddenHelper",
+              "public": false
+            }
+          ],
+          "imports": [],
+          "imported_by": [
+            "main.py",
+            "pkg/__init__.py",
+            "pkg/utils.py"
+          ],
+          "external_imports": [
+            "json"
+          ]
+        },
+        {
+          "name": "utils.py",
+          "type": "file",
+          "size": 244,
+          "size_human": "244 bytes",
+          "ext": ".py",
+          "path": "pkg/utils.py",
+          "tokens": 58,
+          "lines": 6,
+          "git": null,
+          "todos": [
+            {
+              "line": 6,
+              "kind": "HACK",
+              "text": "return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです"
+            }
+          ],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "def",
+              "name": "util_fn",
+              "public": true
+            }
+          ],
+          "imports": [
+            "pkg/helpers.py"
+          ],
+          "imported_by": [
+            "main.py",
+            "tests/test_utils.py"
+          ],
+          "external_imports": [
+            "sys"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 883,
+      "size_human": "883 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 1,
+        "files": 4,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "lib",
+          "type": "directory",
+          "size": 355,
+          "size_human": "355 bytes",
+          "path": "src/lib",
+          "item_count": {
+            "dirs": 0,
+            "files": 3,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "data.js",
+              "type": "file",
+              "size": 31,
+              "size_human": "31 bytes",
+              "ext": ".js",
+              "path": "src/lib/data.js",
+              "tokens": 8,
+              "lines": 1,
+              "git": null,
+              "todos": [],
+              "has_test": false,
+              "is_entry": false,
+              "is_config": false,
+              "outline": [],
+              "imports": [],
+              "imported_by": [
+                "src/index.js"
+              ],
+              "external_imports": []
+            },
+            {
+              "name": "types.ts",
+              "type": "file",
+              "size": 82,
+              "size_human": "82 bytes",
+              "ext": ".ts",
+              "path": "src/lib/types.ts",
+              "tokens": 20,
+              "lines": 7,
+              "git": null,
+              "todos": [],
+              "has_test": false,
+              "is_entry": false,
+              "is_config": false,
+              "outline": [
+                {
+                  "kind": "class",
+                  "name": "Kind",
+                  "public": true
+                },
+                {
+                  "kind": "func",
+                  "name": "DEFAULT_KIND",
+                  "public": true
+                }
+              ],
+              "imports": [],
+              "imported_by": [
+                "src/lib/util.ts"
+              ],
+              "external_imports": []
+            },
+            {
+              "name": "util.ts",
+              "type": "file",
+              "size": 242,
+              "size_human": "242 bytes",
+              "ext": ".ts",
+              "path": "src/lib/util.ts",
+              "tokens": 60,
+              "lines": 11,
+              "git": null,
+              "todos": [],
+              "has_test": false,
+              "is_entry": false,
+              "is_config": false,
+              "outline": [
+                {
+                  "kind": "func",
+                  "name": "helper",
+                  "public": true
+                },
+                {
+                  "kind": "func",
+                  "name": "internalOnly",
+                  "public": false
+                },
+                {
+                  "kind": "func",
+                  "name": "arrowExported",
+                  "public": true
+                },
+                {
+                  "kind": "func",
+                  "name": "arrowLocal",
+                  "public": false
+                }
+              ],
+              "imports": [
+                "src/lib/types.ts"
+              ],
+              "imported_by": [
+                "src/app.ts",
+                "src/cli.js",
+                "src/index.js"
+              ],
+              "external_imports": [
+                "lodash"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "app.test.ts",
+          "type": "file",
+          "size": 64,
+          "size_human": "64 bytes",
+          "ext": ".ts",
+          "path": "src/app.test.ts",
+          "tokens": 16,
+          "lines": 3,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [],
+          "imports": [
+            "src/app.ts"
+          ],
+          "imported_by": [],
+          "external_imports": []
+        },
+        {
+          "name": "app.ts",
+          "type": "file",
+          "size": 80,
+          "size_human": "80 bytes",
+          "ext": ".ts",
+          "path": "src/app.ts",
+          "tokens": 20,
+          "lines": 5,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": true,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "func",
+              "name": "appMain",
+              "public": true
+            }
+          ],
+          "imports": [
+            "src/lib/util.ts"
+          ],
+          "imported_by": [
+            "src/app.test.ts"
+          ],
+          "external_imports": []
+        },
+        {
+          "name": "cli.js",
+          "type": "file",
+          "size": 128,
+          "size_human": "128 bytes",
+          "ext": ".js",
+          "path": "src/cli.js",
+          "tokens": 32,
+          "lines": 8,
+          "git": null,
+          "todos": [
+            {
+              "line": 4,
+              "kind": "XXX",
+              "text": "// XXX: exit code handling"
+            }
+          ],
+          "has_test": false,
+          "is_entry": true,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "func",
+              "name": "run",
+              "public": false
+            }
+          ],
+          "imports": [
+            "src/lib/util.ts"
+          ],
+          "imported_by": [
+            "src/index.js"
+          ],
+          "external_imports": []
+        },
+        {
+          "name": "index.js",
+          "type": "file",
+          "size": 256,
+          "size_human": "256 bytes",
+          "ext": ".js",
+          "path": "src/index.js",
+          "tokens": 64,
+          "lines": 12,
+          "git": null,
+          "todos": [
+            {
+              "line": 10,
+              "kind": "TODO",
+              "text": "// TODO add error boundary"
+            }
+          ],
+          "has_test": false,
+          "is_entry": true,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "class",
+              "name": "App",
+              "public": true
+            },
+            {
+              "kind": "func",
+              "name": "bootstrap",
+              "public": true
+            }
+          ],
+          "imports": [
+            "src/cli.js",
+            "src/lib/data.js",
+            "src/lib/util.ts"
+          ],
+          "imported_by": [],
+          "external_imports": [
+            "react"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tests",
+      "type": "directory",
+      "size": 78,
+      "size_human": "78 bytes",
+      "path": "tests",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "test_utils.py",
+          "type": "file",
+          "size": 78,
+          "size_human": "78 bytes",
+          "ext": ".py",
+          "path": "tests/test_utils.py",
+          "tokens": 20,
+          "lines": 4,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "def",
+              "name": "test_util_fn",
+              "public": true
+            }
+          ],
+          "imports": [
+            "pkg/utils.py"
+          ],
+          "imported_by": [],
+          "external_imports": []
+        }
+      ]
+    },
+    {
+      "name": "Dockerfile",
+      "type": "file",
+      "size": 29,
+      "size_human": "29 bytes",
+      "ext": "",
+      "path": "Dockerfile",
+      "tokens": 7,
+      "lines": 2,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": true,
+      "is_config": true,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    },
+    {
+      "name": "main.py",
+      "type": "file",
+      "size": 321,
+      "size_human": "321 bytes",
+      "ext": ".py",
+      "path": "main.py",
+      "tokens": 79,
+      "lines": 19,
+      "git": null,
+      "todos": [
+        {
+          "line": 7,
+          "kind": "TODO",
+          "text": "# TODO: コマンドライン引数のパースを追加する"
+        }
+      ],
+      "has_test": false,
+      "is_entry": true,
+      "is_config": false,
+      "outline": [
+        {
+          "kind": "def",
+          "name": "main",
+          "public": true
+        },
+        {
+          "kind": "def",
+          "name": "_internal",
+          "public": false
+        },
+        {
+          "kind": "class",
+          "name": "AppRunner",
+          "public": true
+        },
+        {
+          "kind": "def",
+          "name": "run",
+          "public": true
+        }
+      ],
+      "imports": [
+        "pkg/helpers.py",
+        "pkg/utils.py"
+      ],
+      "imported_by": [],
+      "external_imports": [
+        "os"
+      ]
+    },
+    {
+      "name": "Makefile",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": "",
+      "path": "Makefile",
+      "tokens": 4,
+      "lines": 2,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": true,
+      "is_config": true,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "size": 102,
+      "size_human": "102 bytes",
+      "ext": ".json",
+      "path": "package.json",
+      "tokens": 26,
+      "lines": 6,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": false,
+      "is_config": false,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    },
+    {
+      "name": "pyproject.toml",
+      "type": "file",
+      "size": 42,
+      "size_human": "42 bytes",
+      "ext": ".toml",
+      "path": "pyproject.toml",
+      "tokens": 10,
+      "lines": 3,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": false,
+      "is_config": true,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    },
+    {
+      "name": "tsconfig.json",
+      "type": "file",
+      "size": 50,
+      "size_human": "50 bytes",
+      "ext": ".json",
+      "path": "tsconfig.json",
+      "tokens": 12,
+      "lines": 5,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": false,
+      "is_config": true,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": 829,
+    "todo_count": 6,
+    "missing_tests_count": 12,
+    "entry_points_count": 7,
+    "config_files_count": 5,
+    "git_available": false,
+    "most_depended_on": [
+      {
+        "path": "pkg/helpers.py",
+        "used_by_count": 3
+      },
+      {
+        "path": "src/lib/util.ts",
+        "used_by_count": 3
+      },
+      {
+        "path": "pkg/utils.py",
+        "used_by_count": 2
+      },
+      {
+        "path": "pkg/circle_b.py",
+        "used_by_count": 1
+      },
+      {
+        "path": "pkg/circle_a.py",
+        "used_by_count": 1
+      },
+      {
+        "path": "src/app.ts",
+        "used_by_count": 1
+      },
+      {
+        "path": "src/cli.js",
+        "used_by_count": 1
+      },
+      {
+        "path": "src/lib/data.js",
+        "used_by_count": 1
+      },
+      {
+        "path": "src/lib/types.ts",
+        "used_by_count": 1
+      }
+    ],
+    "hotspots": null,
+    "circular_dependencies": [
+      [
+        "pkg/circle_a.py",
+        "pkg/circle_b.py",
+        "pkg/circle_a.py"
+      ]
+    ],
+    "reading_order_candidates": [
+      "Dockerfile",
+      "Makefile",
+      "go/main.go",
+      "main.py",
+      "src/app.ts",
+      "src/cli.js",
+      "src/index.js",
+      "pkg/helpers.py"
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+multi_lang/ (5 dirs, 6 files, 3.38 KB, 3ヶ月前)
+├── docs/ (0 dirs, 1 file, 955 bytes, 3ヶ月前)
+│   └── 日本語メモ.md (955 bytes, 3ヶ月前, ~213 tok, 15 lines)
+├── go/ (1 dir, 2 files, 372 bytes, 3ヶ月前)
+│   ├── internal/ (1 dir, 0 files, 127 bytes, 3ヶ月前)
+│   │   └── util/ (0 dirs, 1 file, 127 bytes, 3ヶ月前)
+│   │       └── util.go (127 bytes, 3ヶ月前, ~32 tok, 10 lines, TODO×1, テスト無し, func Public, func private)
+│   ├── ⚙ go.mod (33 bytes, 3ヶ月前, ~8 tok, 3 lines, config)
+│   └── * main.go (212 bytes, 3ヶ月前, ~53 tok, 21 lines, テスト無し, struct Config, interface Runner, func main, func helperLocal)
+├── pkg/ (0 dirs, 5 files, 596 bytes, 3ヶ月前)
+│   ├── __init__.py (22 bytes, 3ヶ月前, ~6 tok, 1 lines, テスト無し, imports×1)
+│   ├── circle_a.py (57 bytes, 3ヶ月前, ~14 tok, 4 lines, テスト無し, def alpha, imports×1, used-by×1)
+│   ├── circle_b.py (58 bytes, 3ヶ月前, ~14 tok, 4 lines, テスト無し, def beta, imports×1, used-by×1)
+│   ├── helpers.py (215 bytes, 3ヶ月前, ~53 tok, 15 lines, TODO×1, テスト無し, def public_fn, def _private_fn, class Helper, def fetch, class _HiddenHelper, used-by×3)
+│   └── utils.py (244 bytes, 3ヶ月前, ~58 tok, 6 lines, TODO×1, def util_fn, imports×1, used-by×2)
+├── src/ (1 dir, 4 files, 883 bytes, 3ヶ月前)
+│   ├── lib/ (0 dirs, 3 files, 355 bytes, 3ヶ月前)
+│   │   ├── data.js (31 bytes, 3ヶ月前, ~8 tok, 1 lines, テスト無し, used-by×1)
+│   │   ├── types.ts (82 bytes, 3ヶ月前, ~20 tok, 7 lines, テスト無し, class Kind, func DEFAULT_KIND, used-by×1)
+│   │   └── util.ts (242 bytes, 3ヶ月前, ~60 tok, 11 lines, テスト無し, func helper, func internalOnly, func arrowExported, func arrowLocal, imports×1, used-by×3)
+│   ├── app.test.ts (64 bytes, 3ヶ月前, ~16 tok, 3 lines, imports×1)
+│   ├── * app.ts (80 bytes, 3ヶ月前, ~20 tok, 5 lines, func appMain, imports×1, used-by×1)
+│   ├── * cli.js (128 bytes, 3ヶ月前, ~32 tok, 8 lines, TODO×1, テスト無し, func run, imports×1, used-by×1)
+│   └── * index.js (256 bytes, 3ヶ月前, ~64 tok, 12 lines, TODO×1, テスト無し, class App, func bootstrap, imports×3)
+├── tests/ (0 dirs, 1 file, 78 bytes, 3ヶ月前)
+│   └── test_utils.py (78 bytes, 3ヶ月前, ~20 tok, 4 lines, def test_util_fn, imports×1)
+├── * Dockerfile (29 bytes, 3ヶ月前, ~7 tok, 2 lines, config)
+├── * main.py (321 bytes, 3ヶ月前, ~79 tok, 19 lines, TODO×1, テスト無し, def main, def _internal, class AppRunner, def run, imports×2)
+├── * Makefile (17 bytes, 3ヶ月前, ~4 tok, 2 lines, config)
+├── package.json (102 bytes, 3ヶ月前, ~26 tok, 6 lines)
+├── ⚙ pyproject.toml (42 bytes, 3ヶ月前, ~10 tok, 3 lines, config)
+└── ⚙ tsconfig.json (50 bytes, 3ヶ月前, ~12 tok, 5 lines, config)
+
+  合計  8 ディレクトリ,  23 ファイル  (.gitignore 適用済み)
+  .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
+  推定トークン数: ~829 tok
+  TODO/FIXME等: 6件
+    go/internal/util/util.go:5 [TODO] // TODO: add caching
+    pkg/helpers.py:4 [FIXME] # FIXME: エラーハンドリングが未実装
+    pkg/utils.py:6 [HACK] return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです
+    src/cli.js:4 [XXX] // XXX: exit code handling
+    src/index.js:10 [TODO] // TODO add error boundary
+    main.py:7 [TODO] # TODO: コマンドライン引数のパースを追加する
+  テスト未整備: 12 ファイル
+  エントリーポイント候補: 7 件検出
+  設定ファイル: 5 件検出
+  依存度が高いファイル（多くのファイルから参照されている）:
+    pkg/helpers.py  (used by 3)
+    src/lib/util.ts  (used by 3)
+    pkg/utils.py  (used by 2)
+    pkg/circle_b.py  (used by 1)
+    pkg/circle_a.py  (used by 1)
+  循環依存: 1 件検出
+    pkg/circle_a.py → pkg/circle_b.py → pkg/circle_a.py
+  読み始めの候補（エントリーポイント→依存度の高い順）:
+    1. Dockerfile
+    2. Makefile
+    3. go/main.go
+    4. main.py
+    5. src/app.ts
+  (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)

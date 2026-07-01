@@ -1,0 +1,10 @@
+basic/ (4 dirs, 0 files, 305.56 KB)
+├── emptydir/ (0 dirs, 0 files, 0 bytes)
+├── links/ (0 dirs, 0 files, 17 bytes)
+├── loop/ (1 dir, 0 files, 8 bytes)
+│   └── inner/ (0 dirs, 0 files, 8 bytes)
+└── sub/ (1 dir, 0 files, 627 bytes)
+    └── grandchild/ (1 dir, 0 files, 395 bytes)
+        └── deeper/ (0 dirs, 0 files, 5 bytes)
+
+  合計  7 ディレクトリ  (ディレクトリのみ)

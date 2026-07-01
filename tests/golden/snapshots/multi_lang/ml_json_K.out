@@ -1,0 +1,381 @@
+{
+  "name": "multi_lang",
+  "type": "directory",
+  "size": 3457,
+  "size_human": "3.38 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 5,
+    "files": 6,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "docs",
+      "type": "directory",
+      "size": 955,
+      "size_human": "955 bytes",
+      "path": "docs",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "日本語メモ.md",
+          "type": "file",
+          "size": 955,
+          "size_human": "955 bytes",
+          "ext": ".md",
+          "path": "docs/日本語メモ.md",
+          "todos": []
+        }
+      ]
+    },
+    {
+      "name": "go",
+      "type": "directory",
+      "size": 372,
+      "size_human": "372 bytes",
+      "path": "go",
+      "item_count": {
+        "dirs": 1,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "internal",
+          "type": "directory",
+          "size": 127,
+          "size_human": "127 bytes",
+          "path": "go/internal",
+          "item_count": {
+            "dirs": 1,
+            "files": 0,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "util",
+              "type": "directory",
+              "size": 127,
+              "size_human": "127 bytes",
+              "path": "go/internal/util",
+              "item_count": {
+                "dirs": 0,
+                "files": 1,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "util.go",
+                  "type": "file",
+                  "size": 127,
+                  "size_human": "127 bytes",
+                  "ext": ".go",
+                  "path": "go/internal/util/util.go",
+                  "todos": [
+                    {
+                      "line": 5,
+                      "kind": "TODO",
+                      "text": "// TODO: add caching"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "go.mod",
+          "type": "file",
+          "size": 33,
+          "size_human": "33 bytes",
+          "ext": ".mod",
+          "path": "go/go.mod",
+          "todos": []
+        },
+        {
+          "name": "main.go",
+          "type": "file",
+          "size": 212,
+          "size_human": "212 bytes",
+          "ext": ".go",
+          "path": "go/main.go",
+          "todos": []
+        }
+      ]
+    },
+    {
+      "name": "pkg",
+      "type": "directory",
+      "size": 596,
+      "size_human": "596 bytes",
+      "path": "pkg",
+      "item_count": {
+        "dirs": 0,
+        "files": 5,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "size": 22,
+          "size_human": "22 bytes",
+          "ext": ".py",
+          "path": "pkg/__init__.py",
+          "todos": []
+        },
+        {
+          "name": "circle_a.py",
+          "type": "file",
+          "size": 57,
+          "size_human": "57 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_a.py",
+          "todos": []
+        },
+        {
+          "name": "circle_b.py",
+          "type": "file",
+          "size": 58,
+          "size_human": "58 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_b.py",
+          "todos": []
+        },
+        {
+          "name": "helpers.py",
+          "type": "file",
+          "size": 215,
+          "size_human": "215 bytes",
+          "ext": ".py",
+          "path": "pkg/helpers.py",
+          "todos": [
+            {
+              "line": 4,
+              "kind": "FIXME",
+              "text": "# FIXME: エラーハンドリングが未実装"
+            }
+          ]
+        },
+        {
+          "name": "utils.py",
+          "type": "file",
+          "size": 244,
+          "size_human": "244 bytes",
+          "ext": ".py",
+          "path": "pkg/utils.py",
+          "todos": [
+            {
+              "line": 6,
+              "kind": "HACK",
+              "text": "return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 883,
+      "size_human": "883 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 1,
+        "files": 4,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "lib",
+          "type": "directory",
+          "size": 355,
+          "size_human": "355 bytes",
+          "path": "src/lib",
+          "item_count": {
+            "dirs": 0,
+            "files": 3,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "data.js",
+              "type": "file",
+              "size": 31,
+              "size_human": "31 bytes",
+              "ext": ".js",
+              "path": "src/lib/data.js",
+              "todos": []
+            },
+            {
+              "name": "types.ts",
+              "type": "file",
+              "size": 82,
+              "size_human": "82 bytes",
+              "ext": ".ts",
+              "path": "src/lib/types.ts",
+              "todos": []
+            },
+            {
+              "name": "util.ts",
+              "type": "file",
+              "size": 242,
+              "size_human": "242 bytes",
+              "ext": ".ts",
+              "path": "src/lib/util.ts",
+              "todos": []
+            }
+          ]
+        },
+        {
+          "name": "app.test.ts",
+          "type": "file",
+          "size": 64,
+          "size_human": "64 bytes",
+          "ext": ".ts",
+          "path": "src/app.test.ts",
+          "todos": []
+        },
+        {
+          "name": "app.ts",
+          "type": "file",
+          "size": 80,
+          "size_human": "80 bytes",
+          "ext": ".ts",
+          "path": "src/app.ts",
+          "todos": []
+        },
+        {
+          "name": "cli.js",
+          "type": "file",
+          "size": 128,
+          "size_human": "128 bytes",
+          "ext": ".js",
+          "path": "src/cli.js",
+          "todos": [
+            {
+              "line": 4,
+              "kind": "XXX",
+              "text": "// XXX: exit code handling"
+            }
+          ]
+        },
+        {
+          "name": "index.js",
+          "type": "file",
+          "size": 256,
+          "size_human": "256 bytes",
+          "ext": ".js",
+          "path": "src/index.js",
+          "todos": [
+            {
+              "line": 10,
+              "kind": "TODO",
+              "text": "// TODO add error boundary"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tests",
+      "type": "directory",
+      "size": 78,
+      "size_human": "78 bytes",
+      "path": "tests",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "test_utils.py",
+          "type": "file",
+          "size": 78,
+          "size_human": "78 bytes",
+          "ext": ".py",
+          "path": "tests/test_utils.py",
+          "todos": []
+        }
+      ]
+    },
+    {
+      "name": "Dockerfile",
+      "type": "file",
+      "size": 29,
+      "size_human": "29 bytes",
+      "ext": "",
+      "path": "Dockerfile",
+      "todos": []
+    },
+    {
+      "name": "main.py",
+      "type": "file",
+      "size": 321,
+      "size_human": "321 bytes",
+      "ext": ".py",
+      "path": "main.py",
+      "todos": [
+        {
+          "line": 7,
+          "kind": "TODO",
+          "text": "# TODO: コマンドライン引数のパースを追加する"
+        }
+      ]
+    },
+    {
+      "name": "Makefile",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": "",
+      "path": "Makefile",
+      "todos": []
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "size": 102,
+      "size_human": "102 bytes",
+      "ext": ".json",
+      "path": "package.json",
+      "todos": []
+    },
+    {
+      "name": "pyproject.toml",
+      "type": "file",
+      "size": 42,
+      "size_human": "42 bytes",
+      "ext": ".toml",
+      "path": "pyproject.toml",
+      "todos": []
+    },
+    {
+      "name": "tsconfig.json",
+      "type": "file",
+      "size": 50,
+      "size_human": "50 bytes",
+      "ext": ".json",
+      "path": "tsconfig.json",
+      "todos": []
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": null,
+    "todo_count": 6,
+    "missing_tests_count": null,
+    "entry_points_count": null,
+    "config_files_count": null,
+    "git_available": null,
+    "most_depended_on": null,
+    "hotspots": null,
+    "circular_dependencies": null,
+    "reading_order_candidates": null
+  }
+}

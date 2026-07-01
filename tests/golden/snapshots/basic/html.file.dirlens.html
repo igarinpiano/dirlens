@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dirlens — basic</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Menlo,Consolas,monospace;font-size:14px;background:#1e1e2e;color:#cdd6f4;padding:24px}
+h1{color:#89b4fa;margin-bottom:12px;font-size:18px}
+#q{background:#313244;border:1px solid #45475a;color:#cdd6f4;padding:6px 12px;
+    border-radius:6px;font-size:13px;margin-bottom:16px;width:280px;outline:none}
+#q:focus{border-color:#89b4fa}
+details{margin-left:18px}
+summary{cursor:pointer;padding:2px 6px;border-radius:4px;list-style:none;
+         white-space:nowrap;color:#89dceb}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▶ ";font-size:10px;opacity:.4}
+details[open]>summary::before{content:"▼ "}
+summary:hover{background:rgba(255,255,255,.06)}
+.ch{border-left:1px solid rgba(255,255,255,.08);margin-left:10px}
+.item{padding:2px 6px;white-space:nowrap;margin-left:18px}
+.item:hover{background:rgba(255,255,255,.05);border-radius:4px}
+.fname{color:#a6e3a1}.sz{color:#585b70;font-size:12px}
+.emoji{width:1.6em;display:inline-block}.hidden{display:none!important}
+.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;
+        font-size:10px;vertical-align:middle}
+.badge.entry{background:#89b4fa;color:#1e1e2e}
+.badge.notest{background:#f9e2af;color:#1e1e2e}
+.badge.todo{background:#f38ba8;color:#1e1e2e}
+</style></head><body>
+<h1>🌳 dirlens — basic</h1>
+<input id="q" type="text" placeholder="ファイル名で検索…" oninput="search(this.value)">
+<div id="tree"><details open><summary>📁 <strong>basic/</strong> <span class="sz">(4 dirs, 9 files, 305.56 KB)</span></summary><div class="ch"><details><summary>📁 <strong>emptydir/</strong> <span class="sz">(0 dirs, 0 files, 0 bytes)</span></summary><div class="ch"></div></details>
+<details><summary>📁 <strong>links/</strong> <span class="sz">(0 dirs, 4 files, 17 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">📄</span><span class="fname"> broken → ./nonexistent</span><span class="sz"> 0 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> real.txt</span><span class="sz"> 17 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> to_dir → ../sub</span><span class="sz"> 128 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> to_file → ../README.md</span><span class="sz"> 172 bytes</span></div>
+</div></details>
+<details><summary>📁 <strong>loop/</strong> <span class="sz">(1 dir, 0 files, 8 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>inner/</strong> <span class="sz">(0 dirs, 2 files, 8 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">📄</span><span class="fname"> back → ../../loop</span><span class="sz"> 96 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> file.txt</span><span class="sz"> 8 bytes</span></div>
+</div></details>
+</div></details>
+<details><summary>📁 <strong>sub/</strong> <span class="sz">(1 dir, 1 file, 627 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>grandchild/</strong> <span class="sz">(1 dir, 1 file, 395 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>deeper/</strong> <span class="sz">(0 dirs, 1 file, 5 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">📝</span><span class="fname"> leaf.md</span><span class="sz"> 5 bytes</span></div>
+</div></details>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> deep.txt</span><span class="sz"> 390 bytes</span></div>
+</div></details>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> child.py</span><span class="sz"> 232 bytes</span></div>
+</div></details>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> alpha.txt</span><span class="sz"> 1 KB</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> app.log</span><span class="sz"> 200 bytes</span></div>
+<div class="item file"><span class="emoji">📝</span><span class="fname"> Beta.md</span><span class="sz"> 1.55 KB</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> big.bin</span><span class="sz"> 300 KB</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> empty.txt</span><span class="sz"> 0 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> notes.txt</span><span class="sz"> 500 bytes</span></div>
+<div class="item file"><span class="emoji">📖</span><span class="fname"> README.md</span><span class="sz"> 172 bytes</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> single.b</span><span class="sz"> 1 byte</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> Zeta.txt</span><span class="sz"> 1.5 KB</span></div>
+</div></details>
+</div>
+<script>
+function search(q){
+  q=q.toLowerCase().trim();
+  document.querySelectorAll('.hidden').forEach(el=>el.classList.remove('hidden'));
+  if(!q) return;
+  document.querySelectorAll('details').forEach(d=>d.open=true);
+  document.querySelectorAll('.file').forEach(el=>{
+    const n=el.querySelector('.fname')?.textContent.toLowerCase()||'';
+    if(!n.includes(q)) el.classList.add('hidden');
+  });
+  document.querySelectorAll('#tree details').forEach(detail=>{
+    const hasVisible=[...detail.querySelectorAll('.file')]
+      .some(f=>!f.classList.contains('hidden'));
+    if(!hasVisible) detail.classList.add('hidden');
+  });
+}
+</script></body></html>

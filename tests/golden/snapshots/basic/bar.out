@@ -1,0 +1,29 @@
+basic/ (4 dirs, 9 files, 305.56 KB)
+├── emptydir/ (0 dirs, 0 files, 0 bytes) [░░░░░░░░░░]   0%
+├── links/ (0 dirs, 4 files, 17 bytes) [░░░░░░░░░░]   0%
+│   ├── broken → ./nonexistent (0 bytes) [░░░░░░░░░░]   0%
+│   ├── real.txt (17 bytes) [██████████] 100%
+│   ├── to_dir → ../sub (128 bytes) [██████████] 100%
+│   └── to_file → ../README.md (172 bytes) [██████████] 100%
+├── loop/ (1 dir, 0 files, 8 bytes) [░░░░░░░░░░]   0%
+│   └── inner/ (0 dirs, 2 files, 8 bytes) [██████████] 100%
+│       ├── back → ../../loop (96 bytes) [██████████] 100%
+│       └── file.txt (8 bytes) [██████████] 100%
+├── sub/ (1 dir, 1 file, 627 bytes) [░░░░░░░░░░]   0%
+│   ├── grandchild/ (1 dir, 1 file, 395 bytes) [██████░░░░]  62%
+│   │   ├── deeper/ (0 dirs, 1 file, 5 bytes) [░░░░░░░░░░]   1%
+│   │   │   └── leaf.md (5 bytes) [██████████] 100%
+│   │   └── deep.txt (390 bytes) [██████████]  98%
+│   └── child.py (232 bytes) [████░░░░░░]  37%
+├── alpha.txt (1 KB) [░░░░░░░░░░]   0%
+├── app.log (200 bytes) [░░░░░░░░░░]   0%
+├── Beta.md (1.55 KB) [░░░░░░░░░░]   0%
+├── big.bin (300 KB) [██████████]  98%
+├── empty.txt (0 bytes) [░░░░░░░░░░]   0%
+├── notes.txt (500 bytes) [░░░░░░░░░░]   0%
+├── README.md (172 bytes) [░░░░░░░░░░]   0%
+├── single.b (1 byte) [░░░░░░░░░░]   0%
+└── Zeta.txt (1.5 KB) [░░░░░░░░░░]   0%
+
+  合計  7 ディレクトリ,  18 ファイル
+  .txt ×7  (no ext) ×4  .md ×3  .py ×1  .log ×1  .bin ×1  .b ×1

@@ -1,0 +1,96 @@
+{
+  "name": "gitignored",
+  "type": "directory",
+  "size": 3889,
+  "size_human": "3.8 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 2,
+    "files": 2,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "nested",
+      "type": "directory",
+      "size": 116,
+      "size_human": "116 bytes",
+      "path": "nested",
+      "item_count": {
+        "dirs": 1,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "sub",
+          "type": "directory",
+          "size": 28,
+          "size_human": "28 bytes",
+          "path": "nested/sub",
+          "item_count": {
+            "dirs": 0,
+            "files": 1,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "other.txt",
+              "type": "file",
+              "size": 8,
+              "size_human": "8 bytes",
+              "ext": ".txt",
+              "path": "nested/sub/other.txt"
+            }
+          ]
+        },
+        {
+          "name": "kept.txt",
+          "type": "file",
+          "size": 8,
+          "size_human": "8 bytes",
+          "ext": ".txt",
+          "path": "nested/kept.txt"
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 44,
+      "size_human": "44 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "main.py",
+          "type": "file",
+          "size": 25,
+          "size_human": "25 bytes",
+          "ext": ".py",
+          "path": "src/main.py"
+        }
+      ]
+    },
+    {
+      "name": "important.log",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": ".log",
+      "path": "important.log"
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 24,
+      "size_human": "24 bytes",
+      "ext": ".md",
+      "path": "README.md"
+    }
+  ]
+}

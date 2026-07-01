@@ -1,0 +1,43 @@
+multi_lang/ (5 dirs, 6 files, 3.38 KB)
+├── docs/ (0 dirs, 1 file, 955 bytes)
+│   └── 日本語メモ.md (955 bytes, ~213 tok, 15 lines)
+├── go/ (1 dir, 2 files, 372 bytes)
+│   ├── internal/ (1 dir, 0 files, 127 bytes)
+│   │   └── util/ (0 dirs, 1 file, 127 bytes)
+│   │       └── util.go (127 bytes, ~32 tok, 10 lines, TODO×1)
+│   ├── go.mod (33 bytes, ~8 tok, 3 lines)
+│   └── main.go (212 bytes, ~53 tok, 21 lines)
+├── pkg/ (0 dirs, 5 files, 596 bytes)
+│   ├── __init__.py (22 bytes, ~6 tok, 1 lines)
+│   ├── circle_a.py (57 bytes, ~14 tok, 4 lines)
+│   ├── circle_b.py (58 bytes, ~14 tok, 4 lines)
+│   ├── helpers.py (215 bytes, ~53 tok, 15 lines, TODO×1)
+│   └── utils.py (244 bytes, ~58 tok, 6 lines, TODO×1)
+├── src/ (1 dir, 4 files, 883 bytes)
+│   ├── lib/ (0 dirs, 3 files, 355 bytes)
+│   │   ├── data.js (31 bytes, ~8 tok, 1 lines)
+│   │   ├── types.ts (82 bytes, ~20 tok, 7 lines)
+│   │   └── util.ts (242 bytes, ~60 tok, 11 lines)
+│   ├── app.test.ts (64 bytes, ~16 tok, 3 lines)
+│   ├── app.ts (80 bytes, ~20 tok, 5 lines)
+│   ├── cli.js (128 bytes, ~32 tok, 8 lines, TODO×1)
+│   └── index.js (256 bytes, ~64 tok, 12 lines, TODO×1)
+├── tests/ (0 dirs, 1 file, 78 bytes)
+│   └── test_utils.py (78 bytes, ~20 tok, 4 lines)
+├── Dockerfile (29 bytes, ~7 tok, 2 lines)
+├── main.py (321 bytes, ~79 tok, 19 lines, TODO×1)
+├── Makefile (17 bytes, ~4 tok, 2 lines)
+├── package.json (102 bytes, ~26 tok, 6 lines)
+├── pyproject.toml (42 bytes, ~10 tok, 3 lines)
+└── tsconfig.json (50 bytes, ~12 tok, 5 lines)
+
+  合計  8 ディレクトリ,  23 ファイル
+  .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
+  推定トークン数: ~829 tok
+  TODO/FIXME等: 6件
+    go/internal/util/util.go:5 [TODO] // TODO: add caching
+    pkg/helpers.py:4 [FIXME] # FIXME: エラーハンドリングが未実装
+    pkg/utils.py:6 [HACK] return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです
+    src/cli.js:4 [XXX] // XXX: exit code handling
+    src/index.js:10 [TODO] // TODO add error boundary
+    main.py:7 [TODO] # TODO: コマンドライン引数のパースを追加する

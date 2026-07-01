@@ -1,0 +1,247 @@
+{
+  "name": "rust_lang",
+  "type": "directory",
+  "size": 526,
+  "size_human": "526 bytes",
+  "path": ".",
+  "item_count": {
+    "dirs": 1,
+    "files": 1,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 484,
+      "size_human": "484 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 1,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "nested",
+          "type": "directory",
+          "size": 80,
+          "size_human": "80 bytes",
+          "path": "src/nested",
+          "item_count": {
+            "dirs": 0,
+            "files": 2,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "inner.rs",
+              "type": "file",
+              "size": 65,
+              "size_human": "65 bytes",
+              "ext": ".rs",
+              "path": "src/nested/inner.rs",
+              "tokens": 16,
+              "lines": 5,
+              "git": null,
+              "todos": [],
+              "has_test": true,
+              "is_entry": false,
+              "is_config": false,
+              "outline": [
+                {
+                  "kind": "fn",
+                  "name": "deep_fn",
+                  "public": true
+                }
+              ],
+              "imports": [
+                "src/util.rs"
+              ],
+              "imported_by": [
+                "src/nested/mod.rs"
+              ],
+              "external_imports": []
+            },
+            {
+              "name": "mod.rs",
+              "type": "file",
+              "size": 15,
+              "size_human": "15 bytes",
+              "ext": ".rs",
+              "path": "src/nested/mod.rs",
+              "tokens": 4,
+              "lines": 1,
+              "git": null,
+              "todos": [],
+              "has_test": true,
+              "is_entry": false,
+              "is_config": false,
+              "outline": [],
+              "imports": [
+                "src/nested/inner.rs"
+              ],
+              "imported_by": [
+                "src/main.rs"
+              ],
+              "external_imports": []
+            }
+          ]
+        },
+        {
+          "name": "main.rs",
+          "type": "file",
+          "size": 203,
+          "size_human": "203 bytes",
+          "ext": ".rs",
+          "path": "src/main.rs",
+          "tokens": 51,
+          "lines": 18,
+          "git": null,
+          "todos": [
+            {
+              "line": 16,
+              "kind": "TODO",
+              "text": "// TODO: implement CLI parsing"
+            }
+          ],
+          "has_test": true,
+          "is_entry": true,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "struct",
+              "name": "Config",
+              "public": false
+            },
+            {
+              "kind": "fn",
+              "name": "run",
+              "public": true
+            },
+            {
+              "kind": "fn",
+              "name": "main",
+              "public": false
+            }
+          ],
+          "imports": [
+            "src/nested/mod.rs",
+            "src/util.rs"
+          ],
+          "imported_by": [],
+          "external_imports": [
+            "std::fmt"
+          ]
+        },
+        {
+          "name": "util.rs",
+          "type": "file",
+          "size": 201,
+          "size_human": "201 bytes",
+          "ext": ".rs",
+          "path": "src/util.rs",
+          "tokens": 50,
+          "lines": 18,
+          "git": null,
+          "todos": [],
+          "has_test": true,
+          "is_entry": false,
+          "is_config": false,
+          "outline": [
+            {
+              "kind": "struct",
+              "name": "Thing",
+              "public": true
+            },
+            {
+              "kind": "fn",
+              "name": "new",
+              "public": true
+            },
+            {
+              "kind": "trait",
+              "name": "Runner",
+              "public": true
+            },
+            {
+              "kind": "fn",
+              "name": "go",
+              "public": false
+            },
+            {
+              "kind": "enum",
+              "name": "Mode",
+              "public": false
+            },
+            {
+              "kind": "fn",
+              "name": "helper",
+              "public": true
+            },
+            {
+              "kind": "fn",
+              "name": "private_helper",
+              "public": false
+            }
+          ],
+          "imports": [],
+          "imported_by": [
+            "src/main.rs",
+            "src/nested/inner.rs"
+          ],
+          "external_imports": []
+        }
+      ]
+    },
+    {
+      "name": "Cargo.toml",
+      "type": "file",
+      "size": 42,
+      "size_human": "42 bytes",
+      "ext": ".toml",
+      "path": "Cargo.toml",
+      "tokens": 10,
+      "lines": 3,
+      "git": null,
+      "todos": [],
+      "has_test": true,
+      "is_entry": false,
+      "is_config": true,
+      "outline": null,
+      "imports": [],
+      "imported_by": [],
+      "external_imports": []
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": 131,
+    "todo_count": 1,
+    "missing_tests_count": 0,
+    "entry_points_count": 1,
+    "config_files_count": 1,
+    "git_available": false,
+    "most_depended_on": [
+      {
+        "path": "src/util.rs",
+        "used_by_count": 2
+      },
+      {
+        "path": "src/nested/mod.rs",
+        "used_by_count": 1
+      },
+      {
+        "path": "src/nested/inner.rs",
+        "used_by_count": 1
+      }
+    ],
+    "hotspots": null,
+    "circular_dependencies": [],
+    "reading_order_candidates": [
+      "src/main.rs",
+      "src/util.rs",
+      "src/nested/mod.rs",
+      "src/nested/inner.rs"
+    ]
+  }
+}

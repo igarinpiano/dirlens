@@ -1,0 +1,14 @@
+basic/ (4 dirs, 2 files, 305.56 KB)
+├── emptydir/ (0 dirs, 0 files, 0 bytes)
+├── links/ (0 dirs, 0 files, 17 bytes)
+├── loop/ (1 dir, 0 files, 8 bytes)
+│   └── inner/ (0 dirs, 0 files, 8 bytes)
+├── sub/ (1 dir, 0 files, 627 bytes)
+│   └── grandchild/ (1 dir, 0 files, 395 bytes)
+│       └── deeper/ (0 dirs, 1 file, 5 bytes)
+│           └── leaf.md (5 bytes)
+├── Beta.md (1.55 KB)
+└── README.md (172 bytes)
+
+  合計  7 ディレクトリ,  3 ファイル  (抽出: *.md)
+  .md ×3

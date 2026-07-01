@@ -1,0 +1,12 @@
+gitignored/ (2 dirs, 2 files, 3.8 KB)
+├── nested/ (1 dir, 1 file, 116 bytes)
+│   ├── sub/ (0 dirs, 1 file, 28 bytes)
+│   │   └── other.txt (8 bytes)
+│   └── kept.txt (8 bytes)
+├── src/ (0 dirs, 1 file, 44 bytes)
+│   └── main.py (25 bytes)
+├── important.log (17 bytes)
+└── README.md (24 bytes)
+
+  合計  3 ディレクトリ,  5 ファイル  (.gitignore 適用済み)
+  .txt ×2  .py ×1  .log ×1  .md ×1

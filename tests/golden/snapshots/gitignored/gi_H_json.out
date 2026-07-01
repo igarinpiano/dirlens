@@ -1,0 +1,240 @@
+{
+  "name": "gitignored",
+  "type": "directory",
+  "size": 3889,
+  "size_human": "3.8 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 3,
+    "files": 5,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "build",
+      "type": "directory",
+      "size": 13,
+      "size_human": "13 bytes",
+      "path": "build",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "out.txt",
+          "type": "file",
+          "size": 13,
+          "size_human": "13 bytes",
+          "ext": ".txt",
+          "path": "build/out.txt",
+          "git": null
+        }
+      ]
+    },
+    {
+      "name": "nested",
+      "type": "directory",
+      "size": 116,
+      "size_human": "116 bytes",
+      "path": "nested",
+      "item_count": {
+        "dirs": 1,
+        "files": 3,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "sub",
+          "type": "directory",
+          "size": 28,
+          "size_human": "28 bytes",
+          "path": "nested/sub",
+          "item_count": {
+            "dirs": 0,
+            "files": 2,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "local.txt",
+              "type": "file",
+              "size": 20,
+              "size_human": "20 bytes",
+              "ext": ".txt",
+              "path": "nested/sub/local.txt",
+              "git": null
+            },
+            {
+              "name": "other.txt",
+              "type": "file",
+              "size": 8,
+              "size_human": "8 bytes",
+              "ext": ".txt",
+              "path": "nested/sub/other.txt",
+              "git": null
+            }
+          ]
+        },
+        {
+          "name": "anchored.txt",
+          "type": "file",
+          "size": 28,
+          "size_human": "28 bytes",
+          "ext": ".txt",
+          "path": "nested/anchored.txt",
+          "git": null
+        },
+        {
+          "name": "kept.txt",
+          "type": "file",
+          "size": 8,
+          "size_human": "8 bytes",
+          "ext": ".txt",
+          "path": "nested/kept.txt",
+          "git": {
+            "hash": "<HASH>",
+            "date": "<GITDATE>",
+            "author": "Tester",
+            "subject": "feat: initial import of project skeleton and configs"
+          }
+        },
+        {
+          "name": "local.txt",
+          "type": "file",
+          "size": 28,
+          "size_human": "28 bytes",
+          "ext": ".txt",
+          "path": "nested/local.txt",
+          "git": null
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 44,
+      "size_human": "44 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 0,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "deep.log",
+          "type": "file",
+          "size": 19,
+          "size_human": "19 bytes",
+          "ext": ".log",
+          "path": "src/deep.log",
+          "git": null
+        },
+        {
+          "name": "main.py",
+          "type": "file",
+          "size": 25,
+          "size_human": "25 bytes",
+          "ext": ".py",
+          "path": "src/main.py",
+          "git": {
+            "hash": "<HASH>",
+            "date": "<GITDATE>",
+            "author": "Tester",
+            "subject": "日本語のコミットメッセージで切り詰め動作を確認する"
+          }
+        }
+      ]
+    },
+    {
+      "name": "app.log",
+      "type": "file",
+      "size": 12,
+      "size_human": "12 bytes",
+      "ext": ".log",
+      "path": "app.log",
+      "git": null
+    },
+    {
+      "name": "important.log",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": ".log",
+      "path": "important.log",
+      "git": {
+        "hash": "<HASH>",
+        "date": "<GITDATE>",
+        "author": "Tester",
+        "subject": "feat: initial import of project skeleton and configs"
+      }
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 24,
+      "size_human": "24 bytes",
+      "ext": ".md",
+      "path": "README.md",
+      "git": {
+        "hash": "<HASH>",
+        "date": "<GITDATE>",
+        "author": "Tester",
+        "subject": "日本語のコミットメッセージで切り詰め動作を確認する"
+      }
+    },
+    {
+      "name": "temp1.txt",
+      "type": "file",
+      "size": 10,
+      "size_human": "10 bytes",
+      "ext": ".txt",
+      "path": "temp1.txt",
+      "git": null
+    },
+    {
+      "name": "temporary_notes.md",
+      "type": "file",
+      "size": 12,
+      "size_human": "12 bytes",
+      "ext": ".md",
+      "path": "temporary_notes.md",
+      "git": null
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": null,
+    "todo_count": null,
+    "missing_tests_count": null,
+    "entry_points_count": null,
+    "config_files_count": null,
+    "git_available": true,
+    "most_depended_on": null,
+    "hotspots": [
+      {
+        "path": "src/main.py",
+        "change_count": 3
+      },
+      {
+        "path": "README.md",
+        "change_count": 2
+      },
+      {
+        "path": ".gitignore",
+        "change_count": 1
+      },
+      {
+        "path": "important.log",
+        "change_count": 1
+      },
+      {
+        "path": "nested/kept.txt",
+        "change_count": 1
+      }
+    ],
+    "circular_dependencies": null,
+    "reading_order_candidates": null
+  }
+}

@@ -1,0 +1,50 @@
+multi_lang/ (5 dirs, 6 files, 3.38 KB)
+├── docs/ (0 dirs, 1 file, 955 bytes)
+│   └── 日本語メモ.md (955 bytes)
+├── go/ (1 dir, 2 files, 372 bytes)
+│   ├── internal/ (1 dir, 0 files, 127 bytes)
+│   │   └── util/ (0 dirs, 1 file, 127 bytes)
+│   │       └── util.go (127 bytes)
+│   ├── go.mod (33 bytes)
+│   └── * main.go (212 bytes)
+├── pkg/ (0 dirs, 5 files, 596 bytes)
+│   ├── __init__.py (22 bytes, imports×1)
+│   ├── circle_a.py (57 bytes, imports×1, used-by×1)
+│   ├── circle_b.py (58 bytes, imports×1, used-by×1)
+│   ├── helpers.py (215 bytes, used-by×3)
+│   └── utils.py (244 bytes, imports×1, used-by×2)
+├── src/ (1 dir, 4 files, 883 bytes)
+│   ├── lib/ (0 dirs, 3 files, 355 bytes)
+│   │   ├── data.js (31 bytes, used-by×1)
+│   │   ├── types.ts (82 bytes, used-by×1)
+│   │   └── util.ts (242 bytes, imports×1, used-by×3)
+│   ├── app.test.ts (64 bytes, imports×1)
+│   ├── * app.ts (80 bytes, imports×1, used-by×1)
+│   ├── * cli.js (128 bytes, imports×1, used-by×1)
+│   └── * index.js (256 bytes, imports×3)
+├── tests/ (0 dirs, 1 file, 78 bytes)
+│   └── test_utils.py (78 bytes, imports×1)
+├── * Dockerfile (29 bytes)
+├── * main.py (321 bytes, imports×2)
+├── * Makefile (17 bytes)
+├── package.json (102 bytes)
+├── pyproject.toml (42 bytes)
+└── tsconfig.json (50 bytes)
+
+  合計  8 ディレクトリ,  23 ファイル
+  .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
+  エントリーポイント候補: 7 件検出
+  依存度が高いファイル（多くのファイルから参照されている）:
+    pkg/helpers.py  (used by 3)
+    src/lib/util.ts  (used by 3)
+    pkg/utils.py  (used by 2)
+    pkg/circle_b.py  (used by 1)
+    pkg/circle_a.py  (used by 1)
+  循環依存: 1 件検出
+    pkg/circle_a.py → pkg/circle_b.py → pkg/circle_a.py
+  読み始めの候補（エントリーポイント→依存度の高い順）:
+    1. Dockerfile
+    2. Makefile
+    3. go/main.go
+    4. main.py
+    5. src/app.ts

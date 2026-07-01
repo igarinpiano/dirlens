@@ -1,0 +1,277 @@
+{
+  "name": "edge",
+  "type": "directory",
+  "size": 6006111,
+  "size_human": "5.73+ MB",
+  "path": ".",
+  "item_count": {
+    "dirs": 2,
+    "files": 13,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "chain",
+      "type": "directory",
+      "size": 11,
+      "size_human": "11 bytes",
+      "path": "chain",
+      "item_count": {
+        "dirs": 1,
+        "files": 0,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "a",
+          "type": "directory",
+          "size": 11,
+          "size_human": "11 bytes",
+          "path": "chain/a",
+          "item_count": {
+            "dirs": 1,
+            "files": 0,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "b",
+              "type": "directory",
+              "size": 11,
+              "size_human": "11 bytes",
+              "path": "chain/a/b",
+              "item_count": {
+                "dirs": 1,
+                "files": 0,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "c",
+                  "type": "directory",
+                  "size": 11,
+                  "size_human": "11 bytes",
+                  "path": "chain/a/b/c",
+                  "item_count": {
+                    "dirs": 1,
+                    "files": 0,
+                    "permission_denied": false
+                  },
+                  "children": [
+                    {
+                      "name": "d",
+                      "type": "directory",
+                      "size": 11,
+                      "size_human": "11 bytes",
+                      "path": "chain/a/b/c/d",
+                      "item_count": {
+                        "dirs": 1,
+                        "files": 0,
+                        "permission_denied": false
+                      },
+                      "children": [
+                        {
+                          "name": "e",
+                          "type": "directory",
+                          "size": 11,
+                          "size_human": "11 bytes",
+                          "path": "chain/a/b/c/d/e",
+                          "item_count": {
+                            "dirs": 1,
+                            "files": 0,
+                            "permission_denied": false
+                          },
+                          "children": [
+                            {
+                              "name": "f",
+                              "type": "directory",
+                              "size": 11,
+                              "size_human": "11 bytes",
+                              "path": "chain/a/b/c/d/e/f",
+                              "item_count": {
+                                "dirs": 0,
+                                "files": 1,
+                                "permission_denied": false
+                              },
+                              "children": [
+                                {
+                                  "name": "leaf.txt",
+                                  "type": "file",
+                                  "size": 11,
+                                  "size_human": "11 bytes",
+                                  "ext": ".txt",
+                                  "path": "chain/a/b/c/d/e/f/leaf.txt",
+                                  "tokens": 3,
+                                  "lines": 1
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "denied",
+      "type": "directory",
+      "size": 0,
+      "size_human": "0+ bytes",
+      "path": "denied",
+      "item_count": {
+        "dirs": 0,
+        "files": 0,
+        "permission_denied": true
+      },
+      "children": []
+    },
+    {
+      "name": "'quote'.txt",
+      "type": "file",
+      "size": 7,
+      "size_human": "7 bytes",
+      "ext": ".txt",
+      "path": "'quote'.txt",
+      "tokens": 2,
+      "lines": 1
+    },
+    {
+      "name": "[bracket].txt",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": ".txt",
+      "path": "[bracket].txt",
+      "tokens": 4,
+      "lines": 1
+    },
+    {
+      "name": "a&b<c>.html",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": ".html",
+      "path": "a&b<c>.html",
+      "tokens": 4,
+      "lines": 1
+    },
+    {
+      "name": "big6mb.txt",
+      "type": "file",
+      "size": 6000020,
+      "size_human": "5.72 MB",
+      "ext": ".txt",
+      "path": "big6mb.txt",
+      "tokens": 1500005,
+      "lines": 92309
+    },
+    {
+      "name": "binary_in_txt.txt",
+      "type": "file",
+      "size": 114,
+      "size_human": "114 bytes",
+      "ext": ".txt",
+      "path": "binary_in_txt.txt",
+      "tokens": null,
+      "lines": null
+    },
+    {
+      "name": "cjk.md",
+      "type": "file",
+      "size": 4960,
+      "size_human": "4.84 KB",
+      "ext": ".md",
+      "path": "cjk.md",
+      "tokens": 1113,
+      "lines": 40
+    },
+    {
+      "name": "crlf.txt",
+      "type": "file",
+      "size": 20,
+      "size_human": "20 bytes",
+      "ext": ".txt",
+      "path": "crlf.txt",
+      "tokens": 5,
+      "lines": 2
+    },
+    {
+      "name": "image.png",
+      "type": "file",
+      "size": 508,
+      "size_human": "508 bytes",
+      "ext": ".png",
+      "path": "image.png",
+      "tokens": null,
+      "lines": null
+    },
+    {
+      "name": "invalid_utf8.txt",
+      "type": "file",
+      "size": 13,
+      "size_human": "13 bytes",
+      "ext": ".txt",
+      "path": "invalid_utf8.txt",
+      "tokens": 3,
+      "lines": 1
+    },
+    {
+      "name": "only_newline.txt",
+      "type": "file",
+      "size": 1,
+      "size_human": "1 byte",
+      "ext": ".txt",
+      "path": "only_newline.txt",
+      "tokens": 1,
+      "lines": 1
+    },
+    {
+      "name": "space name.txt",
+      "type": "file",
+      "size": 10,
+      "size_human": "10 bytes",
+      "ext": ".txt",
+      "path": "space name.txt",
+      "tokens": 2,
+      "lines": 1
+    },
+    {
+      "name": "todo_many.py",
+      "type": "file",
+      "size": 398,
+      "size_human": "398 bytes",
+      "ext": ".py",
+      "path": "todo_many.py",
+      "tokens": 100,
+      "lines": 12
+    },
+    {
+      "name": "日本語ファイル.md",
+      "type": "file",
+      "size": 15,
+      "size_human": "15 bytes",
+      "ext": ".md",
+      "path": "日本語ファイル.md",
+      "tokens": 3,
+      "lines": 1
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": 1501245,
+    "todo_count": null,
+    "missing_tests_count": null,
+    "entry_points_count": null,
+    "config_files_count": null,
+    "git_available": null,
+    "most_depended_on": null,
+    "hotspots": null,
+    "circular_dependencies": null,
+    "reading_order_candidates": null
+  }
+}

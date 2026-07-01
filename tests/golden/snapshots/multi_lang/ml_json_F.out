@@ -1,0 +1,345 @@
+{
+  "name": "multi_lang",
+  "type": "directory",
+  "size": 3457,
+  "size_human": "3.38 KB",
+  "path": ".",
+  "item_count": {
+    "dirs": 5,
+    "files": 6,
+    "permission_denied": false
+  },
+  "children": [
+    {
+      "name": "docs",
+      "type": "directory",
+      "size": 955,
+      "size_human": "955 bytes",
+      "path": "docs",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "日本語メモ.md",
+          "type": "file",
+          "size": 955,
+          "size_human": "955 bytes",
+          "ext": ".md",
+          "path": "docs/日本語メモ.md",
+          "is_config": false
+        }
+      ]
+    },
+    {
+      "name": "go",
+      "type": "directory",
+      "size": 372,
+      "size_human": "372 bytes",
+      "path": "go",
+      "item_count": {
+        "dirs": 1,
+        "files": 2,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "internal",
+          "type": "directory",
+          "size": 127,
+          "size_human": "127 bytes",
+          "path": "go/internal",
+          "item_count": {
+            "dirs": 1,
+            "files": 0,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "util",
+              "type": "directory",
+              "size": 127,
+              "size_human": "127 bytes",
+              "path": "go/internal/util",
+              "item_count": {
+                "dirs": 0,
+                "files": 1,
+                "permission_denied": false
+              },
+              "children": [
+                {
+                  "name": "util.go",
+                  "type": "file",
+                  "size": 127,
+                  "size_human": "127 bytes",
+                  "ext": ".go",
+                  "path": "go/internal/util/util.go",
+                  "is_config": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "go.mod",
+          "type": "file",
+          "size": 33,
+          "size_human": "33 bytes",
+          "ext": ".mod",
+          "path": "go/go.mod",
+          "is_config": true
+        },
+        {
+          "name": "main.go",
+          "type": "file",
+          "size": 212,
+          "size_human": "212 bytes",
+          "ext": ".go",
+          "path": "go/main.go",
+          "is_config": false
+        }
+      ]
+    },
+    {
+      "name": "pkg",
+      "type": "directory",
+      "size": 596,
+      "size_human": "596 bytes",
+      "path": "pkg",
+      "item_count": {
+        "dirs": 0,
+        "files": 5,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "__init__.py",
+          "type": "file",
+          "size": 22,
+          "size_human": "22 bytes",
+          "ext": ".py",
+          "path": "pkg/__init__.py",
+          "is_config": false
+        },
+        {
+          "name": "circle_a.py",
+          "type": "file",
+          "size": 57,
+          "size_human": "57 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_a.py",
+          "is_config": false
+        },
+        {
+          "name": "circle_b.py",
+          "type": "file",
+          "size": 58,
+          "size_human": "58 bytes",
+          "ext": ".py",
+          "path": "pkg/circle_b.py",
+          "is_config": false
+        },
+        {
+          "name": "helpers.py",
+          "type": "file",
+          "size": 215,
+          "size_human": "215 bytes",
+          "ext": ".py",
+          "path": "pkg/helpers.py",
+          "is_config": false
+        },
+        {
+          "name": "utils.py",
+          "type": "file",
+          "size": 244,
+          "size_human": "244 bytes",
+          "ext": ".py",
+          "path": "pkg/utils.py",
+          "is_config": false
+        }
+      ]
+    },
+    {
+      "name": "src",
+      "type": "directory",
+      "size": 883,
+      "size_human": "883 bytes",
+      "path": "src",
+      "item_count": {
+        "dirs": 1,
+        "files": 4,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "lib",
+          "type": "directory",
+          "size": 355,
+          "size_human": "355 bytes",
+          "path": "src/lib",
+          "item_count": {
+            "dirs": 0,
+            "files": 3,
+            "permission_denied": false
+          },
+          "children": [
+            {
+              "name": "data.js",
+              "type": "file",
+              "size": 31,
+              "size_human": "31 bytes",
+              "ext": ".js",
+              "path": "src/lib/data.js",
+              "is_config": false
+            },
+            {
+              "name": "types.ts",
+              "type": "file",
+              "size": 82,
+              "size_human": "82 bytes",
+              "ext": ".ts",
+              "path": "src/lib/types.ts",
+              "is_config": false
+            },
+            {
+              "name": "util.ts",
+              "type": "file",
+              "size": 242,
+              "size_human": "242 bytes",
+              "ext": ".ts",
+              "path": "src/lib/util.ts",
+              "is_config": false
+            }
+          ]
+        },
+        {
+          "name": "app.test.ts",
+          "type": "file",
+          "size": 64,
+          "size_human": "64 bytes",
+          "ext": ".ts",
+          "path": "src/app.test.ts",
+          "is_config": false
+        },
+        {
+          "name": "app.ts",
+          "type": "file",
+          "size": 80,
+          "size_human": "80 bytes",
+          "ext": ".ts",
+          "path": "src/app.ts",
+          "is_config": false
+        },
+        {
+          "name": "cli.js",
+          "type": "file",
+          "size": 128,
+          "size_human": "128 bytes",
+          "ext": ".js",
+          "path": "src/cli.js",
+          "is_config": false
+        },
+        {
+          "name": "index.js",
+          "type": "file",
+          "size": 256,
+          "size_human": "256 bytes",
+          "ext": ".js",
+          "path": "src/index.js",
+          "is_config": false
+        }
+      ]
+    },
+    {
+      "name": "tests",
+      "type": "directory",
+      "size": 78,
+      "size_human": "78 bytes",
+      "path": "tests",
+      "item_count": {
+        "dirs": 0,
+        "files": 1,
+        "permission_denied": false
+      },
+      "children": [
+        {
+          "name": "test_utils.py",
+          "type": "file",
+          "size": 78,
+          "size_human": "78 bytes",
+          "ext": ".py",
+          "path": "tests/test_utils.py",
+          "is_config": false
+        }
+      ]
+    },
+    {
+      "name": "Dockerfile",
+      "type": "file",
+      "size": 29,
+      "size_human": "29 bytes",
+      "ext": "",
+      "path": "Dockerfile",
+      "is_config": true
+    },
+    {
+      "name": "main.py",
+      "type": "file",
+      "size": 321,
+      "size_human": "321 bytes",
+      "ext": ".py",
+      "path": "main.py",
+      "is_config": false
+    },
+    {
+      "name": "Makefile",
+      "type": "file",
+      "size": 17,
+      "size_human": "17 bytes",
+      "ext": "",
+      "path": "Makefile",
+      "is_config": true
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "size": 102,
+      "size_human": "102 bytes",
+      "ext": ".json",
+      "path": "package.json",
+      "is_config": false
+    },
+    {
+      "name": "pyproject.toml",
+      "type": "file",
+      "size": 42,
+      "size_human": "42 bytes",
+      "ext": ".toml",
+      "path": "pyproject.toml",
+      "is_config": true
+    },
+    {
+      "name": "tsconfig.json",
+      "type": "file",
+      "size": 50,
+      "size_human": "50 bytes",
+      "ext": ".json",
+      "path": "tsconfig.json",
+      "is_config": true
+    }
+  ],
+  "project_summary": {
+    "estimated_tokens": null,
+    "todo_count": null,
+    "missing_tests_count": null,
+    "entry_points_count": null,
+    "config_files_count": 5,
+    "git_available": null,
+    "most_depended_on": null,
+    "hotspots": null,
+    "circular_dependencies": null,
+    "reading_order_candidates": null
+  }
+}

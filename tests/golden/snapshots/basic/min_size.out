@@ -1,0 +1,16 @@
+basic/ (4 dirs, 4 files, 305.56 KB)
+├── emptydir/ (0 dirs, 0 files, 0 bytes)
+├── links/ (0 dirs, 1 file, 17 bytes)
+│   └── broken → ./nonexistent (0 bytes)
+├── loop/ (1 dir, 0 files, 8 bytes)
+│   └── inner/ (0 dirs, 0 files, 8 bytes)
+├── sub/ (1 dir, 0 files, 627 bytes)
+│   └── grandchild/ (1 dir, 0 files, 395 bytes)
+│       └── deeper/ (0 dirs, 0 files, 5 bytes)
+├── alpha.txt (1 KB)
+├── Beta.md (1.55 KB)
+├── big.bin (300 KB)
+└── Zeta.txt (1.5 KB)
+
+  合計  7 ディレクトリ,  5 ファイル  (最小: 1 KB)
+  .txt ×2  (no ext) ×1  .md ×1  .bin ×1

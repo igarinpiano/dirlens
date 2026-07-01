@@ -1,0 +1,12 @@
+rust_lang/ (1 dir, 1 file, 526 bytes)
+├── src/ (1 dir, 2 files, 484 bytes)
+│   ├── nested/ (0 dirs, 2 files, 80 bytes)
+│   │   ├── inner.rs (65 bytes)
+│   │   └── mod.rs (15 bytes)
+│   ├── main.rs (203 bytes)
+│   └── util.rs (201 bytes)
+└── Cargo.toml (42 bytes)
+
+  合計  2 ディレクトリ,  5 ファイル
+  .rs ×4  .toml ×1
+  テスト未整備: 0 ファイル
