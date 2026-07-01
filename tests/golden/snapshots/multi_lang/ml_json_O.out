@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "multi_lang",
   "type": "directory",
   "size": 3457,
@@ -281,11 +282,6 @@
                 {
                   "kind": "class",
                   "name": "Kind",
-                  "public": true
-                },
-                {
-                  "kind": "func",
-                  "name": "DEFAULT_KIND",
                   "public": true
                 }
               ]

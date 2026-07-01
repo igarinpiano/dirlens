@@ -16,7 +16,7 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB, 3ヶ月前)
 ├── src/ (1 dir, 4 files, 883 bytes, 3ヶ月前)
 │   ├── lib/ (0 dirs, 3 files, 355 bytes, 3ヶ月前)
 │   │   ├── data.js (31 bytes, 3ヶ月前, ~8 tok, 1 lines, テスト無し, used-by×1)
-│   │   ├── types.ts (82 bytes, 3ヶ月前, ~20 tok, 7 lines, テスト無し, class Kind, func DEFAULT_KIND, used-by×1)
+│   │   ├── types.ts (82 bytes, 3ヶ月前, ~20 tok, 7 lines, テスト無し, class Kind, used-by×1)
 │   │   └── util.ts (242 bytes, 3ヶ月前, ~60 tok, 11 lines, テスト無し, func helper, func internalOnly, func arrowExported, func arrowLocal, imports×1, used-by×3)
 │   ├── app.test.ts (64 bytes, 3ヶ月前, ~16 tok, 3 lines, imports×1)
 │   ├── * app.ts (80 bytes, 3ヶ月前, ~20 tok, 5 lines, func appMain, imports×1, used-by×1)
@@ -59,3 +59,4 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB, 3ヶ月前)
     4. main.py
     5. src/app.ts
   (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)
+  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算

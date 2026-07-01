@@ -90,13 +90,16 @@ def requirements_ok(reqs):
     return None
 
 
-def run_case(cmd_prefix, case, env, tag):
+def run_case(cmd_prefix, case, env, tag, extra_env=None):
     fixture_path = os.path.join(FIXTURES, case["fixture"])
     outdir = os.path.join(WORK, "out", tag, case["id"])
     shutil.rmtree(outdir, ignore_errors=True)
     os.makedirs(outdir)
     argv = list(cmd_prefix) + [fixture_path] + case["args"]
-    proc = subprocess.run(argv, capture_output=True, cwd=outdir, env=env,
+    run_env = dict(env)
+    if extra_env:
+        run_env.update(extra_env)
+    proc = subprocess.run(argv, capture_output=True, cwd=outdir, env=run_env,
                           timeout=120)
     files = {}
     for name in sorted(os.listdir(outdir)):
@@ -200,13 +203,17 @@ def compare(case, expected, actual):
 
 
 # ─── メイン ───────────────────────────────────────────────────
-def select_cases(only, include_live_only):
+def select_cases(only, mode, has_bin):
     out = []
     for case in CASES:
         if only and only not in case["id"]:
             continue
-        if case["live_only"] and not include_live_only:
+        if case["live_only"] and mode != "live":
             continue
+        if case.get("rust_only"):
+            # dirlens.py に無い機能: live 比較不可、record/verify は Rust 版のみ
+            if mode == "live" or not has_bin:
+                continue
         out.append(case)
     return out
 
@@ -227,8 +234,7 @@ def main():
             print(f"{case['fixture']}/{case['id']}: {' '.join(case['args'])}{flags}")
         return 0
 
-    include_live = (args.mode == "live")
-    cases = select_cases(args.only, include_live)
+    cases = select_cases(args.only, args.mode, bool(args.bin))
     if not cases:
         print("該当するケースがありません", file=sys.stderr)
         return 1
@@ -253,7 +259,11 @@ def main():
 
         try:
             if args.mode == "record":
-                res = run_case(py_cmd, case, env, "py")
+                # 既定は dirlens.py から記録。--bin 指定時は Rust 版（既定動作）から記録する
+                # （AST 層・精度注記など意図的な差分を取り込む際に使う。差分は
+                # tests/golden/DELTAS.md に記録すること）。
+                src_cmd = rust_cmd if rust_cmd else py_cmd
+                res = run_case(src_cmd, case, env, "rec")
                 write_snapshot(case, res)
                 n_pass += 1
                 if args.verbose:
@@ -277,8 +287,11 @@ def main():
                 if not rust_cmd:
                     print("live には --bin が必要です", file=sys.stderr)
                     return 2
+                # live = Python 互換パス（正規表現層・内蔵 gitignore）の敵対的検証。
+                # 既定動作（AST 層・git 層・精度注記）は verify（スナップショット）が担う。
                 expected = run_case(py_cmd, case, env, "py")
-                actual = run_case(rust_cmd, case, env, "rs")
+                actual = run_case(rust_cmd, case, env, "rs",
+                                  extra_env={"DIRLENS_COMPAT": "python"})
 
             problems = compare(case, expected, actual)
             if problems:

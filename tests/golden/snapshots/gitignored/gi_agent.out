@@ -23,3 +23,4 @@ gitignored/ (2 dirs, 2 files, 3.8 KB, 3ヶ月前)
     nested/kept.txt  (1 回変更)
   読み始めの候補（エントリーポイント→依存度の高い順）:
     1. src/main.py
+  解析方式: gitignore=git check-ignore(厳密) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算

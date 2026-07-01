@@ -10,7 +10,10 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-dirlens-core = { path = "../dirlens-core" }
+# wasm では純 Rust パーサのみ（tree-sitter の C 依存は外す）
+dirlens-core = { path = "../dirlens-core", features = [
+    "ast-python", "ast-js", "ast-rust",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

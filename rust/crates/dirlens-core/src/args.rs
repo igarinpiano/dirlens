@@ -41,6 +41,7 @@ pub struct Args {
     pub filesfirst: bool,
     pub ai: bool,
     pub agent: bool,
+    pub check: bool,   // --check（能力レポート）
 
     // AI/エージェント解析
     pub tokens: bool,   // -T

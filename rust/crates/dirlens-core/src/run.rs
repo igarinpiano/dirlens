@@ -100,6 +100,22 @@ pub fn execute<F: FsProvider>(
     git: &dyn GitProvider,
     clip: &dyn ClipboardProvider,
 ) -> RunResult {
+    let probe = crate::check::EnvProbe {
+        git_available: git.available(),
+        is_work_tree: git.is_work_tree(&cfg.root),
+        clipboard: clip.available(),
+    };
+
+    // ── --check（能力レポート） ───────────────────────────────
+    if cfg.check {
+        let (stdout, exit_code) = crate::check::render_check(cfg, &probe, cfg.json);
+        return RunResult {
+            stdout,
+            exit_code,
+            ..Default::default()
+        };
+    }
+
     let active_pats: Arc<Vec<String>> = if cfg.use_gitignore {
         sess.load_gitignore(&cfg.root.clone())
     } else {
@@ -139,7 +155,7 @@ pub fn execute<F: FsProvider>(
     // ── JSON ─────────────────────────────────────────────────
     if cfg.json {
         return RunResult {
-            stdout: render_json(sess, cfg, &active_pats),
+            stdout: render_json(sess, cfg, &active_pats, &probe),
             ..Default::default()
         };
     }

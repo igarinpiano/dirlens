@@ -612,6 +612,14 @@ pub fn render_text<F: FsProvider>(
         ));
     }
 
+    // --agent の末尾に短い精度注記（spec 機能5）。互換モードでは出さない。
+    if cfg.agent && !cfg.suppress_notes {
+        out.push_str(&format!(
+            "{}\n",
+            c(&crate::check::agent_note(cfg), &[DIM], color)
+        ));
+    }
+
     if cfg.markdown {
         out.push_str("```\n");
     }

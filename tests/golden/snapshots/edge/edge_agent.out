@@ -35,3 +35,4 @@ edge/ (2 dirs, 13 files, 5.73+ MB, 3ヶ月前)
   エントリーポイント候補: 0 件検出
   設定ファイル: 0 件検出
   (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)
+  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算

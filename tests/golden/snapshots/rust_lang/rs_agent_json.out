@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "rust_lang",
   "type": "directory",
   "size": 526,
@@ -243,5 +244,32 @@
       "src/nested/mod.rs",
       "src/nested/inner.rs"
     ]
+  },
+  "capabilities": {
+    "gitignore_tier": "builtin",
+    "outline": {
+      "python": "ast",
+      "js_ts": "ast",
+      "rust": "ast",
+      "go": "ast",
+      "c": "ast",
+      "fallback": "regex"
+    },
+    "imports_resolution": [
+      "relative",
+      "tsconfig-paths",
+      "package-imports",
+      "go-module",
+      "rust-module-tree"
+    ],
+    "git_log": true,
+    "clipboard": false,
+    "tokens": "char-heuristic"
+  },
+  "analysis": {
+    "gitignore_tier": "builtin",
+    "outline": "ast+regex-fallback",
+    "imports": "ast+manifest",
+    "tokens": "char-heuristic"
   }
 }

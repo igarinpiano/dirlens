@@ -91,7 +91,15 @@ pub fn file_extras<F: FsProvider>(
     }
 
     if cfg.show_outline {
-        let mut outline = extract_outline(&text, &ext);
+        // 2段: AST（言語別最良パーサ）→ 失敗/未対応なら正規表現
+        let mut outline = if cfg.enhanced_analysis {
+            match crate::analysis::ast::ast_outline(&text, &ext) {
+                Some(items) => Some(items),
+                None => extract_outline(&text, &ext),
+            }
+        } else {
+            extract_outline(&text, &ext)
+        };
         if let Some(items) = &mut outline {
             if !items.is_empty() && cfg.public_only {
                 items.retain(|item| item.2);

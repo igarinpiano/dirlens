@@ -177,11 +177,16 @@ fn build_json_tree<F: FsProvider>(
     Value::Object(obj)
 }
 
+/// `--json` 出力スキーマの版数。フィールド追加は後方互換、
+/// 改名・削除・型変更時にインクリメントする（安定した公開契約・spec §8）。
+pub const SCHEMA_VERSION: u32 = 1;
+
 /// JSON 出力全体（project_summary を含む）を文字列で返す（末尾改行つき）。
 pub fn render_json<F: FsProvider>(
     sess: &Session<F>,
     cfg: &Cfg,
     active_pats: &Arc<Vec<String>>,
+    probe: &crate::check::EnvProbe,
 ) -> String {
     let mut stats = JsonStats::default();
     let mut tree = build_json_tree(sess, &cfg.root, 0, cfg, active_pats, &mut stats);
@@ -284,6 +289,52 @@ pub fn render_json<F: FsProvider>(
             map.insert("project_summary".into(), Value::Object(ps));
         }
     }
+
+    // schema_version（先頭キー）と --agent 用メタブロック。
+    // DIRLENS_COMPAT=python（suppress_notes）では Python 版とのバイト一致のため出さない。
+    tree = match tree {
+        Value::Object(map) if !cfg.suppress_notes => {
+            let mut wrapped = Map::new();
+            wrapped.insert("schema_version".into(), json!(SCHEMA_VERSION));
+            for (k, v) in map {
+                wrapped.insert(k, v);
+            }
+            if cfg.agent {
+                wrapped.insert(
+                    "capabilities".into(),
+                    crate::check::capabilities_json(cfg, probe),
+                );
+                let mut analysis = Map::new();
+                analysis.insert(
+                    "gitignore_tier".into(),
+                    match cfg.gitignore_tier {
+                        Some(t) => json!(t),
+                        None => Value::Null,
+                    },
+                );
+                analysis.insert(
+                    "outline".into(),
+                    json!(if cfg.enhanced_analysis {
+                        "ast+regex-fallback"
+                    } else {
+                        "regex"
+                    }),
+                );
+                analysis.insert(
+                    "imports".into(),
+                    json!(if cfg.enhanced_analysis {
+                        "ast+manifest"
+                    } else {
+                        "regex"
+                    }),
+                );
+                analysis.insert("tokens".into(), json!("char-heuristic"));
+                wrapped.insert("analysis".into(), Value::Object(analysis));
+            }
+            Value::Object(wrapped)
+        }
+        other => other,
+    };
 
     let mut s = serde_json::to_string_pretty(&tree).unwrap_or_default();
     s.push('\n');

@@ -10,9 +10,12 @@
 """
 
 
-def _c(id, fixture, args, live_only=False, requires=()):
+def _c(id, fixture, args, live_only=False, requires=(), rust_only=False):
+    """rust_only: dirlens.py に存在しない機能（--check 等）。live 比較の対象外で、
+    スナップショットは record --bin（Rust 版）でのみ記録される。"""
     return {"id": id, "fixture": fixture, "args": list(args),
-            "live_only": live_only, "requires": list(requires)}
+            "live_only": live_only, "requires": list(requires),
+            "rust_only": rust_only}
 
 
 CASES = [
@@ -105,6 +108,11 @@ CASES = [
     _c("gi_H_json",      "gitignored", ["-H", "--json"], requires=["git"]),
     _c("gi_agent",       "gitignored", ["--agent"], requires=["git"]),
     _c("gi_agent_json",  "gitignored", ["--agent", "--json"], requires=["git"]),
+
+    # ── --check（Rust 版のみの新機能） ────────────────────────
+    _c("check",         "basic", ["--check"], requires=["git"], rust_only=True),
+    _c("check_json",    "basic", ["--check", "--json"], requires=["git"], rust_only=True),
+    _c("gi_check",      "gitignored", ["--check"], requires=["git"], rust_only=True),
 
     # ── edge: エッジケース ───────────────────────────────────
     _c("edge_base",      "edge", [], requires=["unixperm"]),

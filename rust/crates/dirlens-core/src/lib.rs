@@ -10,6 +10,7 @@
 pub mod analysis;
 pub mod args;
 pub mod cfg;
+pub mod check;
 pub mod colors;
 pub mod emoji;
 pub mod filter;

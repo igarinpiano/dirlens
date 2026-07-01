@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "basic",
   "type": "directory",
   "size": 312892,

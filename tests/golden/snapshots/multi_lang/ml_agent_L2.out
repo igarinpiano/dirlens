@@ -53,3 +53,4 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB, 3ヶ月前)
     4. main.py
     5. src/app.ts
   (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)
+  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算

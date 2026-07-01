@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "gitignored",
   "type": "directory",
   "size": 3889,
@@ -208,5 +209,32 @@
     "reading_order_candidates": [
       "src/main.py"
     ]
+  },
+  "capabilities": {
+    "gitignore_tier": "git",
+    "outline": {
+      "python": "ast",
+      "js_ts": "ast",
+      "rust": "ast",
+      "go": "ast",
+      "c": "ast",
+      "fallback": "regex"
+    },
+    "imports_resolution": [
+      "relative",
+      "tsconfig-paths",
+      "package-imports",
+      "go-module",
+      "rust-module-tree"
+    ],
+    "git_log": true,
+    "clipboard": false,
+    "tokens": "char-heuristic"
+  },
+  "analysis": {
+    "gitignore_tier": "git",
+    "outline": "ast+regex-fallback",
+    "imports": "ast+manifest",
+    "tokens": "char-heuristic"
   }
 }

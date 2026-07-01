@@ -231,6 +231,22 @@ fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<String> {
     Some(String::from_utf8_lossy(&buf).into_owned())
 }
 
+/// PATH からコマンドを探す（--check の存在確認用）。
+pub fn has_cmd(name: &str) -> bool {
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&paths).any(|dir| {
+        let p = dir.join(name);
+        #[cfg(windows)]
+        let p_exe = dir.join(format!("{}.exe", name));
+        #[cfg(windows)]
+        return p.is_file() || p_exe.is_file();
+        #[cfg(not(windows))]
+        p.is_file()
+    })
+}
+
 impl GitProvider for StdGit {
     fn log_output(&self, root: &Path, max_commits: usize) -> Option<String> {
         let mut cmd = Command::new("git");
@@ -281,6 +297,19 @@ impl GitProvider for StdGit {
                 .map(|s| s.to_string())
                 .collect(),
         )
+    }
+
+    fn available(&self) -> bool {
+        has_cmd("git")
+    }
+
+    fn is_work_tree(&self, root: &Path) -> bool {
+        Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
+            .stderr(Stdio::null())
+            .output()
+            .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "true")
+            .unwrap_or(false)
     }
 }
 
@@ -340,6 +369,21 @@ impl ClipboardProvider for StdClipboard {
                 }
             }
             false
+        }
+    }
+
+    fn available(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            has_cmd("pbcopy")
+        }
+        #[cfg(windows)]
+        {
+            has_cmd("clip")
+        }
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            has_cmd("wl-copy") || has_cmd("xclip") || has_cmd("xsel")
         }
     }
 }

@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "gitignored",
   "type": "directory",
   "size": 3889,

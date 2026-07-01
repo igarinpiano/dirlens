@@ -55,6 +55,14 @@ pub struct Cfg {
     pub gitignore_prefer_git: bool,
     /// 実際に使われた gitignore 層（"git" / "builtin"）。capabilities 出力用。
     pub gitignore_tier: Option<&'static str>,
+    /// AST 第1段＋マニフェスト読込による import 解決改善を使うか。
+    /// false なら正規表現層のみ（DIRLENS_COMPAT=python / DIRLENS_AST=off）。
+    pub enhanced_analysis: bool,
+    /// 精度注記・schema_version・capabilities を出さない
+    /// （DIRLENS_COMPAT=python: Python 版とのバイト一致検証用）。
+    pub suppress_notes: bool,
+    /// --check（能力レポートモード）
+    pub check: bool,
 
     // 出力モード
     pub use_color: bool,
@@ -133,6 +141,9 @@ impl Cfg {
             has_extras,
             gitignore_prefer_git: true,
             gitignore_tier: None,
+            enhanced_analysis: true,
+            suppress_notes: false,
+            check: args.check,
             use_color,
             markdown: args.markdown,
             json: args.json,

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "gitignore_tier": "builtin",
+    "outline": {
+      "python": "ast",
+      "js_ts": "ast",
+      "rust": "ast",
+      "go": "ast",
+      "c": "ast",
+      "fallback": "regex"
+    },
+    "imports_resolution": [
+      "relative",
+      "tsconfig-paths",
+      "package-imports",
+      "go-module",
+      "rust-module-tree"
+    ],
+    "git_log": true,
+    "clipboard": false,
+    "tokens": "char-heuristic"
+  },
+  "degraded": [
+    "対象が git work tree ではない（gitignore は内蔵マッチャ）",
+    "クリップボードツールが見つからない（-C 不可）"
+  ],
+  "best": false
+}

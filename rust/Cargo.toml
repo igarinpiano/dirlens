@@ -15,3 +15,8 @@ repository = "https://github.com/igarinpiano/dirlens"
 [profile.release]
 lto = true
 strip = true
+
+# 開発ビルドの容量削減（debuginfo が target/ の大半を占めるため）
+[profile.dev]
+debug = false
+incremental = false

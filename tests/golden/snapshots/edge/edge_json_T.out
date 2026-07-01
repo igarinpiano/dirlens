@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "name": "edge",
   "type": "directory",
   "size": 6006111,

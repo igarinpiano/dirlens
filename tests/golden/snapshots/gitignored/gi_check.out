@@ -1,0 +1,11 @@
+dirlens 能力レポート
+  gitignore (-G): git check-ignore（厳密・ネスト/否定/グローバル除外に完全対応）
+  git 履歴 (-H): ✓ git
+  アウトライン (-O/-A):
+    Python: ast / JS・TS: ast / Rust: ast / Go: ast / C: ast
+  import 解決 (-M): AST + マニフェスト（tsconfig paths / package.json imports / go.mod / Rust モジュールツリー）
+  トークン概算 (-T): 文字数ベースの概算
+  クリップボード (-C): ✗
+
+縮退している項目:
+  - クリップボードツールが見つからない（-C 不可）

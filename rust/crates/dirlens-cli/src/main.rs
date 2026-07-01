@@ -153,6 +153,12 @@ fn build_command() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("-G -T -H -K -V -N -O -M -F --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）"),
         )
+        .arg(
+            Arg::new("check")
+                .long("check")
+                .action(ArgAction::SetTrue)
+                .help("能力レポートを表示（gitignore層・言語別解析方式・git/クリップボード可否）。縮退があると終了コード 1。--json 併用可"),
+        )
 }
 
 /// dirlens.py の _enable_color 相当。
@@ -223,6 +229,7 @@ fn main() {
         imports: getb("imports"),
         api: getb("api"),
         config: getb("config"),
+        check: getb("check"),
     };
 
     // ── エイリアスのマージ（argparse 相当） ────────────────────
@@ -270,6 +277,14 @@ fn main() {
                 cfg.gitignore_prefer_git = false;
             }
         }
+    }
+    // AST 第1段＋import 解決改善の無効化（DIRLENS_AST=off または互換モード）
+    if compat_python || std::env::var("DIRLENS_AST").as_deref() == Ok("off") {
+        cfg.enhanced_analysis = false;
+    }
+    // 互換モードでは精度注記・schema_version・capabilities も出さない
+    if compat_python {
+        cfg.suppress_notes = true;
     }
 
     let mut sess = Session::new(&fs);

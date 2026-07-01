@@ -229,6 +229,61 @@ fn js_patterns() -> &'static [Regex] {
     })
 }
 
+/// require() / 動的 import() のパターン（AST 第1段の補完にも使う）。
+pub fn js_call_patterns() -> &'static [Regex] {
+    static RES: OnceLock<Vec<Regex>> = OnceLock::new();
+    RES.get_or_init(|| {
+        vec![
+            Regex::new(r#"require\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap(),
+            Regex::new(r#"import\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap(),
+        ]
+    })
+}
+
+/// tsconfig.json 等の JSONC（コメント・末尾カンマ許容）を素の JSON に変換する。
+fn strip_jsonc(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let bytes: Vec<char> = text.chars().collect();
+    let mut i = 0;
+    let mut in_string = false;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_string {
+            out.push(c);
+            if c == '\\' && i + 1 < bytes.len() {
+                out.push(bytes[i + 1]);
+                i += 2;
+                continue;
+            }
+            if c == '"' {
+                in_string = false;
+            }
+            i += 1;
+        } else if c == '"' {
+            in_string = true;
+            out.push(c);
+            i += 1;
+        } else if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == '/' {
+            while i < bytes.len() && bytes[i] != '\n' {
+                i += 1;
+            }
+        } else if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == '*' {
+            i += 2;
+            while i + 1 < bytes.len() && !(bytes[i] == '*' && bytes[i + 1] == '/') {
+                i += 1;
+            }
+            i += 2;
+        } else {
+            out.push(c);
+            i += 1;
+        }
+    }
+    // 末尾カンマの除去
+    static TRAILING: OnceLock<Regex> = OnceLock::new();
+    let re = TRAILING.get_or_init(|| Regex::new(r",\s*([}\]])").unwrap());
+    re.replace_all(&out, "$1").into_owned()
+}
+
 pub fn extract_imports_js(text: &str) -> Vec<String> {
     let mut found = Vec::new();
     for pat in js_patterns() {
@@ -347,6 +402,155 @@ struct WalkState {
     config_set: HashSet<String>,
     py_module_map: HashMap<String, String>,
     go_module_name: Option<String>,
+    // import 解決改善（マニフェスト読込・ルート直下のもののみ）
+    ts_base_url: String,
+    ts_paths: Vec<(String, Vec<String>)>,
+    pkg_imports: Vec<(String, String)>,
+}
+
+/// Rust のモジュールツリー（module path → relpath）を src/ 配下から構築する。
+/// src/lib.rs / src/main.rs = クレートルート、foo.rs / foo/mod.rs = crate::foo。
+fn build_rs_module_map(all_relpaths: &BTreeSet<String>) -> HashMap<Vec<String>, String> {
+    let mut map: HashMap<Vec<String>, String> = HashMap::new();
+    for r in all_relpaths {
+        let Some(rest) = r.strip_prefix("src/") else { continue };
+        let Some(stem) = rest.strip_suffix(".rs") else { continue };
+        let mut parts: Vec<String> = stem.split('/').map(|s| s.to_string()).collect();
+        let key: Vec<String> = if parts == ["main"] || parts == ["lib"] {
+            Vec::new()
+        } else if parts.last().map(|s| s == "mod").unwrap_or(false) {
+            parts.pop();
+            parts
+        } else {
+            parts
+        };
+        // クレートルートは lib.rs を優先する
+        if key.is_empty() && map.contains_key(&key) && r.ends_with("main.rs") {
+            continue;
+        }
+        map.insert(key, r.clone());
+    }
+    map
+}
+
+/// ファイルの属するモジュールパス（self:: / super:: 解決の基準）。
+fn rs_module_of(relpath: &str) -> Option<Vec<String>> {
+    let rest = relpath.strip_prefix("src/")?;
+    let stem = rest.strip_suffix(".rs")?;
+    let mut parts: Vec<String> = stem.split('/').map(|s| s.to_string()).collect();
+    if parts == ["main"] || parts == ["lib"] {
+        return Some(Vec::new());
+    }
+    if parts.last().map(|s| s == "mod").unwrap_or(false) {
+        parts.pop();
+    }
+    Some(parts)
+}
+
+/// use パスをモジュールツリーで解決する（crate:: / self:: / super:: 対応）。
+fn resolve_rs_module(
+    use_path: &str,
+    cur_mod: &[String],
+    map: &HashMap<Vec<String>, String>,
+    self_relpath: &str,
+) -> Option<String> {
+    let segs: Vec<&str> = use_path.split("::").filter(|s| !s.is_empty()).collect();
+    if segs.is_empty() {
+        return None;
+    }
+    let (mut base, mut idx): (Vec<String>, usize) = match segs[0] {
+        "crate" => (Vec::new(), 1),
+        "self" => (cur_mod.to_vec(), 1),
+        "super" => {
+            let mut b = cur_mod.to_vec();
+            let mut i = 0;
+            while i < segs.len() && segs[i] == "super" {
+                if b.pop().is_none() {
+                    return None;
+                }
+                i += 1;
+            }
+            (b, i)
+        }
+        _ => return None, // 外部 crate（or 2015 エディションの相対パス）は対象外
+    };
+    while idx < segs.len() && (segs[idx] == "self" || segs[idx] == "*") {
+        idx += 1;
+    }
+    for s in &segs[idx..] {
+        if *s != "*" && *s != "self" {
+            base.push(s.to_string());
+        }
+    }
+    let n = base.len() as i64;
+    for cut in [n, n - 1] {
+        if cut < 0 {
+            continue;
+        }
+        if let Some(r) = map.get(&base[..cut as usize]) {
+            if r != self_relpath {
+                return Some(r.clone());
+            }
+        }
+    }
+    None
+}
+
+/// パターン中の '*' を挟んだ前方/後方一致で spec をマッチし、'*' 部分を返す。
+fn star_match(pat: &str, spec: &str) -> Option<String> {
+    match pat.find('*') {
+        Some(pos) => {
+            let (pre, post) = (&pat[..pos], &pat[pos + 1..]);
+            if spec.len() >= pre.len() + post.len()
+                && spec.starts_with(pre)
+                && spec.ends_with(post)
+            {
+                Some(spec[pre.len()..spec.len() - post.len()].to_string())
+            } else {
+                None
+            }
+        }
+        None => {
+            if pat == spec {
+                Some(String::new())
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// bare import を tsconfig paths / baseUrl / package.json imports で解決する（改善）。
+fn resolve_js_manifest(spec: &str, st: &WalkState) -> Option<String> {
+    if spec.starts_with('#') {
+        for (key, target) in &st.pkg_imports {
+            if let Some(mid) = star_match(key, spec) {
+                let cand = target.replace('*', &mid);
+                if let Some(r) = resolve_relative_path("", &cand, &st.all_relpaths) {
+                    return Some(r);
+                }
+            }
+        }
+        return None;
+    }
+    for (pat, targets) in &st.ts_paths {
+        if let Some(mid) = star_match(pat, spec) {
+            for t in targets {
+                let cand = t.replace('*', &mid);
+                let full = normpath(&pjoin(&st.ts_base_url, &cand));
+                if let Some(r) = resolve_relative_path("", &full, &st.all_relpaths) {
+                    return Some(r);
+                }
+            }
+        }
+    }
+    if !st.ts_base_url.is_empty() {
+        let full = normpath(&pjoin(&st.ts_base_url, spec));
+        if let Some(r) = resolve_relative_path("", &full, &st.all_relpaths) {
+            return Some(r);
+        }
+    }
+    None
 }
 
 pub fn build_project_index<F: FsProvider>(
@@ -364,6 +568,9 @@ pub fn build_project_index<F: FsProvider>(
         config_set: HashSet::new(),
         py_module_map: HashMap::new(),
         go_module_name: None,
+        ts_base_url: String::new(),
+        ts_paths: Vec::new(),
+        pkg_imports: Vec::new(),
     };
 
     walk(sess, root, cfg, active_pats.clone(), &mut st);
@@ -404,6 +611,13 @@ pub fn build_project_index<F: FsProvider>(
             }
         }
 
+        // Rust モジュールツリー（crate::/self::/super:: の解決改善用）
+        let rs_module_map = if cfg.enhanced_analysis {
+            build_rs_module_map(&st.all_relpaths)
+        } else {
+            HashMap::new()
+        };
+
         for relpath in &st.all_relpaths {
             let (_, ext_raw) = splitext(relpath.rsplit('/').next().unwrap_or(relpath));
             let ext = ext_raw.to_lowercase();
@@ -421,7 +635,14 @@ pub fn build_project_index<F: FsProvider>(
 
             match ext.as_str() {
                 ".py" => {
-                    for (module, level, names) in extract_imports_py(&read_text()) {
+                    let text = read_text();
+                    let imports = if cfg.enhanced_analysis {
+                        crate::analysis::ast::ast_imports_py(&text)
+                    } else {
+                        None
+                    }
+                    .unwrap_or_else(|| extract_imports_py(&text));
+                    for (module, level, names) in imports {
                         if level > 0 {
                             let mut pkg_parts: Vec<String> = if base_dir.is_empty() {
                                 Vec::new()
@@ -478,7 +699,14 @@ pub fn build_project_index<F: FsProvider>(
                     }
                 }
                 ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => {
-                    for spec in extract_imports_js(&read_text()) {
+                    let text = read_text();
+                    let specs = if cfg.enhanced_analysis {
+                        crate::analysis::ast::ast_imports_js(&text, &ext)
+                    } else {
+                        None
+                    }
+                    .unwrap_or_else(|| extract_imports_js(&text));
+                    for spec in specs {
                         if spec.starts_with('.') || spec.starts_with('/') {
                             match resolve_relative_path(&base_dir, &spec, &st.all_relpaths) {
                                 Some(r) if r != *relpath => {
@@ -487,12 +715,31 @@ pub fn build_project_index<F: FsProvider>(
                                 _ => external_raw.push(spec),
                             }
                         } else {
-                            external_raw.push(spec);
+                            // 改善: tsconfig paths / baseUrl / package.json imports で
+                            // エイリアスをローカルファイルに解決してから external に落とす
+                            let resolved = if cfg.enhanced_analysis {
+                                resolve_js_manifest(&spec, &st)
+                            } else {
+                                None
+                            };
+                            match resolved {
+                                Some(r) if r != *relpath => {
+                                    local_targets.insert(r);
+                                }
+                                _ => external_raw.push(spec),
+                            }
                         }
                     }
                 }
                 ".go" => {
-                    for spec in extract_imports_go(&read_text()) {
+                    let text = read_text();
+                    let specs = if cfg.enhanced_analysis {
+                        crate::analysis::ast::ast_imports_go(&text)
+                    } else {
+                        None
+                    }
+                    .unwrap_or_else(|| extract_imports_go(&text));
+                    for spec in specs {
                         let matched = st
                             .go_module_name
                             .as_ref()
@@ -524,7 +771,12 @@ pub fn build_project_index<F: FsProvider>(
                 }
                 ".rs" => {
                     let text = read_text();
-                    let (uses, mods) = extract_imports_rs(&text);
+                    let (uses, mods) = if cfg.enhanced_analysis {
+                        crate::analysis::ast::ast_imports_rs(&text)
+                    } else {
+                        None
+                    }
+                    .unwrap_or_else(|| extract_imports_rs(&text));
                     for m in mods {
                         let cands = if base_dir.is_empty() {
                             [format!("{}.rs", m), format!("{}/mod.rs", m)]
@@ -541,11 +793,24 @@ pub fn build_project_index<F: FsProvider>(
                         }
                     }
                     for u in uses {
-                        match resolve_rust_crate_path(&u, &st.all_relpaths) {
-                            Some(r) if r != *relpath => {
+                        // 改善: モジュールツリーで crate::/self::/super:: を解決し、
+                        // 失敗時は従来の src/ ヒューリスティックへ
+                        let mut resolved: Option<String> = None;
+                        if cfg.enhanced_analysis {
+                            if let Some(cur) = rs_module_of(relpath) {
+                                resolved =
+                                    resolve_rs_module(&u, &cur, &rs_module_map, relpath);
+                            }
+                        }
+                        if resolved.is_none() {
+                            resolved = resolve_rust_crate_path(&u, &st.all_relpaths)
+                                .filter(|r| r != relpath);
+                        }
+                        match resolved {
+                            Some(r) => {
                                 local_targets.insert(r);
                             }
-                            _ => external_raw.push(u),
+                            None => external_raw.push(u),
                         }
                     }
                 }
@@ -665,11 +930,56 @@ fn walk<F: FsProvider>(
                 }
             }
         }
+        if (e.name == "tsconfig.json" || e.name == "jsconfig.json") && !rel.contains('/') {
+            // ルート直下のみ対象。tsconfig を優先（jsconfig は未設定時のみ反映）
+            if e.name == "tsconfig.json" || (st.ts_paths.is_empty() && st.ts_base_url.is_empty()) {
+                if let Some(data) = sess.fs.read_prefix(&e.path, usize::MAX) {
+                    let text = strip_jsonc(&decode_utf8_ignore(&data));
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(co) = v.get("compilerOptions") {
+                            if let Some(b) = co.get("baseUrl").and_then(|b| b.as_str()) {
+                                st.ts_base_url = b.trim_start_matches("./").to_string();
+                                if st.ts_base_url == "." {
+                                    st.ts_base_url = String::new();
+                                }
+                            }
+                            if let Some(paths) = co.get("paths").and_then(|p| p.as_object()) {
+                                st.ts_paths = paths
+                                    .iter()
+                                    .map(|(k, v)| {
+                                        let targets: Vec<String> = v
+                                            .as_array()
+                                            .map(|arr| {
+                                                arr.iter()
+                                                    .filter_map(|t| t.as_str())
+                                                    .map(|t| t.to_string())
+                                                    .collect()
+                                            })
+                                            .unwrap_or_default();
+                                        (k.clone(), targets)
+                                    })
+                                    .collect();
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if e.name == "package.json" {
             if let Some(data) = sess.fs.read_prefix(&e.path, usize::MAX) {
                 if let Ok(text) = std::str::from_utf8(&data) {
                     if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(text) {
                         let base_dir = dirname(&rel).to_string();
+                        // ルート package.json の "imports"（# エイリアス）を記録
+                        if base_dir.is_empty() {
+                            if let Some(imp) = pkg.get("imports").and_then(|i| i.as_object()) {
+                                for (k, v) in imp {
+                                    if let Some(s) = v.as_str() {
+                                        st.pkg_imports.push((k.clone(), s.to_string()));
+                                    }
+                                }
+                            }
+                        }
                         let mut add = |v: &str| {
                             st.pkg_entry_candidates
                                 .insert(normpath(&pjoin(&base_dir, v)).replace('\\', "/"));

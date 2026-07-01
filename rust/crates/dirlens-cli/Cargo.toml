@@ -11,7 +11,9 @@ name = "dirlens"
 path = "src/main.rs"
 
 [dependencies]
-dirlens-core = { path = "../dirlens-core" }
+dirlens-core = { path = "../dirlens-core", features = [
+    "ast-python", "ast-js", "ast-rust", "lang-go", "lang-c",
+] }
 clap = { version = "4", features = ["string"] }
 
 [target.'cfg(unix)'.dependencies]

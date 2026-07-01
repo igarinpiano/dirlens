@@ -65,11 +65,26 @@ pub trait GitProvider {
     /// `git -C root check-ignore --stdin -z` に rel_paths を投入し、
     /// 無視されたパスの集合を返す。git 不在・非 work tree なら None（Tier3 へ縮退）。
     fn check_ignore(&self, root: &Path, rel_paths: &[String]) -> Option<Vec<String>>;
+
+    /// git バイナリが使えるか（--check 用）。
+    fn available(&self) -> bool {
+        false
+    }
+
+    /// root が git work tree 内か（--check 用）。
+    fn is_work_tree(&self, _root: &Path) -> bool {
+        false
+    }
 }
 
 pub trait ClipboardProvider {
     /// クリップボードにコピーする。成功なら true。
     fn copy(&self, text: &str) -> bool;
+
+    /// クリップボードツールが存在するか（--check 用）。
+    fn available(&self) -> bool {
+        false
+    }
 }
 
 /// GitProvider が存在しない環境（wasm 等）向けのダミー。
