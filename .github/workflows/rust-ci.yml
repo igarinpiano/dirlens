@@ -53,9 +53,13 @@ jobs:
         if: runner.os == 'macOS'
         run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens
 
-      - name: Golden verify (default behavior vs snapshots, sans gitignored)
+      # gitignored は .git 配下のバイト数（zlib 実装依存）、basic は
+      # 「ディレクトリへの symlink」の表示サイズ（stat の st_size が FS 依存:
+      # APFS ≠ ext4）が記録元（macOS）と異なるため除外する。
+      # どちらも live（同一マシンで dirlens.py と直接比較）が完全に担保する。
+      - name: Golden verify (default behavior vs snapshots, sans gitignored/basic)
         if: runner.os == 'Linux'
-        run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens --skip gitignored
+        run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens --skip gitignored --skip basic
 
       - name: gitignore tier checks
         if: runner.os != 'Windows'

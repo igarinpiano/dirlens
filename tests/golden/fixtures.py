@@ -271,6 +271,7 @@ def _git_env(root):
         "GIT_CONFIG_GLOBAL": os.devnull,
         "GIT_CONFIG_SYSTEM": os.devnull,
         "HOME": root,
+        "USERPROFILE": root,
         "GIT_AUTHOR_NAME": "Tester",
         "GIT_AUTHOR_EMAIL": "tester@example.com",
         "GIT_COMMITTER_NAME": "Tester",
@@ -358,7 +359,8 @@ def build_edge(root):
     w(root, "invalid_utf8.txt", b"caf\xc3\xa9 \xff\xfe end\n")
     w(root, "space name.txt", "has space\n")
     w(root, "日本語ファイル.md", "# 日本語名\n")
-    w(root, "a&b<c>.html", "<p>escape me</p>\n")
+    if os.name != "nt":  # < > は Windows のファイル名では不正
+        w(root, "a&b<c>.html", "<p>escape me</p>\n")
     w(root, "'quote'.txt", "quoted\n")
     w(root, "[bracket].txt", "brackets in name\n")
     w(root, "chain/a/b/c/d/e/f/leaf.txt", "deep chain\n")

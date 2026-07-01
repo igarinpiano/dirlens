@@ -25,6 +25,11 @@ import shutil
 import subprocess
 import sys
 
+# Windows のコンソール（cp1252 等）でも日本語メッセージを出せるようにする
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 WORK = os.path.join(HERE, ".work")
