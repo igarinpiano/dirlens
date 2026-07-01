@@ -1,0 +1,23 @@
+[package]
+name = "dirlens-cli"
+description = "dirlens – ファイルサイズ付きディレクトリツリー表示ツール（CLI）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "dirlens"
+path = "src/main.rs"
+
+[dependencies]
+dirlens-core = { path = "../dirlens-core" }
+clap = { version = "4", features = ["string"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[features]
+default = ["parallel"]
+# ルート直下 dir サイズの並列プリフェッチ（native のみ）
+parallel = []

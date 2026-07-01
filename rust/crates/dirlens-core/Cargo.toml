@@ -1,0 +1,16 @@
+[package]
+name = "dirlens-core"
+description = "dirlens の解析コア（I/O 抽象トレイト経由・native/wasm 両対応）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+indexmap = "2"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[features]
+default = []
