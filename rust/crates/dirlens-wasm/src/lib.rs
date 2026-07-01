@@ -204,3 +204,57 @@ mod wasm_api {
         super::run_with_manifest(manifest_json, args_json).map_err(|e| JsValue::from_str(&e))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::run_with_manifest;
+
+    /// wasm と同一のエントリポイントを native で実行するスモークテスト。
+    /// （wasm32 ビルド自体は CI の wasm ジョブがコンパイルを常時保証する）
+    #[test]
+    fn manifest_agent_json_smoke() {
+        let manifest = r#"{
+          "now": 1750000000.0,
+          "files": [
+            {"path": ".gitignore", "content": "*.log\n", "mtime": 1740000000.0},
+            {"path": "app.log", "content": "x\n", "mtime": 1740000000.0},
+            {"path": "main.py", "content": "import util\n\ndef main():\n    pass\n", "mtime": 1740000000.0},
+            {"path": "util.py", "content": "def helper():\n    return 1\n", "mtime": 1740000000.0}
+          ]
+        }"#;
+        let out = run_with_manifest(manifest, r#"["--agent", "--json"]"#).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["schema_version"], 1);
+        // git 不在 → gitignore は内蔵マッチャ（Tier3）で app.log が除外される
+        assert_eq!(v["capabilities"]["gitignore_tier"], "builtin");
+        let names: Vec<&str> = v["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"main.py"));
+        assert!(!names.contains(&"app.log"));
+        // エントリーポイント検出と import 解決が動いている
+        assert_eq!(v["project_summary"]["entry_points_count"], 1);
+        let main = v["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "main.py")
+            .unwrap();
+        assert_eq!(main["imports"][0], "util.py");
+        assert_eq!(v["project_summary"]["git_available"], false);
+    }
+
+    /// テキスト出力のスモーク（日本語サマリ・精度注記）。
+    #[test]
+    fn manifest_text_smoke() {
+        let manifest = r#"{"now": 1750000000.0, "files": [
+            {"path": "a.txt", "content": "hello\n", "mtime": 1740000000.0}
+        ]}"#;
+        let out = run_with_manifest(manifest, r#"["--agent"]"#).unwrap();
+        assert!(out.contains("合計"));
+        assert!(out.contains("解析方式:"));
+    }
+}

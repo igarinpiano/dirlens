@@ -53,25 +53,33 @@ def normalize(text):
 
 
 def build_env():
-    shim = os.path.join(WORK, "shim")
-    os.makedirs(shim, exist_ok=True)
-    git_path = shutil.which("git")
-    shim_git = os.path.join(shim, "git")
-    if git_path and not os.path.exists(shim_git):
-        os.symlink(git_path, shim_git)
     home = os.path.join(WORK, "home")
     os.makedirs(home, exist_ok=True)
+    # PATH は git だけを含む shim（pbcopy 等を排除し -C を決定論化）。
+    # Windows は symlink が使えない場合があるためフル PATH のまま
+    # （live 比較は同一環境の Python vs Rust なので決定論性は保たれる）。
+    if os.name == "nt":
+        path = os.environ.get("PATH", "")
+    else:
+        shim = os.path.join(WORK, "shim")
+        os.makedirs(shim, exist_ok=True)
+        git_path = shutil.which("git")
+        shim_git = os.path.join(shim, "git")
+        if git_path and not os.path.exists(shim_git):
+            os.symlink(git_path, shim_git)
+        path = shim
     return {
-        "PATH": shim,
+        "PATH": path,
         "HOME": home,
+        "USERPROFILE": home,
         "LC_ALL": "C",
         "LANG": "C",
         "LC_MESSAGES": "C",
         "TZ": "UTC",
         "PYTHONIOENCODING": "utf-8",
         "PYTHONHASHSEED": "0",
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
         # git リポジトリ探索が .work より上（＝外側の dirlens リポジトリ）へ
         # 遡らないようにする。これが無いと fixture の git 情報が外側リポジトリの
         # 履歴で汚染され、ゴールデンが dirlens のコミットのたびに変わってしまう。
@@ -83,10 +91,13 @@ def requirements_ok(reqs):
     for r in reqs:
         if r == "unixperm":
             if os.name != "posix" or os.geteuid() == 0:
-                return f"unixperm 要件を満たさない（posix かつ非 root が必要）"
+                return "unixperm 要件を満たさない（posix かつ非 root が必要）"
         elif r == "git":
             if not shutil.which("git"):
                 return "git が見つからない"
+        elif r == "symlink":
+            if not fixtures_mod.can_symlink():
+                return "symlink が作れない環境"
     return None
 
 
@@ -225,6 +236,10 @@ def main():
     ap.add_argument("--python", action="store_true",
                     help="verify で dirlens.py 自身を照合する（決定論性チェック）")
     ap.add_argument("--only", help="ケースIDの部分一致フィルタ")
+    ap.add_argument("--skip", action="append", default=[],
+                    help="fixture 名 or ケースIDの部分一致で除外（複数可）。"
+                         "例: CI の Linux で .git のバイト数が環境依存になる "
+                         "gitignored の verify を外す")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -235,6 +250,8 @@ def main():
         return 0
 
     cases = select_cases(args.only, args.mode, bool(args.bin))
+    cases = [c for c in cases
+             if not any(s in c["id"] or s == c["fixture"] for s in args.skip)]
     if not cases:
         print("該当するケースがありません", file=sys.stderr)
         return 1

@@ -50,7 +50,30 @@ def w(root, rel, data, age=DEFAULT_AGE):
     return path
 
 
+def can_symlink():
+    """symlink が作れるか（Windows は開発者モード無効だと不可）。"""
+    global _CAN_SYMLINK
+    if _CAN_SYMLINK is None:
+        probe = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             ".work", ".symlink_probe")
+        os.makedirs(os.path.dirname(probe), exist_ok=True)
+        try:
+            if os.path.lexists(probe):
+                os.remove(probe)
+            os.symlink("target", probe)
+            os.remove(probe)
+            _CAN_SYMLINK = True
+        except OSError:
+            _CAN_SYMLINK = False
+    return _CAN_SYMLINK
+
+
+_CAN_SYMLINK = None
+
+
 def link(root, rel, target):
+    if not can_symlink():
+        return
     path = os.path.join(root, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     os.symlink(target, path)
@@ -245,8 +268,8 @@ def build_rust_lang(root):
 def _git_env(root):
     env = dict(os.environ)
     env.update({
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
         "HOME": root,
         "GIT_AUTHOR_NAME": "Tester",
         "GIT_AUTHOR_EMAIL": "tester@example.com",

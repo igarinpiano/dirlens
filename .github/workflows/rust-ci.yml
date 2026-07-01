@@ -1,0 +1,88 @@
+# Rust 版 dirlens の CI。
+#
+# ジョブ構成:
+#   test  … linux / macos / windows で unit test + ゴールデンテスト
+#            - live   = dirlens.py とのバイト一致（互換層・DIRLENS_COMPAT=python）
+#            - verify = 既定動作（AST層・git層・精度注記）のスナップショット照合
+#              ※ gitignored fixture は .git 配下のバイト数が zlib 実装依存のため
+#                 スナップショット記録元（macOS）以外では除外し、live で担保する
+#   wasm  … dirlens-core が wasm32 でコンパイルできることの常時保証（bit-rot 防止）
+#            + 同一エントリポイントの native スモークテスト
+name: rust-ci
+
+on:
+  push:
+    branches: [main, rust-rewrite]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Unit tests
+        working-directory: rust
+        run: cargo test --workspace
+
+      - name: Build CLI
+        working-directory: rust
+        run: cargo build -p dirlens-cli
+
+      - name: Golden live (dirlens.py byte parity, compat tier)
+        run: python3 tests/golden/run.py live --bin rust/target/debug/dirlens
+
+      - name: Golden verify (default behavior vs snapshots)
+        if: runner.os == 'macOS'
+        run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens
+
+      - name: Golden verify (default behavior vs snapshots, sans gitignored)
+        if: runner.os == 'Linux'
+        run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens --skip gitignored
+
+      - name: gitignore tier checks
+        if: runner.os != 'Windows'
+        run: python3 tests/golden/tier_check.py --bin rust/target/debug/dirlens
+
+      - name: AST tier checks
+        run: python3 tests/golden/ast_check.py --bin rust/target/debug/dirlens
+
+      - name: Smoke (--agent / --check on this repository)
+        run: |
+          rust/target/debug/dirlens --agent -L 2 > /dev/null
+          rust/target/debug/dirlens --check || true
+          rust/target/debug/dirlens --agent --json | python3 -c "import json,sys; json.load(sys.stdin)"
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build for wasm32（純 Rust パーサのみ・tree-sitter 無効）
+        working-directory: rust
+        run: cargo build -p dirlens-wasm --target wasm32-unknown-unknown
+      - name: Smoke test（wasm と同一エントリポイントを native 実行）
+        working-directory: rust
+        run: cargo test -p dirlens-wasm
