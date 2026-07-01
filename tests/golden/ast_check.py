@@ -27,7 +27,7 @@ def build_fixture(root):
     def w(rel, content):
         p = os.path.join(root, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p, "w") as f:
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
 
     # 1. 文字列リテラル内の偽シンボル（正規表現は誤検出する）

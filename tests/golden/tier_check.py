@@ -37,7 +37,7 @@ def build_fixture(root, with_git):
     def w(rel, content="x\n"):
         p = os.path.join(root, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p, "w") as f:
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
 
     w(".gitignore", "docs/*.tmp\n")
