@@ -3,6 +3,12 @@
 ファイルサイズ付きのディレクトリツリーを表示するコマンドラインツール。  
 **Python 3.8+ のみで動作**（追加ライブラリ不要）。
 
+> **Rust 版（移行中）**: 単一バイナリの Rust 実装が `rust/` で開発されています。
+> 全フラグ・全出力形式が Python 版とゴールデンテストで検証済みで、さらに
+> AST ベースの解析・`git check-ignore` による厳密な gitignore・`--check` 能力レポート
+> が加わります。詳細は「[Rust 版について](#rust-版について移行中)」を参照。
+> 配布（npm / pip）の切り替えまでは Python 版が正式版です。
+
 ---
 
 ## インストール
@@ -308,9 +314,9 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 - **`-G` の否定パターン（`!`）** は対応していますが、ディレクトリを除外した後にその中のファイルを `!` で復活させることは非対応です（`*.log` + `!important.log` のようなファイル単位の否定は動作します）
 - `-p`（パーミッション）・`-u`（ユーザー名）・`-g`（グループ名）は macOS / Linux のみ対応（Windows では ID 番号を表示）
 
-### AI/エージェント向け解析機能の精度について
+### AI/エージェント向け解析機能の精度について（Python 版）
 
-dirlens は外部ライブラリに依存しない方針で作られているため、以下の機能は**完全な精度を保証しません**。重要な判断の根拠にする場合は、該当ファイルの中身を直接確認することを推奨します。
+dirlens（Python 版）は外部ライブラリに依存しない方針で作られているため、以下の機能は**完全な精度を保証しません**。重要な判断の根拠にする場合は、該当ファイルの中身を直接確認することを推奨します。（Rust 版では下記のとおり複数項目が改善されています。）
 
 | 機能 | 制限事項 |
 |---|---|
@@ -325,6 +331,50 @@ dirlens は外部ライブラリに依存しない方針で作られているた
 ### AIエージェントへの指示テンプレート
 
 エージェント（Claude Code・Cursor等）にプロジェクト探索の手順として `dirlens --agent` を使わせたい場合、`AGENT_RULE.md` のテンプレートを `CLAUDE.md`・`.cursorrules` 等のグローバルルールファイルにそのまま貼り付けて使えます。
+
+---
+
+## Rust 版について（移行中）
+
+`rust/` ディレクトリに、dirlens の **Rust 実装（単一バイナリ・ランタイム依存ゼロ）** があります。
+フラグ・出力フォーマット・tree 互換は Python 版と**ゴールデンテストでバイト単位に検証**されており、
+そのうえで以下が改善されています。
+
+### Python 版からの改善点
+
+| 機能 | Python 版 | Rust 版 |
+|---|---|---|
+| シンボルアウトライン（`-O`/`-A`） | 正規表現のみ | **2段: 言語別 AST（Python=rustpython, JS/TS=oxc, Rust=syn, Go/C=tree-sitter）→ 失敗時は正規表現へ縮退**。文字列リテラル内の偽検出が消える |
+| import 解決（`-M`） | 相対パスのみ | **AST 抽出 + マニフェスト解決**: tsconfig/jsconfig の `paths`・`baseUrl`、package.json の `imports`（`#`）、Rust のモジュールツリー（`crate::`/`self::`/`super::`）、go.mod |
+| `.gitignore`（`-G`） | 内蔵 fnmatch 近似 | **2層: `git check-ignore` による厳密判定（`**`・グローバル除外・`.git/info/exclude` 対応）→ git 不在時は内蔵マッチャへ縮退** |
+| 精度の可視化 | なし | **`--check`** で能力レポート（縮退があると終了コード 1）。`--agent` 末尾に解析方式の注記、`--agent --json` に `capabilities`/`analysis` ブロック |
+| JSON スキーマ | 版数なし | トップレベルに **`schema_version`**（安定した公開契約として運用） |
+| Windows | ラッパー経由 | ネイティブ単一バイナリ（`dirlens.exe`） |
+
+トークン概算（`-T`）の計算式は Python 版と**同一**です（互換性優先。正確な BPE 値は将来の opt-in 機能）。
+
+### ビルドと検証
+
+```bash
+cd rust && cargo build --release        # バイナリ: rust/target/release/dirlens
+cargo test --workspace                  # ユニットテスト
+
+# ゴールデンテスト（Python 版との等価性検証・要 python3）
+python3 tests/golden/run.py live   --bin rust/target/release/dirlens  # Python 版とバイト一致（互換層）
+python3 tests/golden/run.py verify --bin rust/target/release/dirlens  # 既定動作のスナップショット照合
+python3 tests/golden/tier_check.py --bin rust/target/release/dirlens  # gitignore 2層の検証
+python3 tests/golden/ast_check.py  --bin rust/target/release/dirlens  # AST 2段の検証
+```
+
+Python 版との意図的な差分の全リストは `tests/golden/DELTAS.md` を参照してください。
+
+### 環境変数（検証・縮退制御）
+
+| 変数 | 効果 |
+|---|---|
+| `DIRLENS_GITIGNORE=builtin` | gitignore を内蔵マッチャ（Python 互換層）に固定 |
+| `DIRLENS_AST=off` | AST 解析を無効化し正規表現層に固定 |
+| `DIRLENS_COMPAT=python` | 上記すべて＋精度注記/schema_version 抑止（Python 版とバイト一致にする検証用） |
 
 ---
 
