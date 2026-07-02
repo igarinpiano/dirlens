@@ -43,9 +43,10 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
-            os: macos-26
+            os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
           - target: x86_64-apple-darwin
-            os: macos-26   # macos-13は2025-12廃止済み、macos-14も2026-07-06から廃止開始。macos-26(Apple Silicon)からクロスコンパイル
+            os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
+                            # x86_64 クロスコンパイルに対応する保証が無いため固定
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
           - target: aarch64-unknown-linux-gnu
