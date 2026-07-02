@@ -23,7 +23,56 @@ pub fn is_probably_binary(name: &str) -> bool {
     BINARY_EXTS.contains(&ext)
 }
 
-/// トークン数概算。英数字記号は約4文字/トークン、それ以外は約1.5文字/トークン。
+/// BPE トークナイザ（Tier1・o200k_base）。feature 無効時は None。
+#[cfg(feature = "tokens-bpe")]
+fn bpe_encoder() -> Option<&'static tiktoken_rs::CoreBPE> {
+    use std::sync::OnceLock;
+    static ENC: OnceLock<Option<tiktoken_rs::CoreBPE>> = OnceLock::new();
+    ENC.get_or_init(|| tiktoken_rs::o200k_base().ok()).as_ref()
+}
+
+/// このビルドで BPE 計数が使えるか（--check / capabilities 用）。
+pub fn bpe_available() -> bool {
+    #[cfg(feature = "tokens-bpe")]
+    {
+        return bpe_encoder().is_some();
+    }
+    #[allow(unreachable_code)]
+    false
+}
+
+/// トークン計数の 2 層エントリポイント。
+/// Tier1: BPE（o200k_base）による正確値（打ち切り時はスケール補正で概算に戻る）。
+/// Tier2: 文字数ヒューリスティック（Python 版と同一式）へ縮退。
+pub fn count_tokens(
+    text: &str,
+    byte_len: usize,
+    actual_size: Option<u64>,
+    truncated: bool,
+    prefer_bpe: bool,
+) -> i64 {
+    if text.is_empty() {
+        return 0;
+    }
+    #[cfg(feature = "tokens-bpe")]
+    if prefer_bpe {
+        if let Some(enc) = bpe_encoder() {
+            let mut tokens = enc.encode_ordinary(text).len() as f64;
+            if truncated {
+                if let Some(sz) = actual_size {
+                    if sz != 0 && byte_len > 0 {
+                        tokens *= sz as f64 / byte_len as f64;
+                    }
+                }
+            }
+            return std::cmp::max(1, py_round(tokens));
+        }
+    }
+    let _ = prefer_bpe;
+    estimate_tokens(text, byte_len, actual_size, truncated)
+}
+
+/// トークン数概算（Tier2）。英数字記号は約4文字/トークン、それ以外は約1.5文字/トークン。
 /// 打ち切り時は実サイズとの比でスケール補正する。
 pub fn estimate_tokens(text: &str, byte_len: usize, actual_size: Option<u64>, truncated: bool) -> i64 {
     if text.is_empty() {
@@ -47,6 +96,29 @@ pub fn estimate_tokens(text: &str, byte_len: usize, actual_size: Option<u64>, tr
         }
     }
     std::cmp::max(1, py_round(tokens))
+}
+
+#[cfg(all(test, feature = "tokens-bpe"))]
+mod bpe_tests {
+    use super::count_tokens;
+
+    #[test]
+    fn bpe_exact_counts() {
+        // o200k_base: "hello world" は 2 トークン
+        assert_eq!(count_tokens("hello world", 11, None, false, true), 2);
+        // 空文字は 0
+        assert_eq!(count_tokens("", 0, None, false, true), 0);
+        // prefer_bpe=false はヒューリスティック（11 ASCII 文字 / 4 → round(2.75) = 3）
+        assert_eq!(count_tokens("hello world", 11, None, false, false), 3);
+    }
+
+    #[test]
+    fn bpe_truncation_scales() {
+        // 打ち切り時は実サイズとの比で補正される
+        let full = count_tokens("abcd ".repeat(100).as_str(), 500, Some(1000), true, true);
+        let half = count_tokens("abcd ".repeat(100).as_str(), 500, Some(500), false, true);
+        assert!(full >= half * 2 - 1);
+    }
 }
 
 /// 行数カウント（打ち切り時はスケール補正）。

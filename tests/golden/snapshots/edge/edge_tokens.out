@@ -10,19 +10,19 @@ edge/ (2 dirs, 13 files, 5.73+ MB)
 ├── denied/ (0+ dirs, 0+ files, 0+ bytes)
 │   └── [アクセス拒否]
 ├── 'quote'.txt (7 bytes, ~2 tok, 1 lines)
-├── [bracket].txt (17 bytes, ~4 tok, 1 lines)
-├── a&b<c>.html (17 bytes, ~4 tok, 1 lines)
-├── big6mb.txt (5.72 MB, ~1500K tok, 92309 lines)
+├── [bracket].txt (17 bytes, ~5 tok, 1 lines)
+├── a&b<c>.html (17 bytes, ~7 tok, 1 lines)
+├── big6mb.txt (5.72 MB, ~1938.5K tok, 92309 lines)
 ├── binary_in_txt.txt (114 bytes)
-├── cjk.md (4.84 KB, ~1.1K tok, 40 lines)
-├── crlf.txt (20 bytes, ~5 tok, 2 lines)
+├── cjk.md (4.84 KB, ~1.4K tok, 40 lines)
+├── crlf.txt (20 bytes, ~6 tok, 2 lines)
 ├── image.png (508 bytes)
-├── invalid_utf8.txt (13 bytes, ~3 tok, 1 lines)
+├── invalid_utf8.txt (13 bytes, ~5 tok, 1 lines)
 ├── only_newline.txt (1 byte, ~1 tok, 1 lines)
-├── space name.txt (10 bytes, ~2 tok, 1 lines)
-├── todo_many.py (398 bytes, ~100 tok, 12 lines)
-└── 日本語ファイル.md (15 bytes, ~3 tok, 1 lines)
+├── space name.txt (10 bytes, ~3 tok, 1 lines)
+├── todo_many.py (398 bytes, ~120 tok, 12 lines)
+└── 日本語ファイル.md (15 bytes, ~5 tok, 1 lines)
 
   合計  8 ディレクトリ,  14 ファイル
   .txt ×9  .md ×2  .html ×1  .png ×1  .py ×1
-  推定トークン数: ~1501.2K tok
+  推定トークン数: ~1940K tok

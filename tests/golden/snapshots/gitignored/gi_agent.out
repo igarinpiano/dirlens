@@ -4,13 +4,13 @@ gitignored/ (2 dirs, 2 files, 3.8 KB, 3ヶ月前)
 │   │   └── other.txt (8 bytes, 3ヶ月前, ~2 tok, 1 lines)
 │   └── kept.txt (8 bytes, 3ヶ月前, ~2 tok, 1 lines, "feat: initial import of projec…" (<GITDATE>))
 ├── src/ (0 dirs, 1 file, 44 bytes, 3ヶ月前)
-│   └── * main.py (25 bytes, 1時間前, ~6 tok, 2 lines, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>), テスト無し, def main)
-├── important.log (17 bytes, 3ヶ月前, ~4 tok, 1 lines, "feat: initial import of projec…" (<GITDATE>))
-└── README.md (24 bytes, 1時間前, ~6 tok, 1 lines, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>))
+│   └── * main.py (25 bytes, 1時間前, ~8 tok, 2 lines, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>), テスト無し, def main)
+├── important.log (17 bytes, 3ヶ月前, ~6 tok, 1 lines, "feat: initial import of projec…" (<GITDATE>))
+└── README.md (24 bytes, 1時間前, ~7 tok, 1 lines, "日本語のコミットメッセージで切り詰め動作を確認する" (<GITDATE>))
 
   合計  3 ディレクトリ,  5 ファイル  (.gitignore 適用済み)
   .txt ×2  .py ×1  .log ×1  .md ×1
-  推定トークン数: ~20 tok
+  推定トークン数: ~25 tok
   TODO/FIXME等: 0件
   テスト未整備: 1 ファイル
   エントリーポイント候補: 1 件検出
@@ -23,4 +23,4 @@ gitignored/ (2 dirs, 2 files, 3.8 KB, 3ヶ月前)
     nested/kept.txt  (1 回変更)
   読み始めの候補（エントリーポイント→依存度の高い順）:
     1. src/main.py
-  解析方式: gitignore=git check-ignore(厳密) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算
+  解析方式: gitignore=git check-ignore(厳密) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=BPE(o200k)

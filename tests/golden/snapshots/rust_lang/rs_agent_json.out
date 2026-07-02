@@ -42,7 +42,7 @@
               "size_human": "65 bytes",
               "ext": ".rs",
               "path": "src/nested/inner.rs",
-              "tokens": 16,
+              "tokens": 19,
               "lines": 5,
               "git": null,
               "todos": [],
@@ -96,7 +96,7 @@
           "size_human": "203 bytes",
           "ext": ".rs",
           "path": "src/main.rs",
-          "tokens": 51,
+          "tokens": 56,
           "lines": 18,
           "git": null,
           "todos": [
@@ -142,7 +142,7 @@
           "size_human": "201 bytes",
           "ext": ".rs",
           "path": "src/util.rs",
-          "tokens": 50,
+          "tokens": 52,
           "lines": 18,
           "git": null,
           "todos": [],
@@ -202,7 +202,7 @@
       "size_human": "42 bytes",
       "ext": ".toml",
       "path": "Cargo.toml",
-      "tokens": 10,
+      "tokens": 17,
       "lines": 3,
       "git": null,
       "todos": [],
@@ -216,7 +216,7 @@
     }
   ],
   "project_summary": {
-    "estimated_tokens": 131,
+    "estimated_tokens": 148,
     "todo_count": 1,
     "missing_tests_count": 0,
     "entry_points_count": 1,
@@ -264,12 +264,12 @@
     ],
     "git_log": true,
     "clipboard": false,
-    "tokens": "char-heuristic"
+    "tokens": "bpe-o200k_base"
   },
   "analysis": {
     "gitignore_tier": "builtin",
     "outline": "ast+regex-fallback",
     "imports": "ast+manifest",
-    "tokens": "char-heuristic"
+    "tokens": "bpe-o200k_base"
   }
 }

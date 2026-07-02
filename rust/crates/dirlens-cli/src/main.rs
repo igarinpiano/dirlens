@@ -282,6 +282,10 @@ fn main() {
     if compat_python || std::env::var("DIRLENS_AST").as_deref() == Ok("off") {
         cfg.enhanced_analysis = false;
     }
+    // トークン計数層の選択（DIRLENS_TOKENS=heuristic で Tier2 固定）
+    if compat_python || std::env::var("DIRLENS_TOKENS").as_deref() == Ok("heuristic") {
+        cfg.tokens_bpe = false;
+    }
     // 互換モードでは精度注記・schema_version・capabilities も出さない
     if compat_python {
         cfg.suppress_notes = true;

@@ -2,7 +2,7 @@
 
 use crate::analysis::outline::extract_outline;
 use crate::analysis::text_metrics::{
-    count_lines, estimate_tokens, is_probably_binary, TEXT_READ_LIMIT,
+    count_lines, count_tokens, is_probably_binary, TEXT_READ_LIMIT,
 };
 use crate::analysis::todo::scan_todos;
 use crate::cfg::Cfg;
@@ -65,7 +65,7 @@ pub fn file_extras<F: FsProvider>(
             ex.lines = None;
         } else {
             let sz = sess.fs.stat(&entry.path, true).map(|s| s.size);
-            ex.tokens = Some(estimate_tokens(&text, byte_len, sz, truncated));
+            ex.tokens = Some(count_tokens(&text, byte_len, sz, truncated, cfg.tokens_bpe));
             ex.lines = Some(count_lines(&text, byte_len, sz, truncated));
         }
     }

@@ -4,7 +4,7 @@ dirlens 能力レポート
   アウトライン (-O/-A):
     Python: ast / JS・TS: ast / Rust: ast / Go: ast / C: ast
   import 解決 (-M): AST + マニフェスト（tsconfig paths / package.json imports / go.mod / Rust モジュールツリー）
-  トークン概算 (-T): 文字数ベースの概算
+  トークン計数 (-T): BPE（o200k_base）による正確値（5MB 超は比例概算）
   クリップボード (-C): ✗
 
 縮退している項目:

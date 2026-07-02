@@ -23,6 +23,10 @@ tree-sitter = { version = "0.25", optional = true }
 tree-sitter-go = { version = "0.25", optional = true }
 tree-sitter-c = { version = "0.24", optional = true }
 
+# トークン数の正確値（BPE・o200k_base）。データはバイナリに同梱される
+# （ユーザから見た外部依存はゼロのまま。+数MB）
+tiktoken-rs = { version = "0.7", optional = true }
+
 [features]
 default = []
 # 純 Rust パーサ（wasm でも動く）
@@ -32,3 +36,5 @@ ast-rust = ["dep:syn"]
 # C 文法（tree-sitter）— wasm ビルドでは無効にする
 lang-go = ["dep:tree-sitter", "dep:tree-sitter-go"]
 lang-c = ["dep:tree-sitter", "dep:tree-sitter-c"]
+# BPE トークン計数（Tier1）。無効ビルドは文字数ヒューリスティック（Tier2）のみ
+tokens-bpe = ["dep:tiktoken-rs"]

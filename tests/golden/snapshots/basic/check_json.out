@@ -19,7 +19,7 @@
     ],
     "git_log": true,
     "clipboard": false,
-    "tokens": "char-heuristic"
+    "tokens": "bpe-o200k_base"
   },
   "degraded": [
     "対象が git work tree ではない（gitignore は内蔵マッチャ）",

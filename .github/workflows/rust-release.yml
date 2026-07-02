@@ -42,7 +42,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -57,7 +57,7 @@ jobs:
           mkdir -p out/${{ matrix.target }}
           exe=dirlens; [[ "${{ matrix.target }}" == *windows* ]] && exe=dirlens.exe
           cp "rust/target/${{ matrix.target }}/release/$exe" "out/${{ matrix.target }}/"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bin-${{ matrix.target }}
           path: out/
@@ -66,8 +66,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: bin-*
           merge-multiple: true
@@ -86,7 +86,7 @@ jobs:
       - name: Pack (dry run)
         run: |
           for d in npm-out/*/; do (cd "$d" && npm pack --dry-run); done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: npm-packages
           path: npm-out/

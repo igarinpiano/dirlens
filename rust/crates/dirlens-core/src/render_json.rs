@@ -328,7 +328,7 @@ pub fn render_json<F: FsProvider>(
                         "regex"
                     }),
                 );
-                analysis.insert("tokens".into(), json!("char-heuristic"));
+                analysis.insert("tokens".into(), json!(crate::check::tokens_mode(cfg)));
                 wrapped.insert("analysis".into(), Value::Object(analysis));
             }
             Value::Object(wrapped)

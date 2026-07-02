@@ -58,6 +58,9 @@ pub struct Cfg {
     /// AST 第1段＋マニフェスト読込による import 解決改善を使うか。
     /// false なら正規表現層のみ（DIRLENS_COMPAT=python / DIRLENS_AST=off）。
     pub enhanced_analysis: bool,
+    /// トークン計数に BPE（Tier1）を使うか。false なら文字数ヒューリスティック
+    /// （DIRLENS_TOKENS=heuristic / DIRLENS_COMPAT=python、または feature 無効ビルド）。
+    pub tokens_bpe: bool,
     /// 精度注記・schema_version・capabilities を出さない
     /// （DIRLENS_COMPAT=python: Python 版とのバイト一致検証用）。
     pub suppress_notes: bool,
@@ -142,6 +145,7 @@ impl Cfg {
             gitignore_prefer_git: true,
             gitignore_tier: None,
             enhanced_analysis: true,
+            tokens_bpe: true,
             suppress_notes: false,
             check: args.check,
             use_color,

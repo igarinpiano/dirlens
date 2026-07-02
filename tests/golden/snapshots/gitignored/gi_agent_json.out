@@ -101,7 +101,7 @@
           "size_human": "25 bytes",
           "ext": ".py",
           "path": "src/main.py",
-          "tokens": 6,
+          "tokens": 8,
           "lines": 2,
           "git": {
             "hash": "<HASH>",
@@ -133,7 +133,7 @@
       "size_human": "17 bytes",
       "ext": ".log",
       "path": "important.log",
-      "tokens": 4,
+      "tokens": 6,
       "lines": 1,
       "git": {
         "hash": "<HASH>",
@@ -157,7 +157,7 @@
       "size_human": "24 bytes",
       "ext": ".md",
       "path": "README.md",
-      "tokens": 6,
+      "tokens": 7,
       "lines": 1,
       "git": {
         "hash": "<HASH>",
@@ -176,7 +176,7 @@
     }
   ],
   "project_summary": {
-    "estimated_tokens": 20,
+    "estimated_tokens": 25,
     "todo_count": 0,
     "missing_tests_count": 1,
     "entry_points_count": 1,
@@ -229,12 +229,12 @@
     ],
     "git_log": true,
     "clipboard": false,
-    "tokens": "char-heuristic"
+    "tokens": "bpe-o200k_base"
   },
   "analysis": {
     "gitignore_tier": "git",
     "outline": "ast+regex-fallback",
     "imports": "ast+manifest",
-    "tokens": "char-heuristic"
+    "tokens": "bpe-o200k_base"
   }
 }

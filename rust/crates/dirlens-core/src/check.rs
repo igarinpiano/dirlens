@@ -61,8 +61,17 @@ pub fn capabilities_json(cfg: &Cfg, probe: &EnvProbe) -> Value {
     m.insert("imports_resolution".into(), json!(resolution));
     m.insert("git_log".into(), json!(probe.git_available));
     m.insert("clipboard".into(), json!(probe.clipboard));
-    m.insert("tokens".into(), json!("char-heuristic"));
+    m.insert("tokens".into(), json!(tokens_mode(cfg)));
     Value::Object(m)
+}
+
+/// この実行で使うトークン計数方式。
+pub fn tokens_mode(cfg: &Cfg) -> &'static str {
+    if cfg.tokens_bpe && crate::analysis::text_metrics::bpe_available() {
+        "bpe-o200k_base"
+    } else {
+        "char-heuristic"
+    }
 }
 
 /// --agent テキスト末尾の精度注記（1〜2 行）。
@@ -101,9 +110,14 @@ pub fn agent_note(cfg: &Cfg) -> String {
     } else {
         "正規表現+相対パス解決"
     };
+    let tokens = if tokens_mode(cfg) == "bpe-o200k_base" {
+        "BPE(o200k)"
+    } else {
+        "文字数概算"
+    };
     format!(
-        "  解析方式: gitignore={} / outline={} / imports={} / tokens=文字数概算",
-        gitignore, outline, imports
+        "  解析方式: gitignore={} / outline={} / imports={} / tokens={}",
+        gitignore, outline, imports, tokens
     )
 }
 
@@ -127,6 +141,9 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
     }
     if !probe.clipboard {
         degraded.push("クリップボードツールが見つからない（-C 不可）".into());
+    }
+    if tokens_mode(cfg) != "bpe-o200k_base" {
+        degraded.push("BPE トークナイザ未使用（-T は文字数概算）".into());
     }
     let exit = if degraded.is_empty() { 0 } else { 1 };
 
@@ -173,7 +190,14 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
             "正規表現 + 相対パス解決"
         }
     ));
-    out.push_str("  トークン概算 (-T): 文字数ベースの概算\n");
+    out.push_str(&format!(
+        "  トークン計数 (-T): {}\n",
+        if tokens_mode(cfg) == "bpe-o200k_base" {
+            "BPE（o200k_base）による正確値（5MB 超は比例概算）"
+        } else {
+            "文字数ベースの概算"
+        }
+    ));
     out.push_str(&format!(
         "  クリップボード (-C): {}\n",
         onoff(probe.clipboard)

@@ -30,7 +30,7 @@
           "size_human": "955 bytes",
           "ext": ".md",
           "path": "docs/日本語メモ.md",
-          "tokens": 213,
+          "tokens": 245,
           "lines": 15
         }
       ]
@@ -78,7 +78,7 @@
                   "size_human": "127 bytes",
                   "ext": ".go",
                   "path": "go/internal/util/util.go",
-                  "tokens": 32,
+                  "tokens": 29,
                   "lines": 10
                 }
               ]
@@ -92,7 +92,7 @@
           "size_human": "33 bytes",
           "ext": ".mod",
           "path": "go/go.mod",
-          "tokens": 8,
+          "tokens": 11,
           "lines": 3
         },
         {
@@ -102,7 +102,7 @@
           "size_human": "212 bytes",
           "ext": ".go",
           "path": "go/main.go",
-          "tokens": 53,
+          "tokens": 49,
           "lines": 21
         }
       ]
@@ -126,7 +126,7 @@
           "size_human": "22 bytes",
           "ext": ".py",
           "path": "pkg/__init__.py",
-          "tokens": 6,
+          "tokens": 5,
           "lines": 1
         },
         {
@@ -156,7 +156,7 @@
           "size_human": "215 bytes",
           "ext": ".py",
           "path": "pkg/helpers.py",
-          "tokens": 53,
+          "tokens": 57,
           "lines": 15
         },
         {
@@ -166,7 +166,7 @@
           "size_human": "244 bytes",
           "ext": ".py",
           "path": "pkg/utils.py",
-          "tokens": 58,
+          "tokens": 66,
           "lines": 6
         }
       ]
@@ -222,7 +222,7 @@
               "size_human": "242 bytes",
               "ext": ".ts",
               "path": "src/lib/util.ts",
-              "tokens": 60,
+              "tokens": 67,
               "lines": 11
             }
           ]
@@ -234,7 +234,7 @@
           "size_human": "64 bytes",
           "ext": ".ts",
           "path": "src/app.test.ts",
-          "tokens": 16,
+          "tokens": 18,
           "lines": 3
         },
         {
@@ -244,7 +244,7 @@
           "size_human": "80 bytes",
           "ext": ".ts",
           "path": "src/app.ts",
-          "tokens": 20,
+          "tokens": 19,
           "lines": 5
         },
         {
@@ -264,7 +264,7 @@
           "size_human": "256 bytes",
           "ext": ".js",
           "path": "src/index.js",
-          "tokens": 64,
+          "tokens": 59,
           "lines": 12
         }
       ]
@@ -288,7 +288,7 @@
           "size_human": "78 bytes",
           "ext": ".py",
           "path": "tests/test_utils.py",
-          "tokens": 20,
+          "tokens": 23,
           "lines": 4
         }
       ]
@@ -300,7 +300,7 @@
       "size_human": "29 bytes",
       "ext": "",
       "path": "Dockerfile",
-      "tokens": 7,
+      "tokens": 12,
       "lines": 2
     },
     {
@@ -310,7 +310,7 @@
       "size_human": "321 bytes",
       "ext": ".py",
       "path": "main.py",
-      "tokens": 79,
+      "tokens": 80,
       "lines": 19
     },
     {
@@ -320,7 +320,7 @@
       "size_human": "17 bytes",
       "ext": "",
       "path": "Makefile",
-      "tokens": 4,
+      "tokens": 5,
       "lines": 2
     },
     {
@@ -330,7 +330,7 @@
       "size_human": "102 bytes",
       "ext": ".json",
       "path": "package.json",
-      "tokens": 26,
+      "tokens": 42,
       "lines": 6
     },
     {
@@ -340,7 +340,7 @@
       "size_human": "42 bytes",
       "ext": ".toml",
       "path": "pyproject.toml",
-      "tokens": 10,
+      "tokens": 17,
       "lines": 3
     },
     {
@@ -350,12 +350,12 @@
       "size_human": "50 bytes",
       "ext": ".json",
       "path": "tsconfig.json",
-      "tokens": 12,
+      "tokens": 16,
       "lines": 5
     }
   ],
   "project_summary": {
-    "estimated_tokens": 829,
+    "estimated_tokens": 908,
     "todo_count": null,
     "missing_tests_count": null,
     "entry_points_count": null,

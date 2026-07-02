@@ -149,7 +149,7 @@
       "size_human": "17 bytes",
       "ext": ".txt",
       "path": "[bracket].txt",
-      "tokens": 4,
+      "tokens": 5,
       "lines": 1
     },
     {
@@ -159,7 +159,7 @@
       "size_human": "17 bytes",
       "ext": ".html",
       "path": "a&b<c>.html",
-      "tokens": 4,
+      "tokens": 7,
       "lines": 1
     },
     {
@@ -169,7 +169,7 @@
       "size_human": "5.72 MB",
       "ext": ".txt",
       "path": "big6mb.txt",
-      "tokens": 1500005,
+      "tokens": 1938468,
       "lines": 92309
     },
     {
@@ -189,7 +189,7 @@
       "size_human": "4.84 KB",
       "ext": ".md",
       "path": "cjk.md",
-      "tokens": 1113,
+      "tokens": 1360,
       "lines": 40
     },
     {
@@ -199,7 +199,7 @@
       "size_human": "20 bytes",
       "ext": ".txt",
       "path": "crlf.txt",
-      "tokens": 5,
+      "tokens": 6,
       "lines": 2
     },
     {
@@ -219,7 +219,7 @@
       "size_human": "13 bytes",
       "ext": ".txt",
       "path": "invalid_utf8.txt",
-      "tokens": 3,
+      "tokens": 5,
       "lines": 1
     },
     {
@@ -239,7 +239,7 @@
       "size_human": "10 bytes",
       "ext": ".txt",
       "path": "space name.txt",
-      "tokens": 2,
+      "tokens": 3,
       "lines": 1
     },
     {
@@ -249,7 +249,7 @@
       "size_human": "398 bytes",
       "ext": ".py",
       "path": "todo_many.py",
-      "tokens": 100,
+      "tokens": 120,
       "lines": 12
     },
     {
@@ -259,12 +259,12 @@
       "size_human": "15 bytes",
       "ext": ".md",
       "path": "日本語ファイル.md",
-      "tokens": 3,
+      "tokens": 5,
       "lines": 1
     }
   ],
   "project_summary": {
-    "estimated_tokens": 1501245,
+    "estimated_tokens": 1939985,
     "todo_count": null,
     "missing_tests_count": null,
     "entry_points_count": null,

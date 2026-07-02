@@ -10,22 +10,22 @@ edge/ (2 dirs, 13 files, 5.73+ MB, 3ヶ月前)
 ├── denied/ (0+ dirs, 0+ files, 0+ bytes, 3ヶ月前)
 │   └── [アクセス拒否]
 ├── 'quote'.txt (7 bytes, 3ヶ月前, ~2 tok, 1 lines)
-├── [bracket].txt (17 bytes, 3ヶ月前, ~4 tok, 1 lines)
-├── a&b<c>.html (17 bytes, 3ヶ月前, ~4 tok, 1 lines)
-├── big6mb.txt (5.72 MB, 3ヶ月前, ~1500K tok, 92309 lines)
+├── [bracket].txt (17 bytes, 3ヶ月前, ~5 tok, 1 lines)
+├── a&b<c>.html (17 bytes, 3ヶ月前, ~7 tok, 1 lines)
+├── big6mb.txt (5.72 MB, 3ヶ月前, ~1938.5K tok, 92309 lines)
 ├── binary_in_txt.txt (114 bytes, 3ヶ月前)
-├── cjk.md (4.84 KB, 3ヶ月前, ~1.1K tok, 40 lines)
-├── crlf.txt (20 bytes, 3ヶ月前, ~5 tok, 2 lines)
+├── cjk.md (4.84 KB, 3ヶ月前, ~1.4K tok, 40 lines)
+├── crlf.txt (20 bytes, 3ヶ月前, ~6 tok, 2 lines)
 ├── image.png (508 bytes, 3ヶ月前)
-├── invalid_utf8.txt (13 bytes, 3ヶ月前, ~3 tok, 1 lines)
+├── invalid_utf8.txt (13 bytes, 3ヶ月前, ~5 tok, 1 lines)
 ├── only_newline.txt (1 byte, 3ヶ月前, ~1 tok, 1 lines)
-├── space name.txt (10 bytes, 3ヶ月前, ~2 tok, 1 lines)
-├── todo_many.py (398 bytes, 3ヶ月前, ~100 tok, 12 lines, TODO×12, テスト無し)
-└── 日本語ファイル.md (15 bytes, 3ヶ月前, ~3 tok, 1 lines)
+├── space name.txt (10 bytes, 3ヶ月前, ~3 tok, 1 lines)
+├── todo_many.py (398 bytes, 3ヶ月前, ~120 tok, 12 lines, TODO×12, テスト無し)
+└── 日本語ファイル.md (15 bytes, 3ヶ月前, ~5 tok, 1 lines)
 
   合計  8 ディレクトリ,  14 ファイル  (.gitignore 適用済み)
   .txt ×9  .md ×2  .html ×1  .png ×1  .py ×1
-  推定トークン数: ~1501.2K tok
+  推定トークン数: ~1940K tok
   TODO/FIXME等: 12件
     todo_many.py:1 [TODO] # TODO: item number 0 needs work
     todo_many.py:2 [TODO] # TODO: item number 1 needs work
@@ -35,4 +35,4 @@ edge/ (2 dirs, 13 files, 5.73+ MB, 3ヶ月前)
   エントリーポイント候補: 0 件検出
   設定ファイル: 0 件検出
   (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)
-  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=文字数概算
+  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=BPE(o200k)
