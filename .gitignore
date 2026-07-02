@@ -4,3 +4,9 @@ node_modules/
 npm-debug.log*
 artifacts/
 CLAUDE.md
+__pycache__/
+
+# rust-rewrite ブランチとの行き来で残るビルド/テストキャッシュ
+# （このブランチ自体はこれらを追跡しない）
+/rust/target/
+/tests/golden/.work/
