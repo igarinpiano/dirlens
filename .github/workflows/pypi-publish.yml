@@ -1,0 +1,90 @@
+# dirlens（Rust）を PyPI に手動公開する。
+#
+# python ブランチにあった旧 publish-pypi.yml（純Python版 dirlens.py を配布）を
+# Rust 実装向けに置き換えたもの。maturin の bin bindings でコンパイル済みバイナリを
+# そのまま wheel に同梱する（ripgrep/uv/ruff と同方式。PyO3拡張は書かない）。
+#
+# 自動トリガーは無し。GitHub → Actions → このワークフロー → Run workflow の
+# ボタン操作でのみ実行する。
+#
+# 【注意】pip でのRust版配布を続けるかは未定。使わない場合はこのワークフローを
+# 一度も実行しなければよい（実害は無い）。
+
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "確認用バージョン（例: 1.1.0）。rust/Cargo.toml の値と一致しないと失敗する。空欄なら確認をスキップ"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Check version input matches Cargo.toml
+        if: github.event.inputs.version != ''
+        working-directory: rust
+        run: |
+          cargo_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "$cargo_version" != "${{ github.event.inputs.version }}" ]; then
+            echo "::error::rust/Cargo.toml の version ($cargo_version) と入力値 (${{ github.event.inputs.version }}) が一致しません。先に Cargo.toml を更新してください。"
+            exit 1
+          fi
+      - name: Install maturin
+        run: pip install "maturin>=1,<2"
+      - name: Build wheel
+        working-directory: rust
+        run: maturin build --release --target ${{ matrix.target }} --out ../dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+
+  publish:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC (Trusted Publishing) に必要
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1.14
+        with:
+          packages-dir: dist

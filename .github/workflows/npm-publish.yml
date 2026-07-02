@@ -1,0 +1,112 @@
+# dirlens（Rust）を npm に手動公開する。
+#
+# 以前別プロジェクトで使っていた単一パッケージ向けテンプレートを、dirlens の実際の
+# 配布形態（本体 dirlens + 機種別 dirlens-bin-* の6パッケージ、rust/npm/assemble.py が
+# 組み立てる）に合わせて書き換えたもの。
+#
+# 自動トリガーは無し。GitHub → Actions → このワークフロー → Run workflow の
+# ボタン操作でのみ実行する（rust-release.yml は artifacts の生成までで、公開はしない
+# 方針のまま。こちらは公開まで一気に行う専用ワークフロー）。
+
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "確認用バージョン（例: 1.1.0）。rust/Cargo.toml の値と一致しないと失敗する。空欄なら確認をスキップ"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ver
+        run: |
+          cargo_version="$(grep -m1 '^version' rust/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "$cargo_version" ]; then
+            echo "::error::rust/Cargo.toml の version ($cargo_version) と入力値 (${{ github.event.inputs.version }}) が一致しません。先に Cargo.toml を更新してください。"
+            exit 1
+          fi
+          echo "version=$cargo_version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build (release)
+        working-directory: rust
+        run: cargo build --release -p dirlens-cli --target ${{ matrix.target }}
+      - name: Collect
+        run: |
+          mkdir -p out/${{ matrix.target }}
+          exe=dirlens; [[ "${{ matrix.target }}" == *windows* ]] && exe=dirlens.exe
+          cp "rust/target/${{ matrix.target }}/release/$exe" "out/${{ matrix.target }}/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.target }}
+          path: out/
+
+  publish:
+    needs: [check-version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC (npm Trusted Publishing) に必要
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: binaries
+      - name: Assemble npm packages
+        run: |
+          python3 rust/npm/assemble.py \
+            --version "${{ needs.check-version.outputs.version }}" \
+            --binaries binaries --out npm-out
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Publish (機種別パッケージを先に、本体を最後に)
+        run: |
+          # setup-node が NODE_AUTH_TOKEN を GITHUB_TOKEN に設定してしまうため、
+          # step の env: では上書きできない。シェルレベルで unset して npm が
+          # OIDC 交換（Trusted Publishing）にフォールバックするようにする。
+          unset NODE_AUTH_TOKEN
+          unset NPM_CONFIG_USERCONFIG
+          for d in npm-out/dirlens-bin-*/; do
+            (cd "$d" && npm publish --access public --provenance)
+          done
+          (cd npm-out/dirlens && npm publish --provenance)
