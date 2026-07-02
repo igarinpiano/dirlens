@@ -70,9 +70,11 @@ def run_tool(cmd, cwd_target, env, extra_env=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bin", required=True)
+    ap.add_argument("--py", help="旧 Python 版 dirlens.py（省略時: あればパリティ検証も行う）")
     args = ap.parse_args()
     rust = [os.path.abspath(args.bin)]
-    py = [sys.executable, DIRLENS_PY]
+    py_path = args.py or DIRLENS_PY
+    py = [sys.executable, py_path] if os.path.isfile(py_path) else None
 
     env = build_env()
     repo_root = os.path.join(WORK, "repo")
@@ -103,18 +105,24 @@ def main():
           "b.tmp" not in out_builtin and "a.tmp" not in out_builtin, out_builtin)
     check("tier3_ignores_info_exclude", "secret.txt" in out_builtin, out_builtin)
 
-    # 3. builtin 強制の Rust は Python とバイト一致
-    out_py = run_tool(py, repo_root, env)
-    check("tier3_python_parity", out_builtin == out_py)
+    # 3. builtin 強制の Rust は旧 Python 版とバイト一致（dirlens.py がある場合のみ）
+    n_checks = 5
+    if py:
+        n_checks += 1
+        out_py = run_tool(py, repo_root, env)
+        check("tier3_python_parity", out_builtin == out_py)
+    else:
+        print("SKIP tier3_python_parity（dirlens.py なし。--py で指定可）")
 
     # 4. 非リポジトリでは自動縮退（builtin 強制と同一出力）
     out_plain_auto = run_tool(rust, plain_root, env)
     out_plain_builtin = run_tool(rust, plain_root, env, {"DIRLENS_GITIGNORE": "builtin"})
-    out_plain_py = run_tool(py, plain_root, env)
-    check("auto_degrades_without_git",
-          out_plain_auto == out_plain_builtin == out_plain_py)
+    same = out_plain_auto == out_plain_builtin
+    if py:
+        same = same and out_plain_auto == run_tool(py, plain_root, env)
+    check("auto_degrades_without_git", same)
 
-    print(f"\n結果: pass={5 + 1 - len(failures)} fail={len(failures)}")
+    print(f"\n結果: pass={n_checks - len(failures)} fail={len(failures)}")
     return 1 if failures else 0
 
 

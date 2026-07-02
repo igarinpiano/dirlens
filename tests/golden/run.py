@@ -2,11 +2,16 @@
 """ゴールデンテストランナー。
 
 モード:
-  record            現行 dirlens.py の出力をスナップショットとして固定する
+  record --bin B    Rust バイナリの出力をスナップショットとして固定する
   verify --bin B    Rust バイナリの出力をスナップショットと照合する
-  verify --python   dirlens.py 自身をスナップショットと照合する（ハーネスの決定論性検証）
-  live   --bin B    dirlens.py と Rust バイナリを直接突き合わせる（敵対的検証）
+  live   --bin B    旧 Python 版と Rust バイナリを直接突き合わせる（互換層の敵対的検証）
+  verify --python   旧 Python 版をスナップショットと照合する（DELTAS 台帳の確認）
   list              ケース一覧を表示
+
+旧 Python 版（dirlens.py）はメインブランチには存在しない。live / verify --python /
+record（--bin 無し）を使う場合は python ブランチから取得して --py で指定する:
+  git show python:dirlens.py > /tmp/dirlens.py
+  python3 tests/golden/run.py live --bin ... --py /tmp/dirlens.py
 
 共通オプション: --only SUBSTR（ケースIDの部分一致で絞り込み）
 
@@ -238,8 +243,9 @@ def main():
     ap = argparse.ArgumentParser(description="dirlens ゴールデンテストランナー")
     ap.add_argument("mode", choices=["record", "verify", "live", "list"])
     ap.add_argument("--bin", help="Rust バイナリのパス")
+    ap.add_argument("--py", help="旧 Python 版 dirlens.py のパス（既定: リポジトリ直下）")
     ap.add_argument("--python", action="store_true",
-                    help="verify で dirlens.py 自身を照合する（決定論性チェック）")
+                    help="verify で旧 Python 版を照合する（DELTAS 台帳の確認）")
     ap.add_argument("--only", help="ケースIDの部分一致フィルタ")
     ap.add_argument("--skip", action="append", default=[],
                     help="fixture 名 or ケースIDの部分一致で除外（複数可）。"
@@ -261,11 +267,22 @@ def main():
         print("該当するケースがありません", file=sys.stderr)
         return 1
 
+    py_path = args.py or DIRLENS_PY
+    needs_python = (args.mode == "live"
+                    or (args.mode == "record" and not args.bin)
+                    or (args.mode == "verify" and args.python))
+    if needs_python and not os.path.isfile(py_path):
+        print("旧 Python 版 dirlens.py が見つかりません。python ブランチから取得して "
+              "--py で指定してください:\n"
+              "  git show python:dirlens.py > /tmp/dirlens.py\n"
+              f"  {sys.argv[0]} {args.mode} ... --py /tmp/dirlens.py", file=sys.stderr)
+        return 2
+
     print("フィクスチャを構築中...", flush=True)
     fixtures_mod.build_all(FIXTURES)
     env = build_env()
 
-    py_cmd = [sys.executable, DIRLENS_PY]
+    py_cmd = [sys.executable, py_path]
     rust_cmd = [os.path.abspath(args.bin)] if args.bin else None
 
     n_pass = n_fail = n_skip = 0

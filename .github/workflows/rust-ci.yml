@@ -1,11 +1,11 @@
-# Rust 版 dirlens の CI。
+# dirlens（Rust）の CI。
 #
 # ジョブ構成:
 #   test  … linux / macos / windows で unit test + ゴールデンテスト
-#            - live   = dirlens.py とのバイト一致（互換層・DIRLENS_COMPAT=python）
-#            - verify = 既定動作（AST層・git層・精度注記）のスナップショット照合
-#              ※ gitignored fixture は .git 配下のバイト数が zlib 実装依存のため
-#                 スナップショット記録元（macOS）以外では除外し、live で担保する
+#            - verify     = 既定動作のスナップショット照合（記録元: macOS）
+#            - tier/ast   = gitignore 2層・AST 2段の敵対的検証
+#            ※ 旧 Python 版とのバイト一致検証（live）は python ブランチの
+#               dirlens.py を --py で与えると実行できる（メインには同梱しない）
 #   wasm  … dirlens-core が wasm32 でコンパイルできることの常時保証（bit-rot 防止）
 #            + 同一エントリポイントの native スモークテスト
 name: rust-ci
@@ -46,9 +46,6 @@ jobs:
         working-directory: rust
         run: cargo build -p dirlens-cli
 
-      - name: Golden live (dirlens.py byte parity, compat tier)
-        run: python3 tests/golden/run.py live --bin rust/target/debug/dirlens
-
       - name: Golden verify (default behavior vs snapshots)
         if: runner.os == 'macOS'
         run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens
@@ -56,7 +53,6 @@ jobs:
       # gitignored は .git 配下のバイト数（zlib 実装依存）、basic は
       # 「ディレクトリへの symlink」の表示サイズ（stat の st_size が FS 依存:
       # APFS ≠ ext4）が記録元（macOS）と異なるため除外する。
-      # どちらも live（同一マシンで dirlens.py と直接比較）が完全に担保する。
       - name: Golden verify (default behavior vs snapshots, sans gitignored/basic)
         if: runner.os == 'Linux'
         run: python3 tests/golden/run.py verify --bin rust/target/debug/dirlens --skip gitignored --skip basic
