@@ -1,6 +1,6 @@
 {
   "name": "dirlens",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Directory tree viewer with file sizes / ファイルサイズ付きディレクトリツリー表示ツール",
   "bin": {
     "dirlens": "bin/dirlens"
