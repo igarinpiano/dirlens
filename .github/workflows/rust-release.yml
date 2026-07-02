@@ -1,21 +1,21 @@
 # Rust 版 dirlens のリリースビルド。
 #
-# タグ（rust-v*）または手動起動で:
+# 自動トリガーは無し（GitHub Release はまだ運用開始していないため）。
+# GitHub → Actions → このワークフロー → Run workflow のボタン操作でのみ実行する:
 #   1. 5 ターゲットの release バイナリをビルド（各 OS のネイティブ runner）
 #   2. npm パッケージ群（dirlens + dirlens-bin-*）を組み立てて artifacts に保存
-#   3. GitHub Release（draft）にバイナリの tar.gz/zip を添付
+#   3. GitHub Release（draft）を作成し、タグ（vX.Y.Z）とバイナリの tar.gz/zip を添付
+#      （タグを事前に push 済みならそれを使う。無ければこの実行時点の main に打つ）
 #
-# 【重要】npm / PyPI への公開はここでは行わない。公開は所有者が artifacts を
-# 確認したうえで手動で行う。
+# 【重要】npm / PyPI への公開はここでは行わない（別ワークフロー npm-publish.yml /
+# pypi-publish.yml が担当）。公開は所有者が artifacts を確認したうえで手動で行う。
 name: rust-release
 
 on:
-  push:
-    tags: ["rust-v*"]
   workflow_dispatch:
     inputs:
       version:
-        description: "バージョン（例: 1.0.0）。省略時はタグ名 rust-vX.Y.Z から取る"
+        description: "確認用バージョン（例: 1.1.0）。rust/Cargo.toml の値と一致しないと失敗する。空欄なら確認をスキップ"
         required: false
 
 env:
@@ -75,8 +75,11 @@ jobs:
       - name: Resolve version
         id: ver
         run: |
-          v="${{ github.event.inputs.version }}"
-          if [ -z "$v" ]; then v="${GITHUB_REF_NAME#rust-v}"; fi
+          v="$(grep -m1 '^version' rust/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "$v" ]; then
+            echo "::error::rust/Cargo.toml の version ($v) と入力値 (${{ github.event.inputs.version }}) が一致しません。先に Cargo.toml を更新してください。"
+            exit 1
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Assemble npm packages
         run: |
@@ -102,10 +105,11 @@ jobs:
             fi
           done
       - name: Create draft GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --draft \
-            --title "dirlens (Rust) ${{ steps.ver.outputs.version }}" \
+          # タグ v${version} が既に push 済みならそれを使い、無ければこの実行時点の
+          # コミットに新規作成する（gh release create の標準動作）。
+          gh release create "v${{ steps.ver.outputs.version }}" --draft \
+            --title "dirlens v${{ steps.ver.outputs.version }}" \
             release/*
