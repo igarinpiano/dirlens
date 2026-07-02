@@ -23,6 +23,8 @@ fn build_command() -> Command {
     };
     Command::new("dirlens")
         .about("ファイルサイズ付きのディレクトリツリーを表示します")
+        .version(env!("CARGO_PKG_VERSION"))
+        // -V は --missing-tests が使うため、バージョンは --version のみ（下で定義）
         .disable_version_flag(true)
         .after_help(
             "使用例:\n\
@@ -158,6 +160,12 @@ fn build_command() -> Command {
                 .long("check")
                 .action(ArgAction::SetTrue)
                 .help("能力レポートを表示（gitignore層・言語別解析方式・git/クリップボード可否）。縮退があると終了コード 1。--json 併用可"),
+        )
+        .arg(
+            Arg::new("version")
+                .long("version")
+                .action(ArgAction::Version)
+                .help("バージョンを表示"),
         )
 }
 

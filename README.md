@@ -229,6 +229,7 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 | `--html [FILE]`     | —            | HTML レポートを生成（デフォルト: `dirlens.html`）              |
 | `--copy`            | `-C`         | 出力をクリップボードにコピー（ANSIコードを自動除去）            |
 | `--no-color`        | `-n`         | カラー表示を無効化                                            |
+| `--version`         | —            | バージョンを表示（`-V` は `--missing-tests` のため使用不可）   |
 
 ---
 
