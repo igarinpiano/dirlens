@@ -66,6 +66,8 @@ jobs:
   assemble:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # gh release create に必要（既定の GITHUB_TOKEN は read-only）
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
