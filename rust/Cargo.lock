@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "dirlens-cli"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "dirlens-core",
@@ -251,7 +251,7 @@ dependencies = [
 
 [[package]]
 name = "dirlens-core"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "indexmap",
  "oxc_allocator",
@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "dirlens-wasm"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "dirlens-core",
  "serde",
