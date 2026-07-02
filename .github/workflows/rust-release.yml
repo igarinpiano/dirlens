@@ -6,7 +6,7 @@
 #   3. GitHub Release（draft）にバイナリの tar.gz/zip を添付
 #
 # 【重要】npm / PyPI への公開はここでは行わない。公開は所有者が artifacts を
-# 確認したうえで手動で行う（CLAUDE.md「Publishing / releases」参照）。
+# 確認したうえで手動で行う。
 name: rust-release
 
 on:

@@ -10,7 +10,7 @@
     x86_64-pc-windows-msvc/dirlens.exe
 
 出力: --out <dir> に本体パッケージ dirlens/ と機種別パッケージ dirlens-bin-*/ を生成する。
-公開は所有者が行う（CLAUDE.md 参照。CI は dry-run / artifacts の生成までに留める）。
+公開は所有者が手動で行う（CI は dry-run / artifacts の生成までに留める）。
 """
 import argparse
 import json
