@@ -27,7 +27,7 @@ TARGETS = {
 }
 
 DESCRIPTION = "ファイルサイズ・AI/エージェント解析つきディレクトリツリー表示ツール（tree 互換）"
-REPO = "github:igarinpiano/dirlens"
+REPO = "git+https://github.com/igarinpiano/dirlens.git"
 
 
 def write_json(path, obj):
