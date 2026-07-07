@@ -5,3 +5,4 @@ npm-debug.log*
 artifacts/
 CLAUDE.md
 __pycache__/
+npm-packages/
