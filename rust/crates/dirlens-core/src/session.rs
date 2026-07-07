@@ -71,7 +71,11 @@ impl<'a, F: FsProvider> Session<'a, F> {
         }
         let mut pats = Vec::new();
         let p = dir.join(".gitignore");
-        if let Some(data) = self.fs.read_prefix(&p, usize::MAX) {
+        // 巨大ファイルによる OOM を防ぐため上限つきで読む（正常な .gitignore は数 KB）
+        if let Some(data) = self
+            .fs
+            .read_prefix(&p, crate::analysis::text_metrics::TEXT_READ_LIMIT)
+        {
             let text = crate::pyc::decode_utf8_ignore(&data);
             for line in text.split('\n') {
                 let line = crate::pyc::py_strip(line);

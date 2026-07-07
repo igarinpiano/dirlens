@@ -2,6 +2,20 @@
 
 use crate::pyc::{char_len, fmt_prec, py_round, py_strip, py_trunc, rstrip_zeros, truncate_chars};
 
+/// 端末出力用サニタイズ: 制御文字（Cc カテゴリ = C0/DEL/C1）を '?' に置換する。
+/// ファイル名・シンボリックリンク先・ファイル内容・git メタデータは攻撃者が
+/// 制御しうるため、生の ESC/改行を通すとエスケープシーケンス注入や
+/// ツリー行の偽装（--agent 出力の改竄）に使える。テキスト出力の直前で通すこと。
+pub fn sanitize_ctrl(s: &str) -> String {
+    if s.chars().any(|c| c.is_control()) {
+        s.chars()
+            .map(|c| if c.is_control() { '?' } else { c })
+            .collect()
+    } else {
+        s.to_string()
+    }
+}
+
 /// os.path.splitext 相当（名前部分のみを対象）。ext は '.' を含む。
 /// ".env" のような先頭ドットは拡張子とみなさない（CPython 互換）。
 pub fn splitext(name: &str) -> (&str, &str) {
@@ -135,7 +149,8 @@ pub fn fmt_git(g: &GitInfo) -> String {
         let (head, _) = truncate_chars(&subj, 30);
         subj = format!("{}…", head);
     }
-    format!("\"{}\" ({})", subj, g.date)
+    // コミット件名・日付は攻撃者制御（clone したリポジトリ由来）
+    format!("\"{}\" ({})", sanitize_ctrl(&subj), sanitize_ctrl(&g.date))
 }
 
 /// アウトライン 1 項目: (kind, name, is_public)
@@ -231,5 +246,20 @@ mod tests {
         assert_eq!(parse_size("1.5M"), Ok(1572864));
         assert_eq!(parse_size("2000"), Ok(2000));
         assert!(parse_size("xyz").is_err());
+    }
+
+    #[test]
+    fn sanitize_control_chars() {
+        // 通常の名前（日本語・絵文字含む）は変更しない
+        assert_eq!(sanitize_ctrl("main.py"), "main.py");
+        assert_eq!(sanitize_ctrl("日本語 📁.txt"), "日本語 📁.txt");
+        // ANSI エスケープ（画面消去・タイトル変更等）は無害化
+        assert_eq!(sanitize_ctrl("evil\x1b[2J.txt"), "evil?[2J.txt");
+        assert_eq!(sanitize_ctrl("t\x1b]0;pwned\x07.md"), "t?]0;pwned?.md");
+        // 改行によるツリー行の偽装も無害化
+        assert_eq!(sanitize_ctrl("a\n└── fake.txt"), "a?└── fake.txt");
+        // C1 制御文字（U+0080–U+009F）も対象
+        assert_eq!(sanitize_ctrl("x\u{9b}31mred"), "x?31mred");
+        assert_eq!(sanitize_ctrl("tab\there"), "tab?here");
     }
 }

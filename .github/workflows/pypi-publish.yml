@@ -57,10 +57,13 @@ jobs:
       - name: Check version input matches Cargo.toml
         if: github.event.inputs.version != ''
         working-directory: rust
+        env:
+          # スクリプトインジェクション対策: 入力値はシェルに直接展開せず env 経由で渡す
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           cargo_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
-          if [ "$cargo_version" != "${{ github.event.inputs.version }}" ]; then
-            echo "::error::rust/Cargo.toml の version ($cargo_version) と入力値 (${{ github.event.inputs.version }}) が一致しません。先に Cargo.toml を更新してください。"
+          if [ "$cargo_version" != "$INPUT_VERSION" ]; then
+            echo "::error::rust/Cargo.toml の version ($cargo_version) と入力値 ($INPUT_VERSION) が一致しません。先に Cargo.toml を更新してください。"
             exit 1
           fi
       - name: Install maturin

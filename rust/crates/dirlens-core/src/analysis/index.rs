@@ -11,6 +11,7 @@ use std::sync::{Arc, OnceLock};
 use indexmap::IndexMap;
 use regex::Regex;
 
+use crate::analysis::text_metrics::TEXT_READ_LIMIT;
 use crate::cfg::Cfg;
 use crate::fmt::splitext;
 use crate::gitignore::{extend_pats, is_ignored, relpath, relpath_slash};
@@ -627,8 +628,10 @@ pub fn build_project_index<F: FsProvider>(
 
             let read_text = || {
                 let full = root.join(relpath.replace('/', std::path::MAIN_SEPARATOR_STR));
+                // -T の本文読込と同じ上限。import 文はファイル先頭に集中するため
+                // 打ち切りの影響は実質なく、巨大ファイルによる OOM を防ぐ
                 sess.fs
-                    .read_prefix(&full, usize::MAX)
+                    .read_prefix(&full, TEXT_READ_LIMIT)
                     .map(|d| decode_utf8_ignore(&d))
                     .unwrap_or_default()
             };
@@ -919,7 +922,7 @@ fn walk<F: FsProvider>(
             st.py_module_map.insert(py_module_key(&rel), rel.clone());
         }
         if e.name == "go.mod" {
-            if let Some(data) = sess.fs.read_prefix(&e.path, usize::MAX) {
+            if let Some(data) = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT) {
                 let text = decode_utf8_ignore(&data);
                 for line in text.split('\n') {
                     let line = py_strip(line);
@@ -933,7 +936,7 @@ fn walk<F: FsProvider>(
         if (e.name == "tsconfig.json" || e.name == "jsconfig.json") && !rel.contains('/') {
             // ルート直下のみ対象。tsconfig を優先（jsconfig は未設定時のみ反映）
             if e.name == "tsconfig.json" || (st.ts_paths.is_empty() && st.ts_base_url.is_empty()) {
-                if let Some(data) = sess.fs.read_prefix(&e.path, usize::MAX) {
+                if let Some(data) = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT) {
                     let text = strip_jsonc(&decode_utf8_ignore(&data));
                     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
                         if let Some(co) = v.get("compilerOptions") {
@@ -966,7 +969,7 @@ fn walk<F: FsProvider>(
             }
         }
         if e.name == "package.json" {
-            if let Some(data) = sess.fs.read_prefix(&e.path, usize::MAX) {
+            if let Some(data) = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT) {
                 if let Ok(text) = std::str::from_utf8(&data) {
                     if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(text) {
                         let base_dir = dirname(&rel).to_string();

@@ -12,7 +12,8 @@ use crate::colors::{c, BLUE, BOLD, CYAN, DIM, GREEN, MAGENTA, RED};
 use crate::emoji::get_emoji;
 use crate::filter::{count_entries, filter_entries, has_content, sort_entries};
 use crate::fmt::{
-    filemode, fmt_bar, fmt_count, fmt_date, fmt_git, fmt_outline, fmt_size, fmt_tokens, splitext,
+    filemode, fmt_bar, fmt_count, fmt_date, fmt_git, fmt_outline, fmt_size, fmt_tokens,
+    sanitize_ctrl, splitext,
 };
 use crate::gitignore::{extend_pats, relpath_slash};
 use crate::provider::{Entry, FsProvider};
@@ -151,9 +152,11 @@ fn render_node<F: FsProvider>(
         let branch = if is_last { LAST } else { FORK };
         let cont = if is_last { BLANK } else { PIPE };
 
+        // 名前・リンク先は攻撃者制御になりうる（clone したリポジトリ等）。
+        // 制御文字を無害化してエスケープ注入・行偽装を防ぐ。
         let sym_target = if entry.is_symlink {
             match sess.fs.read_link(&entry.path) {
-                Some(t) => format!(" → {}", t),
+                Some(t) => format!(" → {}", sanitize_ctrl(&t)),
                 None => " →".to_string(),
             }
         } else {
@@ -161,9 +164,9 @@ fn render_node<F: FsProvider>(
         };
 
         let display = if cfg.full_path {
-            format!("./{}", relpath_slash(&entry.path, &cfg.root))
+            sanitize_ctrl(&format!("./{}", relpath_slash(&entry.path, &cfg.root)))
         } else {
-            entry.name.clone()
+            sanitize_ctrl(&entry.name)
         };
 
         let perm_prefix = perm_info(sess, entry, cfg);
@@ -372,7 +375,7 @@ pub fn render_text<F: FsProvider>(
     out.push_str(&format!(
         "{} {}\n",
         c(
-            &format!("{}{}/", root_emoji, cfg.root_label),
+            &format!("{}{}/", root_emoji, sanitize_ctrl(&cfg.root_label)),
             &[BOLD, BLUE],
             color
         ),
@@ -423,7 +426,7 @@ pub fn render_text<F: FsProvider>(
         let line = exts
             .iter()
             .take(8)
-            .map(|(e, n)| format!("{} ×{}", e, n))
+            .map(|(e, n)| format!("{} ×{}", sanitize_ctrl(e), n))
             .collect::<Vec<_>>()
             .join("  ");
         out.push_str(&format!("{}\n", c(&format!("  {}", line), &[DIM], color)));
@@ -454,7 +457,13 @@ pub fn render_text<F: FsProvider>(
                 out.push_str(&format!(
                     "{}\n",
                     c(
-                        &format!("    {}:{} [{}] {}", rel, ln, kind, snippet),
+                        &format!(
+                            "    {}:{} [{}] {}",
+                            sanitize_ctrl(rel),
+                            ln,
+                            kind,
+                            sanitize_ctrl(snippet)
+                        ),
                         &[DIM],
                         color
                     )
@@ -524,7 +533,11 @@ pub fn render_text<F: FsProvider>(
         for (relpath, n) in items.into_iter().take(5) {
             out.push_str(&format!(
                 "{}\n",
-                c(&format!("    {}  (used by {})", relpath, n), &[DIM], color)
+                c(
+                    &format!("    {}  (used by {})", sanitize_ctrl(relpath), n),
+                    &[DIM],
+                    color
+                )
             ));
         }
     }
@@ -541,7 +554,11 @@ pub fn render_text<F: FsProvider>(
         for cycle in cfg.cycles.iter().take(5) {
             out.push_str(&format!(
                 "{}\n",
-                c(&format!("    {}", cycle.join(" → ")), &[DIM], color)
+                c(
+                    &format!("    {}", sanitize_ctrl(&cycle.join(" → "))),
+                    &[DIM],
+                    color
+                )
             ));
         }
         if cfg.cycles.len() > 5 {
@@ -572,7 +589,11 @@ pub fn render_text<F: FsProvider>(
             for (relpath, n) in top_hot {
                 out.push_str(&format!(
                     "{}\n",
-                    c(&format!("    {}  ({} 回変更)", relpath, n), &[DIM], color)
+                    c(
+                        &format!("    {}  ({} 回変更)", sanitize_ctrl(relpath), n),
+                        &[DIM],
+                        color
+                    )
                 ));
             }
         }
@@ -595,7 +616,11 @@ pub fn render_text<F: FsProvider>(
             for (i, p) in candidates.iter().enumerate() {
                 out.push_str(&format!(
                     "{}\n",
-                    c(&format!("    {}. {}", i + 1, p), &[DIM], color)
+                    c(
+                        &format!("    {}. {}", i + 1, sanitize_ctrl(p)),
+                        &[DIM],
+                        color
+                    )
                 ));
             }
         }

@@ -77,17 +77,22 @@ jobs:
           path: binaries
       - name: Resolve version
         id: ver
+        env:
+          # スクリプトインジェクション対策: 入力値はシェルに直接展開せず env 経由で渡す
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           v="$(grep -m1 '^version' rust/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
-          if [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "$v" ]; then
-            echo "::error::rust/Cargo.toml の version ($v) と入力値 (${{ github.event.inputs.version }}) が一致しません。先に Cargo.toml を更新してください。"
+          if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$v" ]; then
+            echo "::error::rust/Cargo.toml の version ($v) と入力値 ($INPUT_VERSION) が一致しません。先に Cargo.toml を更新してください。"
             exit 1
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Assemble npm packages
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           python3 rust/npm/assemble.py \
-            --version "${{ steps.ver.outputs.version }}" \
+            --version "$VERSION" \
             --binaries binaries --out npm-out
       - name: Pack (dry run)
         run: |
@@ -97,10 +102,12 @@ jobs:
           name: npm-packages
           path: npm-out/
       - name: Archive binaries for GitHub Release
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           mkdir -p release
           for t in binaries/*/; do
-            t="${t%/}"; name="dirlens-${{ steps.ver.outputs.version }}-$(basename "$t")"
+            t="${t%/}"; name="dirlens-$VERSION-$(basename "$t")"
             if [ -f "$t/dirlens.exe" ]; then
               (cd "$t" && zip -q "../../release/$name.zip" dirlens.exe)
             else
@@ -110,9 +117,10 @@ jobs:
       - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           # タグ v${version} が既に push 済みならそれを使い、無ければこの実行時点の
           # コミットに新規作成する（gh release create の標準動作）。
-          gh release create "v${{ steps.ver.outputs.version }}" --draft \
-            --title "dirlens v${{ steps.ver.outputs.version }}" \
+          gh release create "v$VERSION" --draft \
+            --title "dirlens v$VERSION" \
             release/*
