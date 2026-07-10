@@ -115,7 +115,14 @@ pub fn parse_size(s: &str) -> Result<i64, String> {
         ("K", 1i64 << 10),
     ] {
         if upper.ends_with(sfx) {
-            let head = &s[..s.len() - sfx.len()];
+            // 接尾辞は文字数ベースで取り除く（Python の s[:-len(sfx)] 相当）。
+            // to_uppercase で長さが変わる文字（例: 'ﬆ'→"ST"）があるため、
+            // upper の一致位置をそのまま s のバイト位置に使うと境界を壊す。
+            let mut it = s.chars();
+            for _ in 0..sfx.len() {
+                it.next_back();
+            }
+            let head = it.as_str();
             match head.trim().parse::<f64>() {
                 Ok(v) => return Ok(py_trunc(v * mult as f64)),
                 Err(_) => break, // Python 同様、int(s) の解釈へフォールバック
@@ -246,6 +253,10 @@ mod tests {
         assert_eq!(parse_size("1.5M"), Ok(1572864));
         assert_eq!(parse_size("2000"), Ok(2000));
         assert!(parse_size("xyz").is_err());
+        // 大文字化で長さが変わる文字でもパニックしない（CPython と同じ解釈）:
+        // "5ﬆ".upper() == "5ST" → 接尾辞 "T"、head は "5"
+        assert_eq!(parse_size("5ﬆ"), Ok(5 << 40));
+        assert!(parse_size("ﬆ").is_err());
     }
 
     #[test]

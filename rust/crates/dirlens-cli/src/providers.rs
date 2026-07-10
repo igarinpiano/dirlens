@@ -202,11 +202,28 @@ pub struct StdGit;
 
 const GIT_TIMEOUT: Duration = Duration::from_secs(8);
 
-/// タイムアウトつきでコマンドを実行し stdout を返す（成功時のみ）。
-/// パイプ詰まりを避けるため stdout は別スレッドで読む。
-fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<String> {
-    cmd.stdout(Stdio::piped()).stderr(Stdio::null()).stdin(Stdio::null());
+/// タイムアウトつきでコマンドを実行し (終了ステータス, stdout) を返す。
+/// input があれば stdin へ書き込む。git が固まった場合（fsmonitor フック・
+/// ネットワーク FS 等）に dirlens 全体がハングしないよう、全 git 呼び出しは
+/// 必ずこの関数を通すこと。パイプ詰まりを避けるため stdout / stdin は
+/// 別スレッドで処理する。
+fn run_with_timeout(
+    mut cmd: Command,
+    timeout: Duration,
+    input: Option<Vec<u8>>,
+) -> Option<(std::process::ExitStatus, Vec<u8>)> {
+    cmd.stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
     let mut child = cmd.spawn().ok()?;
+    let writer = input.and_then(|data| {
+        let mut stdin = child.stdin.take()?;
+        Some(std::thread::spawn(move || {
+            use std::io::Write;
+            let _ = stdin.write_all(&data);
+            // drop で stdin を閉じる
+        }))
+    });
     let mut stdout = child.stdout.take()?;
     let reader = std::thread::spawn(move || {
         let mut buf = Vec::new();
@@ -225,14 +242,18 @@ fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<String> {
                 }
                 std::thread::sleep(Duration::from_millis(10));
             }
-            Err(_) => return None,
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
         }
     };
-    let buf = reader.join().ok()?;
-    if !status.success() {
-        return None;
+    if let Some(w) = writer {
+        let _ = w.join();
     }
-    Some(String::from_utf8_lossy(&buf).into_owned())
+    let buf = reader.join().ok()?;
+    Some((status, buf))
 }
 
 /// PATH からコマンドを探す（--check の存在確認用）。
@@ -264,7 +285,11 @@ impl GitProvider for StdGit {
             "--date=relative",
             "--pretty=format:\u{1}%H\u{2}%ad\u{2}%an\u{2}%s\u{3}",
         ]);
-        run_with_timeout(cmd, GIT_TIMEOUT)
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, None)?;
+        if !status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&out).into_owned())
     }
 
     fn check_ignore(&self, root: &Path, rel_paths: &[String]) -> Option<Vec<String>> {
@@ -272,29 +297,18 @@ impl GitProvider for StdGit {
             return Some(Vec::new());
         }
         let mut cmd = Command::new("git");
-        cmd.args(["-C", &root.to_string_lossy(), "check-ignore", "--stdin", "-z"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
-        let mut child = cmd.spawn().ok()?;
-        let mut stdin = child.stdin.take()?;
+        cmd.args(["-C", &root.to_string_lossy(), "check-ignore", "--stdin", "-z"]);
         let input: Vec<u8> = rel_paths
             .iter()
             .flat_map(|p| p.as_bytes().iter().copied().chain(std::iter::once(0u8)))
             .collect();
-        let writer = std::thread::spawn(move || {
-            use std::io::Write;
-            let _ = stdin.write_all(&input);
-            // drop で stdin を閉じる
-        });
-        let output = child.wait_with_output().ok()?;
-        let _ = writer.join();
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, Some(input))?;
         // check-ignore: 0=無視あり, 1=無視なし, 128=エラー（非リポジトリ等）
-        match output.status.code() {
+        match status.code() {
             Some(0) | Some(1) => {}
             _ => return None,
         }
-        let text = String::from_utf8_lossy(&output.stdout);
+        let text = String::from_utf8_lossy(&out);
         Some(
             text.split('\0')
                 .filter(|s| !s.is_empty())
@@ -308,12 +322,14 @@ impl GitProvider for StdGit {
     }
 
     fn is_work_tree(&self, root: &Path) -> bool {
-        Command::new("git")
-            .args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"])
-            .stderr(Stdio::null())
-            .output()
-            .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "true")
-            .unwrap_or(false)
+        let mut cmd = Command::new("git");
+        cmd.args(["-C", &root.to_string_lossy(), "rev-parse", "--is-inside-work-tree"]);
+        match run_with_timeout(cmd, GIT_TIMEOUT, None) {
+            Some((status, out)) => {
+                status.success() && String::from_utf8_lossy(&out).trim() == "true"
+            }
+            None => false,
+        }
     }
 }
 

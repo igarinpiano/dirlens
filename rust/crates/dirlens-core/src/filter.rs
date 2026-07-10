@@ -171,22 +171,18 @@ fn stat_size<F: FsProvider>(sess: &Session<F>, e: &Entry) -> u64 {
 
 /// Python の list.sort(key=..., reverse=...) 相当の安定ソート。
 /// reverse=True でも同キーの要素は元の順序を保つ（CPython と同じ）。
-fn stable_sort_by_key<T, K: PartialOrd>(v: &mut [T], keys: Vec<K>, reverse: bool) {
-    let mut idx: Vec<usize> = (0..v.len()).collect();
-    idx.sort_by(|&a, &b| {
-        let ord = keys[a].partial_cmp(&keys[b]).unwrap_or(std::cmp::Ordering::Equal);
+fn stable_sort_by_key<T, K: PartialOrd>(v: &mut Vec<T>, keys: Vec<K>, reverse: bool) {
+    debug_assert_eq!(v.len(), keys.len());
+    let mut pairs: Vec<(K, T)> = keys.into_iter().zip(std::mem::take(v)).collect();
+    pairs.sort_by(|a, b| {
+        let ord = a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal);
         if reverse {
             ord.reverse()
         } else {
             ord
         }
     });
-    // idx に従って並べ替え
-    let mut taken: Vec<Option<T>> = v.iter_mut().map(|x| Some(unsafe { std::ptr::read(x) })).collect();
-    for (dst, &src) in idx.iter().enumerate() {
-        unsafe { std::ptr::write(&mut v[dst], taken[src].take().unwrap()) };
-    }
-    std::mem::forget(taken);
+    v.extend(pairs.into_iter().map(|(_, t)| t));
 }
 
 /// _sort_entries 相当。

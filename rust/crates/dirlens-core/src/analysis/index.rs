@@ -338,44 +338,51 @@ pub fn detect_cycles(imports_map: &BTreeMap<String, Vec<String>>) -> Vec<Vec<Str
     const GRAY: u8 = 1;
     const BLACK: u8 = 2;
 
-    fn dfs(
-        node: &str,
-        imports_map: &BTreeMap<String, Vec<String>>,
-        color: &mut HashMap<String, u8>,
-        stack: &mut Vec<String>,
-        cycles: &mut Vec<Vec<String>>,
-        seen_keys: &mut HashSet<BTreeSet<String>>,
-    ) {
-        color.insert(node.to_string(), GRAY);
-        stack.push(node.to_string());
-        if let Some(nexts) = imports_map.get(node) {
-            for nxt in nexts {
-                let c = color.get(nxt).copied().unwrap_or(WHITE);
-                if c == WHITE {
-                    dfs(nxt, imports_map, color, stack, cycles, seen_keys);
-                } else if c == GRAY {
-                    let idx = stack.iter().position(|s| s == nxt).unwrap();
-                    let mut cycle: Vec<String> = stack[idx..].to_vec();
-                    cycle.push(nxt.clone());
+    // 明示スタックによる DFS（3色法）。再帰版と同じ訪問順・記録順を保ちつつ、
+    // 数万ファイル規模の import 連鎖でもコールスタックを溢れさせない。
+    let mut color: HashMap<&str, u8> = HashMap::new();
+    let mut cycles: Vec<Vec<String>> = Vec::new();
+    let mut seen_keys: HashSet<BTreeSet<String>> = HashSet::new();
+
+    for start in imports_map.keys() {
+        if color.get(start.as_str()).copied().unwrap_or(WHITE) != WHITE {
+            continue;
+        }
+        color.insert(start, GRAY);
+        // path: 現在の探索経路（再帰版の stack 相当）
+        // frames: (ノード, 次に見る隣接ノードの添字)
+        let mut path: Vec<&str> = vec![start];
+        let mut frames: Vec<(&str, usize)> = vec![(start, 0)];
+        while let Some((node, i)) = frames.last_mut() {
+            let node: &str = node;
+            let nexts = imports_map.get(node).map(|v| v.as_slice()).unwrap_or(&[]);
+            if *i >= nexts.len() {
+                path.pop();
+                color.insert(node, BLACK);
+                frames.pop();
+                continue;
+            }
+            let nxt = nexts[*i].as_str();
+            *i += 1;
+            match color.get(nxt).copied().unwrap_or(WHITE) {
+                WHITE => {
+                    color.insert(nxt, GRAY);
+                    path.push(nxt);
+                    frames.push((nxt, 0));
+                }
+                GRAY => {
+                    let idx = path.iter().position(|s| *s == nxt).unwrap();
+                    let mut cycle: Vec<String> =
+                        path[idx..].iter().map(|s| s.to_string()).collect();
+                    cycle.push(nxt.to_string());
                     let key: BTreeSet<String> =
                         cycle[..cycle.len() - 1].iter().cloned().collect();
                     if seen_keys.insert(key) {
                         cycles.push(cycle);
                     }
                 }
+                _ => {}
             }
-        }
-        stack.pop();
-        color.insert(node.to_string(), BLACK);
-    }
-
-    let mut color = HashMap::new();
-    let mut stack = Vec::new();
-    let mut cycles = Vec::new();
-    let mut seen_keys = HashSet::new();
-    for node in imports_map.keys() {
-        if color.get(node).copied().unwrap_or(WHITE) == WHITE {
-            dfs(node, imports_map, &mut color, &mut stack, &mut cycles, &mut seen_keys);
         }
     }
     cycles
@@ -1005,5 +1012,37 @@ fn walk<F: FsProvider>(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::detect_cycles;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn cycles_basic() {
+        let mut m = BTreeMap::new();
+        m.insert("a".to_string(), vec!["b".to_string()]);
+        m.insert("b".to_string(), vec!["a".to_string()]);
+        assert_eq!(
+            detect_cycles(&m),
+            vec![vec!["a".to_string(), "b".to_string(), "a".to_string()]]
+        );
+    }
+
+    #[test]
+    fn cycles_deep_chain_no_stack_overflow() {
+        // 10万ノードの直列 import 連鎖＋末尾→先頭の逆辺（1つの巨大サイクル）。
+        // 再帰 DFS だとコールスタックが溢れるケース。
+        let n = 100_000usize;
+        let mut m = BTreeMap::new();
+        for i in 0..n {
+            let next = if i + 1 == n { 0 } else { i + 1 };
+            m.insert(format!("f{:06}", i), vec![format!("f{:06}", next)]);
+        }
+        let cycles = detect_cycles(&m);
+        assert_eq!(cycles.len(), 1);
+        assert_eq!(cycles[0].len(), n + 1);
     }
 }
