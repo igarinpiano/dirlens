@@ -4,3 +4,10 @@ Copyright 2026 Igarin
 This product is licensed under the Apache License, Version 2.0.
 See the LICENSE file for the full license text, or
 http://www.apache.org/licenses/LICENSE-2.0
+
+---
+
+The Swift implementation (swift/) bundles the o200k_base tokenizer
+vocabulary (swift/Sources/DirlensCore/Resources/o200k_base.tiktoken),
+originating from the tiktoken project (https://github.com/openai/tiktoken),
+Copyright (c) 2022 OpenAI, licensed under the MIT License.

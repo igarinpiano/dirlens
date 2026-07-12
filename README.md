@@ -8,6 +8,11 @@ AI・コーディングエージェントがプロジェクト構造を把握す
 > 旧 Python 実装（v1.0.x）は `python` ブランチにあります。Rust 版はゴールデンテストで
 > Python 版と出力互換であることを検証したうえで、解析精度を強化しています。
 
+> **このブランチ（`swift`）には実験的な Swift 実装（`swift/`）が含まれます。**
+> CLI 仕様・出力は Rust 版と互換で、同じゴールデンテストで検証済みです
+> （ビルド方法・アーキテクチャ・Rust 版との差分は [swift/README.md](swift/README.md)、
+> 意図的な出力差分の台帳は [tests/golden/SWIFT-DELTAS.md](tests/golden/SWIFT-DELTAS.md)）。
+
 ---
 
 ## インストール

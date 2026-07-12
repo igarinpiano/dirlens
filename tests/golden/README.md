@@ -4,6 +4,18 @@ Rust 版 dirlens の出力を固定スナップショットで検証する。ス
 旧 Python 版（`dirlens.py`・現在は `python` ブランチ）の出力を基に、
 spec が命じる改善のみ意図的に更新したもの（台帳: `DELTAS.md`）。
 
+> **Swift 版（`swift` ブランチ）**も同じスナップショット・同じランナーで検証する。
+> `--bin swift/.build/release/dirlens` を渡すだけでよい。意図的な差分の台帳は
+> `SWIFT-DELTAS.md`（verify で 11 件だけ FAIL するのが正常。live は 89/89 一致）。
+>
+> ```bash
+> swift build -c release --package-path swift
+> python3 tests/golden/run.py verify --bin swift/.build/release/dirlens
+> python3 tests/golden/run.py live   --bin swift/.build/release/dirlens --py /tmp/dirlens.py
+> python3 tests/golden/tier_check.py --bin swift/.build/release/dirlens
+> python3 tests/golden/ast_check.py  --bin swift/.build/release/dirlens
+> ```
+
 ```bash
 # 1) 既定動作の照合: スナップショット（AST 層・git 層・BPE・精度注記込み）
 python3 tests/golden/run.py verify --bin rust/target/debug/dirlens
