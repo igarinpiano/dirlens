@@ -526,7 +526,8 @@ fn draw(
                     tr("Contents:", "直下の内容:"),
                     Style::default().fg(Color::Cyan),
                 )));
-                const PREVIEW: usize = 12;
+                // あふれた分はスクロールで見られるため、プレビューは十分大きく取る
+                const PREVIEW: usize = 200;
                 let mut shown = 0;
                 for d in dirs.iter().take(PREVIEW) {
                     let (dsz, derr) = app.sess.dir_size(&d.path);
@@ -595,14 +596,17 @@ fn draw(
             if let Some(g) = &ex.git {
                 lines.push(Line::from(format!("git: \"{}\" ({})", g.subject, g.date)));
             }
+            // アウトライン・TODO は打ち切らず全件出す（あふれた分はスクロールで見る）。
+            // 極端なファイルでの描画コストだけ CAP で抑える。
+            const CAP: usize = 500;
             if let Some(items) = &ex.outline {
                 if !items.is_empty() {
                     lines.push(Line::from(""));
                     lines.push(Line::from(Span::styled(
-                        tr("Outline:", "アウトライン:"),
+                        format!("{} ({})", tr("Outline", "アウトライン"), items.len()),
                         Style::default().fg(Color::Cyan),
                     )));
-                    for it in items.iter().take(14) {
+                    for it in items.iter().take(CAP) {
                         let vis = if it.public { "+" } else { "-" };
                         let span = it
                             .span
@@ -613,8 +617,8 @@ fn draw(
                             vis, it.kind, it.name, span
                         )));
                     }
-                    if items.len() > 14 {
-                        lines.push(Line::from(format!("  … +{}", items.len() - 14)));
+                    if items.len() > CAP {
+                        lines.push(Line::from(format!("  … +{}", items.len() - CAP)));
                     }
                 }
             }
@@ -624,15 +628,24 @@ fn draw(
                     format!("TODO ({}):", ex.todos.len()),
                     Style::default().fg(Color::Red),
                 )));
-                for (ln, kind, text) in ex.todos.iter().take(6) {
+                for (ln, kind, text) in ex.todos.iter().take(CAP) {
                     lines.push(Line::from(format!(" {}: [{}] {}", ln, kind, text)));
+                }
+                if ex.todos.len() > CAP {
+                    lines.push(Line::from(format!("  … +{}", ex.todos.len() - CAP)));
                 }
             }
         }
     }
-    // スクロール適用（上限は「最終行が最下段に来る」まで）
-    let total_lines = lines.len();
-    let inner_height = panes[1].height.saturating_sub(2) as usize; // 枠線ぶん
+    // スクロール適用（上限は「最終行が最下段に来る」まで）。
+    // Paragraph の scroll は折り返し後の表示行単位のため、上限も
+    // 折り返し後の行数（表示幅から見積もり）で数える。
+    let inner_width = panes[1].width.saturating_sub(2).max(1) as usize; // 枠線ぶん
+    let inner_height = panes[1].height.saturating_sub(2) as usize;
+    let total_lines: usize = lines
+        .iter()
+        .map(|l| l.width().div_ceil(inner_width).max(1))
+        .sum();
     app.detail_extent = (total_lines, inner_height);
     let max_scroll = total_lines.saturating_sub(inner_height) as u16;
     if app.detail_scroll > max_scroll {
@@ -640,7 +653,10 @@ fn draw(
     }
     let scrollable = total_lines > inner_height;
     let title = if scrollable {
-        tr(" Details (J/K · PgUp/PgDn scroll) ", " 詳細 (J/K · PgUp/PgDn スクロール) ")
+        tr(
+            " Details (Shift+J/K · PgUp/PgDn scroll) ",
+            " 詳細 (Shift+J/K · PgUp/PgDn スクロール) ",
+        )
     } else {
         tr(" Details ", " 詳細 ")
     };
@@ -671,8 +687,8 @@ fn draw(
         )
     } else {
         tr(
-            " ↑↓ move · →/Enter open · ← close · Space toggle · J/K scroll details · s size-sort · a hidden · / filter · q quit",
-            " ↑↓ 移動 · →/Enter 展開 · ← 閉じる · Space 開閉 · J/K 詳細スクロール · s サイズ順 · a 隠し · / フィルタ · q 終了",
+            " ↑↓/jk tree · Ctrl+D/U tree page · →/Enter open · ← close · Space toggle · Shift+J/K details · PgUp/PgDn(fn+↑↓) details page · s size-sort · a hidden · / filter · q quit",
+            " ↑↓/jk ツリー · Ctrl+D/U ツリーページ · →/Enter 展開 · ← 閉じる · Space 開閉 · Shift+J/K 詳細 · PgUp/PgDn(fn+↑↓) 詳細ページ · s サイズ順 · a 隠し · / フィルタ · q 終了",
         )
         .to_string()
     };
