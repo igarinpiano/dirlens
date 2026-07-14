@@ -17,8 +17,8 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wra
 
 use dirlens_core::analysis::extras::{file_extras, FileExtras};
 use dirlens_core::analysis::gitlog::load_git_log;
-use dirlens_core::filter::{filter_entries, sort_entries};
-use dirlens_core::fmt::{fmt_date, fmt_size, fmt_tokens};
+use dirlens_core::filter::{count_entries, filter_entries, sort_entries};
+use dirlens_core::fmt::{fmt_count, fmt_date, fmt_size, fmt_tokens};
 use dirlens_core::gitignore::{extend_pats, relpath_slash};
 use dirlens_core::provider::{Entry, FsProvider};
 use dirlens_core::{prepare, Args, Cfg, Lang, Session};
@@ -233,12 +233,23 @@ fn event_loop(
     lang: Lang,
 ) -> Result<(), String> {
     let mut list_state = ListState::default();
+    // マーキー（ステータスバーが幅に収まらないときだけ流れる）用の時刻カウンタ
+    let mut ticker: usize = 0;
     loop {
         list_state.select(Some(app.selected));
         terminal
-            .draw(|f| draw(f, app, &mut list_state, lang))
+            .draw(|f| draw(f, app, &mut list_state, lang, ticker))
             .map_err(|e| e.to_string())?;
 
+        // 200ms でタイムアウトしてマーキーを1桁ぶん進める（入力があれば即応答）
+        match event::poll(std::time::Duration::from_millis(200)) {
+            Ok(true) => {}
+            Ok(false) => {
+                ticker = ticker.wrapping_add(1);
+                continue;
+            }
+            Err(_) => break,
+        }
         let Ok(ev) = event::read() else { break };
         let Event::Key(key) = ev else { continue };
         if key.kind != KeyEventKind::Press {
@@ -307,7 +318,82 @@ fn event_loop(
     Ok(())
 }
 
-fn draw(f: &mut ratatui::Frame, app: &mut App, list_state: &mut ListState, lang: Lang) {
+/// マーキー表示: text + 区切りを循環バッファとみなし、start_col 桁目から
+/// width 桁ぶんを表示幅（東アジア全角=2桁）ベースで切り出す。
+fn marquee_slice(text: &str, start_col: usize, width: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+    const GAP: &str = "   •   ";
+    if text.is_empty() {
+        return String::new();
+    }
+    let cycle: Vec<(char, usize)> = text
+        .chars()
+        .chain(GAP.chars())
+        .map(|c| (c, c.width().unwrap_or(0)))
+        .collect();
+    let total: usize = cycle.iter().map(|(_, w)| w).sum();
+    if total == 0 || width == 0 {
+        return String::new();
+    }
+    let start = start_col % total;
+    // start 桁目に達する位置（文字境界に丸める）を探す
+    let mut col = 0;
+    let mut i = 0;
+    while col < start {
+        col += cycle[i].1;
+        i = (i + 1) % cycle.len();
+    }
+    // width 桁ぶん詰める（全角が境界をまたぐ場合はそこで打ち切り）
+    let mut out = String::new();
+    let mut used = 0;
+    while used < width {
+        let (c, w) = cycle[i];
+        if used + w > width {
+            break;
+        }
+        out.push(c);
+        used += w;
+        i = (i + 1) % cycle.len();
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::marquee_slice;
+
+    #[test]
+    fn marquee_ascii() {
+        // "abc" + GAP("   •   ") = 3 + 7 = 10 桁の循環
+        assert_eq!(marquee_slice("abc", 0, 3), "abc");
+        assert_eq!(marquee_slice("abc", 1, 3), "bc ");
+        assert_eq!(marquee_slice("abc", 10, 3), "abc"); // 1周して先頭に戻る
+    }
+
+    #[test]
+    fn marquee_cjk_width() {
+        use unicode_width::UnicodeWidthStr;
+        // 全角（幅2）が境界をまたぐときは詰め込まない（幅超過しない）
+        for start in 0..20 {
+            let s = marquee_slice("移動 · 展開", start, 8);
+            assert!(s.as_str().width() <= 8, "width overflow at start={}", start);
+        }
+    }
+
+    #[test]
+    fn marquee_zero() {
+        assert_eq!(marquee_slice("", 5, 10), "");
+        assert_eq!(marquee_slice("abc", 5, 0), "");
+    }
+}
+
+fn draw(
+    f: &mut ratatui::Frame,
+    app: &mut App,
+    list_state: &mut ListState,
+    lang: Lang,
+    ticker: usize,
+) {
     let tr = |en: &'static str, ja: &'static str| dirlens_core::i18n::tr(lang, en, ja);
     let outer = Layout::default()
         .direction(Direction::Vertical)
@@ -371,6 +457,74 @@ fn draw(f: &mut ratatui::Frame, app: &mut App, list_state: &mut ListState, lang:
                 tr("size", "サイズ"),
                 fmt_size(sz, err)
             )));
+            // 直下の内容数（ツリー表示の "(2 dirs, 3 files)" と同じ書式）
+            let (nd, nf, denied) = count_entries(&app.sess, &path, &app.cfg, &app.pats);
+            lines.push(Line::from(format!(
+                "{}: {}",
+                tr("contents", "内容"),
+                fmt_count(nd, nf, denied)
+            )));
+            if let Some(st) = app.sess.fs.stat(&path, true) {
+                lines.push(Line::from(format!(
+                    "{}: {}",
+                    tr("modified", "更新"),
+                    fmt_date(app.sess.fs.now(), st.mtime, lang)
+                )));
+            }
+            // 直下の子のプレビュー（ツリー表示風・サイズつき）
+            let pats = extend_pats(&app.sess, &app.pats, &path, &app.cfg);
+            if let Some((mut dirs, mut files)) =
+                filter_entries(&app.sess, &path, &app.cfg, &pats)
+            {
+                sort_entries(&app.sess, &mut dirs, &mut files, &app.cfg);
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    tr("Contents:", "直下の内容:"),
+                    Style::default().fg(Color::Cyan),
+                )));
+                const PREVIEW: usize = 12;
+                let mut shown = 0;
+                for d in dirs.iter().take(PREVIEW) {
+                    let (dsz, derr) = app.sess.dir_size(&d.path);
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!(" {}/", d.name),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        Span::styled(
+                            format!("  {}", fmt_size(dsz, derr)),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                    ]));
+                    shown += 1;
+                }
+                for fl in files.iter().take(PREVIEW.saturating_sub(shown)) {
+                    let fsz = app
+                        .sess
+                        .fs
+                        .stat(&fl.path, true)
+                        .map(|s| s.size)
+                        .unwrap_or(0);
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!(" {}", fl.name),
+                            Style::default().fg(Color::Green),
+                        ),
+                        Span::styled(
+                            format!("  {}", fmt_size(fsz, false)),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                    ]));
+                    shown += 1;
+                }
+                let total = dirs.len() + files.len();
+                if total > shown {
+                    lines.push(Line::from(Span::styled(
+                        format!("  … +{}", total - shown),
+                        Style::default().fg(Color::DarkGray),
+                    )));
+                }
+            }
         } else {
             let st = app.sess.fs.stat(&path, true);
             if let Some(st) = st {
@@ -438,6 +592,7 @@ fn draw(f: &mut ratatui::Frame, app: &mut App, list_state: &mut ListState, lang:
     f.render_widget(details, panes[1]);
 
     // ── ステータスバー ────────────────────────────────────────
+    // 幅に収まるときは固定表示、収まらないときだけ電光掲示板のように流す
     let status = if app.filter_mode {
         format!("/{}", app.filter)
     } else if !app.filter.is_empty() {
@@ -452,6 +607,13 @@ fn draw(f: &mut ratatui::Frame, app: &mut App, list_state: &mut ListState, lang:
             " ↑↓ 移動 · →/Enter 展開 · ← 閉じる · Space 開閉 · s サイズ順 · a 隠し · / フィルタ · q 終了",
         )
         .to_string()
+    };
+    let bar_width = outer[1].width as usize;
+    let status_width = unicode_width::UnicodeWidthStr::width(status.as_str());
+    let status = if !app.filter_mode && status_width > bar_width {
+        marquee_slice(&status, ticker, bar_width)
+    } else {
+        status
     };
     f.render_widget(
         Paragraph::new(status).style(Style::default().fg(Color::DarkGray)),
