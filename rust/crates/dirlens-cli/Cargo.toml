@@ -15,6 +15,8 @@ dirlens-core = { path = "../dirlens-core", features = [
     "ast-python", "ast-js", "ast-rust", "lang-go", "lang-c", "tokens-bpe",
 ] }
 clap = { version = "4", features = ["string"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -4,6 +4,7 @@
 // Licensed under the Apache License, Version 2.0.
 // See the LICENSE file or http://www.apache.org/licenses/LICENSE-2.0
 
+mod config;
 mod providers;
 
 use std::io::{IsTerminal, Write};
@@ -197,6 +198,18 @@ fn build_command(lang: Lang) -> Command {
                 .help(h("output language (en/ja; default: en, or DIRLENS_LANG / config file)", "出力言語（en/ja。既定: en。DIRLENS_LANG や設定ファイルでも指定可）")),
         )
         .arg(
+            Arg::new("preset")
+                .long("preset")
+                .value_name("NAME")
+                .help(h("apply a named preset from the config file ([presets] table)", "設定ファイルの [presets] で定義した名前付きプリセットを適用")),
+        )
+        .arg(
+            Arg::new("no_config")
+                .long("no-config")
+                .action(ArgAction::SetTrue)
+                .help(h("ignore all config files (also: DIRLENS_CONFIG=off)", "設定ファイルを一切読まない（DIRLENS_CONFIG=off も同じ）")),
+        )
+        .arg(
             Arg::new("ai")
                 .long("ai")
                 .action(ArgAction::SetTrue)
@@ -240,8 +253,58 @@ fn enable_color() -> bool {
 }
 
 fn main() {
-    let lang = detect_lang();
-    let m = build_command(lang).get_matches();
+    let mut lang = detect_lang();
+    let mut m = build_command(lang).get_matches();
+
+    // ── 設定ファイル（グローバル + プロジェクト） ───────────────
+    let argv: Vec<String> = std::env::args().collect();
+    let use_config = !config::config_disabled(&argv) && !m.get_flag("no_config");
+    let (file_cfg, cfg_warnings) = if use_config {
+        let target = m
+            .get_one::<String>("path")
+            .cloned()
+            .unwrap_or_else(|| ".".into());
+        config::load(std::path::Path::new(&target))
+    } else {
+        (Default::default(), Vec::new())
+    };
+    for w in &cfg_warnings {
+        eprintln!("{}", w);
+    }
+
+    // --preset: 設定ファイルのプリセット引数を argv の先頭（プログラム名の直後）に
+    // 差し込んで再パースする（CLI で明示した引数が常に勝つ）。
+    if let Some(name) = m.get_one::<String>("preset").cloned() {
+        match file_cfg.presets.get(&name) {
+            Some(extra) => {
+                let mut new_argv: Vec<String> = Vec::with_capacity(argv.len() + extra.len());
+                new_argv.push(argv[0].clone());
+                new_argv.extend(extra.iter().cloned());
+                new_argv.extend(argv[1..].iter().cloned());
+                m = build_command(lang).get_matches_from(new_argv);
+            }
+            None => {
+                let known: Vec<&String> = file_cfg.presets.keys().collect();
+                eprintln!(
+                    "dirlens: unknown preset '{}' (defined: {:?})",
+                    name, known
+                );
+                std::process::exit(2);
+            }
+        }
+    }
+
+    // 言語の最終解決: --lang > 設定ファイル > DIRLENS_LANG > en
+    // （detect_lang は --lang / 環境変数 / compat を反映済み。設定ファイルは
+    //   フラグ・環境変数どちらも無い場合のみ効く）
+    if m.value_source("lang") != Some(clap::parser::ValueSource::CommandLine)
+        && std::env::var("DIRLENS_LANG").is_err()
+        && std::env::var("DIRLENS_COMPAT").as_deref() != Ok("python")
+    {
+        if let Some(l) = file_cfg.lang.as_deref().and_then(Lang::parse) {
+            lang = l;
+        }
+    }
 
     let getb = |id: &str| m.get_flag(id);
     let mut args = Args {
@@ -317,6 +380,27 @@ fn main() {
     if getb("json_tree") {
         args.json = true;
     }
+
+    // ── 設定ファイルのデフォルト適用（CLI で指定が無い項目のみ） ──
+    if use_config {
+        macro_rules! def_true {
+            ($($f:ident),*) => { $( if file_cfg.$f == Some(true) { args.$f = true; } )* };
+        }
+        def_true!(gitignore, all, date, emoji, markdown, no_color, bar, prune,
+                  filesfirst, follow, full_path);
+        if args.depth.is_none() {
+            args.depth = file_cfg.depth;
+        }
+        if args.min_size.is_none() {
+            args.min_size = file_cfg.min_size.clone();
+        }
+        if args.max_size.is_none() {
+            args.max_size = file_cfg.max_size.clone();
+        }
+        args.exclude.extend(file_cfg.exclude.iter().cloned());
+        args.include.extend(file_cfg.include.iter().cloned());
+    }
+
     args.merge_aliases();
 
     let fs = StdFs;
