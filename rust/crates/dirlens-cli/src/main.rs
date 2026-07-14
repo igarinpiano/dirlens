@@ -4,8 +4,10 @@
 // Licensed under the Apache License, Version 2.0.
 // See the LICENSE file or http://www.apache.org/licenses/LICENSE-2.0
 
+mod cache;
 mod config;
 mod providers;
+mod spinner;
 
 use std::io::{IsTerminal, Write};
 
@@ -269,6 +271,25 @@ fn build_command(lang: Lang) -> Command {
                 .help(h("ignore all config files (also: DIRLENS_CONFIG=off)", "設定ファイルを一切読まない（DIRLENS_CONFIG=off も同じ）")),
         )
         .arg(
+            Arg::new("no_cache")
+                .long("no-cache")
+                .action(ArgAction::SetTrue)
+                .help(h("disable the persistent token-count cache (also: DIRLENS_CACHE=off)", "トークン計数の永続キャッシュを使わない（DIRLENS_CACHE=off も同じ）")),
+        )
+        .arg(
+            Arg::new("completions")
+                .long("completions")
+                .value_name("SHELL")
+                .value_parser(["bash", "zsh", "fish", "powershell", "elvish"])
+                .help(h("print shell completions to stdout and exit", "シェル補完スクリプトを標準出力に出して終了")),
+        )
+        .arg(
+            Arg::new("man")
+                .long("man")
+                .action(ArgAction::SetTrue)
+                .help(h("print the man page (roff) to stdout and exit", "man ページ（roff）を標準出力に出して終了")),
+        )
+        .arg(
             Arg::new("ai")
                 .long("ai")
                 .action(ArgAction::SetTrue)
@@ -314,6 +335,22 @@ fn enable_color() -> bool {
 fn main() {
     let mut lang = detect_lang();
     let mut m = build_command(lang).get_matches();
+
+    // ── 補完スクリプト / man ページ（生成して即終了） ───────────
+    if let Some(shell) = m.get_one::<String>("completions") {
+        use std::str::FromStr;
+        if let Ok(sh) = clap_complete::Shell::from_str(shell) {
+            clap_complete::generate(sh, &mut build_command(lang), "dirlens", &mut std::io::stdout());
+        }
+        return;
+    }
+    if m.get_flag("man") {
+        let mut buf = Vec::new();
+        if clap_mangen::Man::new(build_command(lang)).render(&mut buf).is_ok() {
+            let _ = std::io::stdout().write_all(&buf);
+        }
+        return;
+    }
 
     // ── 設定ファイル（グローバル + プロジェクト） ───────────────
     let argv: Vec<String> = std::env::args().collect();
@@ -531,6 +568,18 @@ fn main() {
 
     let mut sess = Session::new(&fs);
 
+    // ── 永続キャッシュ（トークン計数） ──────────────────────────
+    let cache_enabled = !m.get_flag("no_cache")
+        && std::env::var("DIRLENS_CACHE").as_deref() != Ok("off")
+        && !compat_python;
+    let file_cache = cache::StdCache::new(&cfg.root);
+    if cache_enabled {
+        sess.cache = Some(&file_cache);
+    }
+
+    // ── 進捗スピナー（stderr が端末のときのみ・400ms 以降に出現） ──
+    let spin = spinner::Spinner::start();
+
     // ── トップレベル dir サイズの並列プリフェッチ ──────────────
     #[cfg(feature = "parallel")]
     {
@@ -559,6 +608,10 @@ fn main() {
     }
 
     let res = execute(&mut sess, &mut cfg, &git, &clip);
+    spin.stop();
+    if cache_enabled {
+        file_cache.flush();
+    }
 
     if let Some((path, content)) = &res.html_file {
         if let Err(e) = std::fs::write(path, content) {

@@ -64,9 +64,41 @@ pub fn file_extras<F: FsProvider>(
             ex.tokens = None;
             ex.lines = None;
         } else {
-            let sz = sess.fs.stat(&entry.path, true).map(|s| s.size);
-            ex.tokens = Some(count_tokens(&text, byte_len, sz, truncated, cfg.tokens_bpe));
-            ex.lines = Some(count_lines(&text, byte_len, sz, truncated));
+            let st = sess.fs.stat(&entry.path, true);
+            let sz = st.map(|s| s.size);
+            // 永続キャッシュ: BPE 計数はコストが高いため (rel, size, mtime, 方式) を
+            // キーに再利用する。ファイル変更でキーが変わり自然に無効化される。
+            let key = st.map(|s| {
+                format!(
+                    "tok:{}:{}:{}:{}",
+                    rel,
+                    s.size,
+                    (s.mtime * 1e9) as i128,
+                    if cfg.tokens_bpe { "bpe" } else { "chr" }
+                )
+            });
+            let cached = key
+                .as_deref()
+                .and_then(|k| sess.cache.and_then(|c| c.get(k)))
+                .and_then(|v| {
+                    let (a, b) = v.split_once(',')?;
+                    Some((a.parse::<i64>().ok()?, b.parse::<i64>().ok()?))
+                });
+            match cached {
+                Some((tok, lines)) => {
+                    ex.tokens = Some(tok);
+                    ex.lines = Some(lines);
+                }
+                None => {
+                    let tok = count_tokens(&text, byte_len, sz, truncated, cfg.tokens_bpe);
+                    let lines = count_lines(&text, byte_len, sz, truncated);
+                    ex.tokens = Some(tok);
+                    ex.lines = Some(lines);
+                    if let (Some(k), Some(c)) = (key, sess.cache) {
+                        c.put(&k, format!("{},{}", tok, lines));
+                    }
+                }
+            }
         }
     }
 

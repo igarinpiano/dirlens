@@ -104,6 +104,13 @@ pub trait ClipboardProvider {
     }
 }
 
+/// 解析結果の永続キャッシュ（トークン数など）。native CLI がファイル実装を供給し、
+/// wasm では未使用。key はサイズ・mtime を含むため、無効化はキーの不一致で自然に起きる。
+pub trait CacheProvider: Sync {
+    fn get(&self, key: &str) -> Option<String>;
+    fn put(&self, key: &str, value: String);
+}
+
 /// GitProvider が存在しない環境（wasm 等）向けのダミー。
 pub struct NoGit;
 impl GitProvider for NoGit {
