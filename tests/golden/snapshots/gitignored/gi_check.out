@@ -1,11 +1,12 @@
-dirlens 能力レポート
-  gitignore (-G): git check-ignore（厳密・ネスト/否定/グローバル除外に完全対応）
-  git 履歴 (-H): ✓ git
-  アウトライン (-O/-A):
+dirlens capability report
+  gitignore (-G): git check-ignore (exact: nesting / negation / global excludes fully supported)
+  git history (-H): ✓ git
+  outline (-O/-A):
     Python: ast / JS・TS: ast / Rust: ast / Go: ast / C: ast
-  import 解決 (-M): AST + マニフェスト（tsconfig paths / package.json imports / go.mod / Rust モジュールツリー）
-  トークン計数 (-T): BPE（o200k_base）による正確値（5MB 超は比例概算）
-  クリップボード (-C): ✗
+    Java: ast / Ruby: ast / PHP: ast / C#: ast / Kotlin: ast / Swift: ast
+  import resolution (-M): AST + manifests (tsconfig paths / package.json imports / go.mod / Rust module tree)
+  token counting (-T): exact BPE (o200k_base); files over 5MB are extrapolated
+  clipboard (-C): ✗
 
-縮退している項目:
-  - クリップボードツールが見つからない（-C 不可）
+Degraded items:
+  - no clipboard tool found (-C unavailable)

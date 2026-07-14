@@ -31,6 +31,6 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB)
 ├── ⚙ pyproject.toml (42 bytes, config)
 └── ⚙ tsconfig.json (50 bytes, config)
 
-  合計  8 ディレクトリ,  23 ファイル
+  Total  8 directories,  23 files
   .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
-  設定ファイル: 5 件検出
+  Config files: 5 found

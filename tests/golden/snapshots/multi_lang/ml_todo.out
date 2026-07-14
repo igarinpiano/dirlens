@@ -31,9 +31,9 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB)
 ├── pyproject.toml (42 bytes)
 └── tsconfig.json (50 bytes)
 
-  合計  8 ディレクトリ,  23 ファイル
+  Total  8 directories,  23 files
   .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
-  TODO/FIXME等: 6件
+  TODO/FIXME items: 6
     go/internal/util/util.go:5 [TODO] // TODO: add caching
     pkg/helpers.py:4 [FIXME] # FIXME: エラーハンドリングが未実装
     pkg/utils.py:6 [HACK] return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです

@@ -7,5 +7,5 @@ rust_lang/ (1 dir, 1 file, 526 bytes)
 │   └── util.rs (201 bytes, struct Thing, fn new, trait Runner, fn go, enum Mode, +2)
 └── Cargo.toml (42 bytes)
 
-  合計  2 ディレクトリ,  5 ファイル
+  Total  2 directories,  5 files
   .rs ×4  .toml ×1

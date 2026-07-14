@@ -62,5 +62,5 @@ gitignored/ (3 dirs, 3 files, 3.8 KB)
 ├── important.log (17 bytes)
 └── README.md (24 bytes)
 
-  合計  30 ディレクトリ,  32 ファイル  (.gitignore 適用済み)
+  Total  30 directories,  32 files  (.gitignore applied)
   (no ext) ×27  .txt ×2  .py ×1  .log ×1  .md ×1

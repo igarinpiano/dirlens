@@ -149,7 +149,7 @@
           "size_human": "215 bytes",
           "ext": ".py",
           "path": "pkg/helpers.py",
-          "has_test": false
+          "has_test": true
         },
         {
           "name": "utils.py",
@@ -202,7 +202,7 @@
               "size_human": "82 bytes",
               "ext": ".ts",
               "path": "src/lib/types.ts",
-              "has_test": false
+              "has_test": true
             },
             {
               "name": "util.ts",
@@ -211,7 +211,7 @@
               "size_human": "242 bytes",
               "ext": ".ts",
               "path": "src/lib/util.ts",
-              "has_test": false
+              "has_test": true
             }
           ]
         },
@@ -334,7 +334,7 @@
   "project_summary": {
     "estimated_tokens": null,
     "todo_count": null,
-    "missing_tests_count": 12,
+    "missing_tests_count": 9,
     "entry_points_count": null,
     "config_files_count": null,
     "git_available": null,
@@ -342,5 +342,6 @@
     "hotspots": null,
     "circular_dependencies": null,
     "reading_order_candidates": null
-  }
+  },
+  "errors": []
 }

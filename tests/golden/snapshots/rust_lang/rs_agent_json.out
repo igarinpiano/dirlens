@@ -46,14 +46,18 @@
               "lines": 5,
               "git": null,
               "todos": [],
-              "has_test": true,
+              "has_test": false,
               "is_entry": false,
               "is_config": false,
               "outline": [
                 {
                   "kind": "fn",
                   "name": "deep_fn",
-                  "public": true
+                  "public": true,
+                  "lines": [
+                    3,
+                    5
+                  ]
                 }
               ],
               "imports": [
@@ -113,17 +117,29 @@
             {
               "kind": "struct",
               "name": "Config",
-              "public": false
+              "public": false,
+              "lines": [
+                7,
+                9
+              ]
             },
             {
               "kind": "fn",
               "name": "run",
-              "public": true
+              "public": true,
+              "lines": [
+                11,
+                13
+              ]
             },
             {
               "kind": "fn",
               "name": "main",
-              "public": false
+              "public": false,
+              "lines": [
+                15,
+                18
+              ]
             }
           ],
           "imports": [
@@ -146,44 +162,72 @@
           "lines": 18,
           "git": null,
           "todos": [],
-          "has_test": true,
+          "has_test": false,
           "is_entry": false,
           "is_config": false,
           "outline": [
             {
               "kind": "struct",
               "name": "Thing",
-              "public": true
+              "public": true,
+              "lines": [
+                1,
+                1
+              ]
             },
             {
               "kind": "fn",
               "name": "new",
-              "public": true
+              "public": true,
+              "lines": [
+                4,
+                4
+              ]
             },
             {
               "kind": "trait",
               "name": "Runner",
-              "public": true
+              "public": true,
+              "lines": [
+                7,
+                9
+              ]
             },
             {
               "kind": "fn",
               "name": "go",
-              "public": false
+              "public": false,
+              "lines": [
+                8,
+                8
+              ]
             },
             {
               "kind": "enum",
               "name": "Mode",
-              "public": false
+              "public": false,
+              "lines": [
+                11,
+                14
+              ]
             },
             {
               "kind": "fn",
               "name": "helper",
-              "public": true
+              "public": true,
+              "lines": [
+                16,
+                16
+              ]
             },
             {
               "kind": "fn",
               "name": "private_helper",
-              "public": false
+              "public": false,
+              "lines": [
+                18,
+                18
+              ]
             }
           ],
           "imports": [],
@@ -218,7 +262,7 @@
   "project_summary": {
     "estimated_tokens": 148,
     "todo_count": 1,
-    "missing_tests_count": 0,
+    "missing_tests_count": 2,
     "entry_points_count": 1,
     "config_files_count": 1,
     "git_available": false,
@@ -245,6 +289,52 @@
       "src/nested/inner.rs"
     ]
   },
+  "language_breakdown": [
+    {
+      "ext": ".rs",
+      "files": 4,
+      "lines": 42,
+      "tokens": 131
+    },
+    {
+      "ext": ".toml",
+      "files": 1,
+      "lines": 3,
+      "tokens": 17
+    }
+  ],
+  "longest_functions": [
+    {
+      "lines": 4,
+      "symbol": "src/main.rs:main"
+    },
+    {
+      "lines": 4,
+      "symbol": "src/util.rs:Mode"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/main.rs:run"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/nested/inner.rs:deep_fn"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/util.rs:Runner"
+    }
+  ],
+  "errors": [
+    {
+      "code": "git_log_unavailable",
+      "message": "commit info unavailable (not a git repository, or git not installed)"
+    },
+    {
+      "code": "gitignore_degraded",
+      "message": "gitignore uses the builtin matcher (git check-ignore unavailable)"
+    }
+  ],
   "capabilities": {
     "gitignore_tier": "builtin",
     "outline": {
@@ -253,6 +343,12 @@
       "rust": "ast",
       "go": "ast",
       "c": "ast",
+      "java": "ast",
+      "ruby": "ast",
+      "php": "ast",
+      "csharp": "ast",
+      "kotlin": "ast",
+      "swift": "ast",
       "fallback": "regex"
     },
     "imports_resolution": [

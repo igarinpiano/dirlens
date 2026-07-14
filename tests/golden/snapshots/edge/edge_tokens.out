@@ -8,7 +8,7 @@ edge/ (2 dirs, 13 files, 5.73+ MB)
 │                       └── f/ (0 dirs, 1 file, 11 bytes)
 │                           └── leaf.txt (11 bytes, ~3 tok, 1 lines)
 ├── denied/ (0+ dirs, 0+ files, 0+ bytes)
-│   └── [アクセス拒否]
+│   └── [access denied]
 ├── 'quote'.txt (7 bytes, ~2 tok, 1 lines)
 ├── [bracket].txt (17 bytes, ~5 tok, 1 lines)
 ├── a&b<c>.html (17 bytes, ~7 tok, 1 lines)
@@ -23,6 +23,11 @@ edge/ (2 dirs, 13 files, 5.73+ MB)
 ├── todo_many.py (398 bytes, ~120 tok, 12 lines)
 └── 日本語ファイル.md (15 bytes, ~5 tok, 1 lines)
 
-  合計  8 ディレクトリ,  14 ファイル
+  Total  8 directories,  14 files
   .txt ×9  .md ×2  .html ×1  .png ×1  .py ×1
-  推定トークン数: ~1940K tok
+  Estimated tokens: ~1940K tok
+  Tokens by file type:
+    .txt ×8  ~1938.5K tok  92317 lines
+    .md ×2  ~1.4K tok  41 lines
+    .py ×1  ~120 tok  12 lines
+    .html ×1  ~7 tok  1 lines

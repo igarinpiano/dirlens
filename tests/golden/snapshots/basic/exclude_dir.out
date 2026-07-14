@@ -18,5 +18,5 @@ basic/ (3 dirs, 8 files, 305.56 KB)
 ├── single.b (1 byte)
 └── Zeta.txt (1.5 KB)
 
-  合計  4 ディレクトリ,  14 ファイル  (除外: sub, *.bin)
+  Total  4 directories,  14 files  (excluded: sub, *.bin)
   .txt ×6  (no ext) ×4  .md ×2  .log ×1  .b ×1

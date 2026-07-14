@@ -31,18 +31,18 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB)
 ├── pyproject.toml (42 bytes)
 └── tsconfig.json (50 bytes)
 
-  合計  8 ディレクトリ,  23 ファイル
+  Total  8 directories,  23 files
   .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
-  エントリーポイント候補: 7 件検出
-  依存度が高いファイル（多くのファイルから参照されている）:
+  Entry point candidates: 7 found
+  Most depended-on files (imported by many):
     pkg/helpers.py  (used by 3)
     src/lib/util.ts  (used by 3)
     pkg/utils.py  (used by 2)
     pkg/circle_b.py  (used by 1)
     pkg/circle_a.py  (used by 1)
-  循環依存: 1 件検出
+  Circular dependencies: 1 found
     pkg/circle_a.py → pkg/circle_b.py → pkg/circle_a.py
-  読み始めの候補（エントリーポイント→依存度の高い順）:
+  Suggested reading order (entry points → most depended-on):
     1. Dockerfile
     2. Makefile
     3. go/main.go

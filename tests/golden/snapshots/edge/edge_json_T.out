@@ -274,5 +274,32 @@
     "hotspots": null,
     "circular_dependencies": null,
     "reading_order_candidates": null
-  }
+  },
+  "language_breakdown": [
+    {
+      "ext": ".txt",
+      "files": 8,
+      "lines": 92317,
+      "tokens": 1938493
+    },
+    {
+      "ext": ".md",
+      "files": 2,
+      "lines": 41,
+      "tokens": 1365
+    },
+    {
+      "ext": ".py",
+      "files": 1,
+      "lines": 12,
+      "tokens": 120
+    },
+    {
+      "ext": ".html",
+      "files": 1,
+      "lines": 1,
+      "tokens": 7
+    }
+  ],
+  "errors": []
 }

@@ -1,73 +1,112 @@
 <!DOCTYPE html>
-<html lang="ja"><head>
+<html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>dirlens — multi_lang</title>
 <style>
+:root{--bg:#1e1e2e;--fg:#cdd6f4;--accent:#89b4fa;--dir:#89dceb;--file:#a6e3a1;
+      --muted:#585b70;--panel:#313244;--border:#45475a;--hover:rgba(255,255,255,.06);
+      --barbg:rgba(255,255,255,.07);--barfg:#89b4fa}
+:root[data-theme="light"]{--bg:#f6f6f8;--fg:#2b2d3a;--accent:#1e66f5;--dir:#04a5e5;
+      --file:#40a02b;--muted:#8c8fa1;--panel:#e6e9ef;--border:#ccd0da;
+      --hover:rgba(0,0,0,.05);--barbg:rgba(0,0,0,.07);--barfg:#1e66f5}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Menlo,Consolas,monospace;font-size:14px;background:#1e1e2e;color:#cdd6f4;padding:24px}
-h1{color:#89b4fa;margin-bottom:12px;font-size:18px}
-#q{background:#313244;border:1px solid #45475a;color:#cdd6f4;padding:6px 12px;
-    border-radius:6px;font-size:13px;margin-bottom:16px;width:280px;outline:none}
-#q:focus{border-color:#89b4fa}
+body{font-family:Menlo,Consolas,monospace;font-size:14px;background:var(--bg);color:var(--fg);padding:24px}
+h1{color:var(--accent);margin-bottom:4px;font-size:18px}
+.stats{color:var(--muted);font-size:12px;margin-bottom:12px}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+#q{background:var(--panel);border:1px solid var(--border);color:var(--fg);padding:6px 12px;
+    border-radius:6px;font-size:13px;width:280px;outline:none}
+#q:focus{border-color:var(--accent)}
+button{background:var(--panel);border:1px solid var(--border);color:var(--fg);
+       padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit}
+button:hover{border-color:var(--accent)}
 details{margin-left:18px}
 summary{cursor:pointer;padding:2px 6px;border-radius:4px;list-style:none;
-         white-space:nowrap;color:#89dceb}
+         white-space:nowrap;color:var(--dir)}
 summary::-webkit-details-marker{display:none}
 summary::before{content:"▶ ";font-size:10px;opacity:.4}
 details[open]>summary::before{content:"▼ "}
-summary:hover{background:rgba(255,255,255,.06)}
-.ch{border-left:1px solid rgba(255,255,255,.08);margin-left:10px}
+summary:hover{background:var(--hover)}
+.ch{border-left:1px solid var(--border);margin-left:10px}
 .item{padding:2px 6px;white-space:nowrap;margin-left:18px}
-.item:hover{background:rgba(255,255,255,.05);border-radius:4px}
-.fname{color:#a6e3a1}.sz{color:#585b70;font-size:12px}
+.item:hover{background:var(--hover);border-radius:4px}
+.fname{color:var(--file)}.sz{color:var(--muted);font-size:12px}
 .emoji{width:1.6em;display:inline-block}.hidden{display:none!important}
+.bar{display:inline-block;width:80px;height:6px;background:var(--barbg);
+     border-radius:3px;margin-left:8px;vertical-align:middle;overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--barfg);border-radius:3px}
 .badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;
-        font-size:10px;vertical-align:middle}
+        font-size:10px;vertical-align:middle;background:var(--panel);color:var(--fg)}
 .badge.entry{background:#89b4fa;color:#1e1e2e}
+.badge.config{background:#94e2d5;color:#1e1e2e}
 .badge.notest{background:#f9e2af;color:#1e1e2e}
 .badge.todo{background:#f38ba8;color:#1e1e2e}
+.badge.tok{background:var(--panel);color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+       padding:12px 16px;margin:16px 0;max-width:720px}
+.panel h2{font-size:13px;color:var(--accent);margin-bottom:8px}
+.panel .row{display:flex;justify-content:space-between;font-size:12px;padding:1px 0}
+.panel .row .p{color:var(--fg)}.panel .row .s{color:var(--muted)}
 </style></head><body>
 <h1>🌳 dirlens — multi_lang</h1>
-<input id="q" type="text" placeholder="ファイル名で検索…" oninput="search(this.value)">
-<div id="tree"><details open><summary>📁 <strong>multi_lang/</strong> <span class="sz">(5 dirs, 6 files, 3.38 KB)</span></summary><div class="ch"><details><summary>📁 <strong>docs/</strong> <span class="sz">(0 dirs, 1 file, 955 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">📝</span><span class="fname"> 日本語メモ.md</span><span class="sz"> 955 bytes</span></div>
+<div class="stats">8 directories / 23 files / 3.38 KB</div>
+<div class="controls">
+<input id="q" type="text" placeholder="search file names…" oninput="search(this.value)">
+<button onclick="setAll(true)">expand all</button>
+<button onclick="setAll(false)">collapse all</button>
+<button onclick="toggleTheme()">☀/🌙 theme</button>
+</div>
+<div id="tree"><details open><summary>📁 <strong>multi_lang/</strong> <span class="sz">(5 dirs, 6 files, 3.38 KB)</span><span class="bar"><span style="width:100.00%"></span></span></summary><div class="ch"><details><summary>📁 <strong>docs/</strong> <span class="sz">(0 dirs, 1 file, 955 bytes)</span><span class="bar"><span style="width:52.56%"></span></span></summary><div class="ch"><div class="item file"><span class="emoji">📝</span><span class="fname"> 日本語メモ.md</span><span class="sz"> 955 bytes</span><span class="bar"><span style="width:52.56%"></span></span></div>
 </div></details>
-<details><summary>📁 <strong>go/</strong> <span class="sz">(1 dir, 2 files, 372 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>internal/</strong> <span class="sz">(1 dir, 0 files, 127 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>util/</strong> <span class="sz">(0 dirs, 1 file, 127 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">🐹</span><span class="fname"> util.go</span><span class="sz"> 127 bytes</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
+<details><summary>📁 <strong>go/</strong> <span class="sz">(1 dir, 2 files, 372 bytes)</span><span class="bar"><span style="width:32.80%"></span></span></summary><div class="ch"><details><summary>📁 <strong>internal/</strong> <span class="sz">(1 dir, 0 files, 127 bytes)</span><span class="bar"><span style="width:19.17%"></span></span></summary><div class="ch"><details><summary>📁 <strong>util/</strong> <span class="sz">(0 dirs, 1 file, 127 bytes)</span><span class="bar"><span style="width:19.17%"></span></span></summary><div class="ch"><div class="item file"><span class="emoji">🐹</span><span class="fname"> util.go</span><span class="sz"> 127 bytes</span><span class="bar"><span style="width:19.17%"></span></span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
 </div></details>
 </div></details>
-<div class="item file"><span class="emoji">📄</span><span class="fname"> go.mod</span><span class="sz"> 33 bytes</span></div>
-<div class="item file"><span class="emoji">🐹</span><span class="fname"> main.go</span><span class="sz"> 212 bytes</span><span class="badge entry">entry</span><span class="badge notest">no test</span></div>
+<div class="item file"><span class="emoji">📄</span><span class="fname"> go.mod</span><span class="sz"> 33 bytes</span><span class="bar"><span style="width:9.77%"></span></span></div>
+<div class="item file"><span class="emoji">🐹</span><span class="fname"> main.go</span><span class="sz"> 212 bytes</span><span class="bar"><span style="width:24.76%"></span></span><span class="badge entry">entry</span><span class="badge notest">no test</span></div>
 </div></details>
-<details><summary>📁 <strong>pkg/</strong> <span class="sz">(0 dirs, 5 files, 596 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">🐍</span><span class="fname"> __init__.py</span><span class="sz"> 22 bytes</span><span class="badge notest">no test</span></div>
-<div class="item file"><span class="emoji">🐍</span><span class="fname"> circle_a.py</span><span class="sz"> 57 bytes</span><span class="badge notest">no test</span></div>
-<div class="item file"><span class="emoji">🐍</span><span class="fname"> circle_b.py</span><span class="sz"> 58 bytes</span><span class="badge notest">no test</span></div>
-<div class="item file"><span class="emoji">🐍</span><span class="fname"> helpers.py</span><span class="sz"> 215 bytes</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
-<div class="item file"><span class="emoji">🐍</span><span class="fname"> utils.py</span><span class="sz"> 244 bytes</span><span class="badge todo">TODO×1</span></div>
+<details><summary>📁 <strong>pkg/</strong> <span class="sz">(0 dirs, 5 files, 596 bytes)</span><span class="bar"><span style="width:41.52%"></span></span></summary><div class="ch"><div class="item file"><span class="emoji">🐍</span><span class="fname"> __init__.py</span><span class="sz"> 22 bytes</span><span class="bar"><span style="width:7.98%"></span></span><span class="badge notest">no test</span></div>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> circle_a.py</span><span class="sz"> 57 bytes</span><span class="bar"><span style="width:12.84%"></span></span><span class="badge notest">no test</span></div>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> circle_b.py</span><span class="sz"> 58 bytes</span><span class="bar"><span style="width:12.95%"></span></span><span class="badge notest">no test</span></div>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> helpers.py</span><span class="sz"> 215 bytes</span><span class="bar"><span style="width:24.94%"></span></span><span class="badge todo">TODO×1</span></div>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> utils.py</span><span class="sz"> 244 bytes</span><span class="bar"><span style="width:26.57%"></span></span><span class="badge todo">TODO×1</span></div>
 </div></details>
-<details><summary>📁 <strong>src/</strong> <span class="sz">(1 dir, 4 files, 883 bytes)</span></summary><div class="ch"><details><summary>📁 <strong>lib/</strong> <span class="sz">(0 dirs, 3 files, 355 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">🟨</span><span class="fname"> data.js</span><span class="sz"> 31 bytes</span><span class="badge notest">no test</span></div>
-<div class="item file"><span class="emoji">🔷</span><span class="fname"> types.ts</span><span class="sz"> 82 bytes</span><span class="badge notest">no test</span></div>
-<div class="item file"><span class="emoji">🔷</span><span class="fname"> util.ts</span><span class="sz"> 242 bytes</span><span class="badge notest">no test</span></div>
+<details><summary>📁 <strong>src/</strong> <span class="sz">(1 dir, 4 files, 883 bytes)</span><span class="bar"><span style="width:50.54%"></span></span></summary><div class="ch"><details><summary>📁 <strong>lib/</strong> <span class="sz">(0 dirs, 3 files, 355 bytes)</span><span class="bar"><span style="width:32.05%"></span></span></summary><div class="ch"><div class="item file"><span class="emoji">🟨</span><span class="fname"> data.js</span><span class="sz"> 31 bytes</span><span class="bar"><span style="width:9.47%"></span></span><span class="badge notest">no test</span></div>
+<div class="item file"><span class="emoji">🔷</span><span class="fname"> types.ts</span><span class="sz"> 82 bytes</span><span class="bar"><span style="width:15.40%"></span></span></div>
+<div class="item file"><span class="emoji">🔷</span><span class="fname"> util.ts</span><span class="sz"> 242 bytes</span><span class="bar"><span style="width:26.46%"></span></span></div>
 </div></details>
-<div class="item file"><span class="emoji">🔷</span><span class="fname"> app.test.ts</span><span class="sz"> 64 bytes</span></div>
-<div class="item file"><span class="emoji">🔷</span><span class="fname"> app.ts</span><span class="sz"> 80 bytes</span><span class="badge entry">entry</span></div>
-<div class="item file"><span class="emoji">🟨</span><span class="fname"> cli.js</span><span class="sz"> 128 bytes</span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
-<div class="item file"><span class="emoji">🟨</span><span class="fname"> index.js</span><span class="sz"> 256 bytes</span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
+<div class="item file"><span class="emoji">🔷</span><span class="fname"> app.test.ts</span><span class="sz"> 64 bytes</span><span class="bar"><span style="width:13.61%"></span></span></div>
+<div class="item file"><span class="emoji">🔷</span><span class="fname"> app.ts</span><span class="sz"> 80 bytes</span><span class="bar"><span style="width:15.21%"></span></span><span class="badge entry">entry</span></div>
+<div class="item file"><span class="emoji">🟨</span><span class="fname"> cli.js</span><span class="sz"> 128 bytes</span><span class="bar"><span style="width:19.24%"></span></span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
+<div class="item file"><span class="emoji">🟨</span><span class="fname"> index.js</span><span class="sz"> 256 bytes</span><span class="bar"><span style="width:27.21%"></span></span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
 </div></details>
-<details><summary>📁 <strong>tests/</strong> <span class="sz">(0 dirs, 1 file, 78 bytes)</span></summary><div class="ch"><div class="item file"><span class="emoji">🐍</span><span class="fname"> test_utils.py</span><span class="sz"> 78 bytes</span></div>
+<details><summary>📁 <strong>tests/</strong> <span class="sz">(0 dirs, 1 file, 78 bytes)</span><span class="bar"><span style="width:15.02%"></span></span></summary><div class="ch"><div class="item file"><span class="emoji">🐍</span><span class="fname"> test_utils.py</span><span class="sz"> 78 bytes</span><span class="bar"><span style="width:15.02%"></span></span></div>
 </div></details>
-<div class="item file"><span class="emoji">🐳</span><span class="fname"> Dockerfile</span><span class="sz"> 29 bytes</span><span class="badge entry">entry</span></div>
-<div class="item file"><span class="emoji">🐍</span><span class="fname"> main.py</span><span class="sz"> 321 bytes</span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
-<div class="item file"><span class="emoji">⚙️</span><span class="fname"> Makefile</span><span class="sz"> 17 bytes</span><span class="badge entry">entry</span></div>
-<div class="item file"><span class="emoji">📦</span><span class="fname"> package.json</span><span class="sz"> 102 bytes</span></div>
-<div class="item file"><span class="emoji">⚙️</span><span class="fname"> pyproject.toml</span><span class="sz"> 42 bytes</span></div>
-<div class="item file"><span class="emoji">📋</span><span class="fname"> tsconfig.json</span><span class="sz"> 50 bytes</span></div>
+<div class="item file"><span class="emoji">🐳</span><span class="fname"> Dockerfile</span><span class="sz"> 29 bytes</span><span class="bar"><span style="width:9.16%"></span></span><span class="badge entry">entry</span></div>
+<div class="item file"><span class="emoji">🐍</span><span class="fname"> main.py</span><span class="sz"> 321 bytes</span><span class="bar"><span style="width:30.47%"></span></span><span class="badge entry">entry</span><span class="badge notest">no test</span><span class="badge todo">TODO×1</span></div>
+<div class="item file"><span class="emoji">⚙️</span><span class="fname"> Makefile</span><span class="sz"> 17 bytes</span><span class="bar"><span style="width:7.01%"></span></span><span class="badge entry">entry</span></div>
+<div class="item file"><span class="emoji">📦</span><span class="fname"> package.json</span><span class="sz"> 102 bytes</span><span class="bar"><span style="width:17.18%"></span></span></div>
+<div class="item file"><span class="emoji">⚙️</span><span class="fname"> pyproject.toml</span><span class="sz"> 42 bytes</span><span class="bar"><span style="width:11.02%"></span></span></div>
+<div class="item file"><span class="emoji">📋</span><span class="fname"> tsconfig.json</span><span class="sz"> 50 bytes</span><span class="bar"><span style="width:12.03%"></span></span></div>
 </div></details>
+</div>
+<div class="panel"><h2>Largest files</h2>
+<div class="row"><span class="p">docs/日本語メモ.md</span><span class="s">955 bytes</span></div>
+<div class="row"><span class="p">main.py</span><span class="s">321 bytes</span></div>
+<div class="row"><span class="p">src/index.js</span><span class="s">256 bytes</span></div>
+<div class="row"><span class="p">pkg/utils.py</span><span class="s">244 bytes</span></div>
+<div class="row"><span class="p">src/lib/util.ts</span><span class="s">242 bytes</span></div>
+<div class="row"><span class="p">pkg/helpers.py</span><span class="s">215 bytes</span></div>
+<div class="row"><span class="p">go/main.go</span><span class="s">212 bytes</span></div>
+<div class="row"><span class="p">src/cli.js</span><span class="s">128 bytes</span></div>
+<div class="row"><span class="p">go/internal/util/util.go</span><span class="s">127 bytes</span></div>
+<div class="row"><span class="p">package.json</span><span class="s">102 bytes</span></div>
 </div>
 <script>
 function search(q){
   q=q.toLowerCase().trim();
   document.querySelectorAll('.hidden').forEach(el=>el.classList.remove('hidden'));
   if(!q) return;
-  document.querySelectorAll('details').forEach(d=>d.open=true);
+  document.querySelectorAll('#tree details').forEach(d=>d.open=true);
   document.querySelectorAll('.file').forEach(el=>{
     const n=el.querySelector('.fname')?.textContent.toLowerCase()||'';
     if(!n.includes(q)) el.classList.add('hidden');
@@ -78,4 +117,17 @@ function search(q){
     if(!hasVisible) detail.classList.add('hidden');
   });
 }
+function setAll(open){document.querySelectorAll('#tree details').forEach(d=>d.open=open)}
+function toggleTheme(){
+  const r=document.documentElement;
+  const next=r.dataset.theme==='light'?'dark':'light';
+  r.dataset.theme=next;
+  try{localStorage.setItem('dirlens-theme',next)}catch(e){}
+}
+(function(){
+  let t=null;
+  try{t=localStorage.getItem('dirlens-theme')}catch(e){}
+  if(!t&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)t='light';
+  if(t)document.documentElement.dataset.theme=t;
+})();
 </script></body></html>

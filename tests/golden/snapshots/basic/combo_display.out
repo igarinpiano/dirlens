@@ -1,32 +1,32 @@
-basic/ (5 dirs, 10 files, 305.56 KB, 3ヶ月前)
-├── sub/ (1 dir, 1 file, 627 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-│   ├── grandchild/ (1 dir, 1 file, 395 bytes, 3ヶ月前) [██████░░░░]  62%
-│   │   ├── deeper/ (0 dirs, 1 file, 5 bytes, 3ヶ月前) [░░░░░░░░░░]   1%
-│   │   │   └── leaf.md (5 bytes, 3ヶ月前) [██████████] 100%
-│   │   └── deep.txt (390 bytes, 3ヶ月前) [██████████]  98%
-│   └── child.py (232 bytes, 4日前) [████░░░░░░]  37%
-├── links/ (0 dirs, 4 files, 17 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-│   ├── to_file → ../README.md (172 bytes, 3ヶ月前) [██████████] 100%
-│   ├── to_dir → ../sub (128 bytes, 3ヶ月前) [██████████] 100%
-│   ├── real.txt (17 bytes, 3ヶ月前) [██████████] 100%
+basic/ (5 dirs, 10 files, 305.56 KB, 3 months ago)
+├── sub/ (1 dir, 1 file, 627 bytes, 3 months ago) [░░░░░░░░░░]   0%
+│   ├── grandchild/ (1 dir, 1 file, 395 bytes, 3 months ago) [██████░░░░]  62%
+│   │   ├── deeper/ (0 dirs, 1 file, 5 bytes, 3 months ago) [░░░░░░░░░░]   1%
+│   │   │   └── leaf.md (<GITDATE>) [██████████] 100%
+│   │   └── deep.txt (<GITDATE>) [██████████]  98%
+│   └── child.py (<GITDATE>) [████░░░░░░]  37%
+├── links/ (0 dirs, 4 files, 17 bytes, 3 months ago) [░░░░░░░░░░]   0%
+│   ├── to_file → ../README.md (<GITDATE>) [██████████] 100%
+│   ├── to_dir → ../sub (<GITDATE>) [██████████] 100%
+│   ├── real.txt (<GITDATE>) [██████████] 100%
 │   └── broken → ./nonexistent (0 bytes) [░░░░░░░░░░]   0%
-├── .hiddendir/ (0 dirs, 1 file, 13 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-│   └── inner.txt (13 bytes, 3ヶ月前) [██████████] 100%
-├── loop/ (1 dir, 0 files, 8 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-│   └── inner/ (0 dirs, 2 files, 8 bytes, 3ヶ月前) [██████████] 100%
-│       ├── back → ../../loop (96 bytes, 3ヶ月前) [██████████] 100%
-│       └── file.txt (8 bytes, 3ヶ月前) [██████████] 100%
-├── emptydir/ (0 dirs, 0 files, 0 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-├── big.bin (300 KB, 3ヶ月前) [██████████]  98%
-├── Beta.md (1.55 KB, 3ヶ月前) [░░░░░░░░░░]   0%
-├── Zeta.txt (1.5 KB, 1年前) [░░░░░░░░░░]   0%
-├── alpha.txt (1 KB, 3ヶ月前) [░░░░░░░░░░]   0%
-├── notes.txt (500 bytes, 4日前) [░░░░░░░░░░]   0%
-├── app.log (200 bytes, 1週間前) [░░░░░░░░░░]   0%
-├── README.md (172 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-├── .hidden_file (7 bytes, 3ヶ月前) [░░░░░░░░░░]   0%
-├── single.b (1 byte, 昨日) [░░░░░░░░░░]   0%
-└── empty.txt (0 bytes, 1時間前) [░░░░░░░░░░]   0%
+├── .hiddendir/ (0 dirs, 1 file, 13 bytes, 3 months ago) [░░░░░░░░░░]   0%
+│   └── inner.txt (<GITDATE>) [██████████] 100%
+├── loop/ (1 dir, 0 files, 8 bytes, 3 months ago) [░░░░░░░░░░]   0%
+│   └── inner/ (0 dirs, 2 files, 8 bytes, 3 months ago) [██████████] 100%
+│       ├── back → ../../loop (<GITDATE>) [██████████] 100%
+│       └── file.txt (<GITDATE>) [██████████] 100%
+├── emptydir/ (0 dirs, 0 files, 0 bytes, 3 months ago) [░░░░░░░░░░]   0%
+├── big.bin (300 KB, 3 months ago) [██████████]  98%
+├── Beta.md (1.55 KB, 3 months ago) [░░░░░░░░░░]   0%
+├── Zeta.txt (1.5 KB, 1 year ago) [░░░░░░░░░░]   0%
+├── alpha.txt (1 KB, 3 months ago) [░░░░░░░░░░]   0%
+├── notes.txt (<GITDATE>) [░░░░░░░░░░]   0%
+├── app.log (<GITDATE>) [░░░░░░░░░░]   0%
+├── README.md (<GITDATE>) [░░░░░░░░░░]   0%
+├── .hidden_file (<GITDATE>) [░░░░░░░░░░]   0%
+├── single.b (1 byte, yesterday) [░░░░░░░░░░]   0%
+└── empty.txt (<GITDATE>) [░░░░░░░░░░]   0%
 
-  合計  8 ディレクトリ,  20 ファイル
+  Total  8 directories,  20 files
   .txt ×8  (no ext) ×5  .md ×3  .py ×1  .bin ×1  .log ×1  .b ×1

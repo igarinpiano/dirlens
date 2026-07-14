@@ -1,28 +1,31 @@
-rust_lang/ (1 dir, 1 file, 526 bytes, 3ヶ月前)
-├── src/ (1 dir, 2 files, 484 bytes, 3ヶ月前)
-│   ├── nested/ (0 dirs, 2 files, 80 bytes, 3ヶ月前)
-│   │   ├── inner.rs (65 bytes, 3ヶ月前, ~19 tok, 5 lines, fn deep_fn, imports×1, used-by×1)
-│   │   └── mod.rs (15 bytes, 3ヶ月前, ~4 tok, 1 lines, imports×1, used-by×1)
-│   ├── * main.rs (203 bytes, 3ヶ月前, ~56 tok, 18 lines, TODO×1, struct Config, fn run, fn main, imports×2)
-│   └── util.rs (201 bytes, 3ヶ月前, ~52 tok, 18 lines, struct Thing, fn new, trait Runner, fn go, enum Mode, +2, used-by×2)
-└── ⚙ Cargo.toml (42 bytes, 3ヶ月前, ~17 tok, 3 lines, config)
+rust_lang/ (1 dir, 1 file, 526 bytes, 3 months ago)
+├── src/ (1 dir, 2 files, 484 bytes, 3 months ago)
+│   ├── nested/ (0 dirs, 2 files, 80 bytes, 3 months ago)
+│   │   ├── inner.rs (65 bytes, 3 months ago, ~19 tok, 5 lines, no test, fn deep_fn, imports×1, used-by×1)
+│   │   └── mod.rs (15 bytes, 3 months ago, ~4 tok, 1 lines, imports×1, used-by×1)
+│   ├── * main.rs (203 bytes, 3 months ago, ~56 tok, 18 lines, TODO×1, struct Config, fn run, fn main, imports×2)
+│   └── util.rs (201 bytes, 3 months ago, ~52 tok, 18 lines, no test, struct Thing, fn new, trait Runner, fn go, enum Mode, +2, used-by×2)
+└── ⚙ Cargo.toml (42 bytes, 3 months ago, ~17 tok, 3 lines, config)
 
-  合計  2 ディレクトリ,  5 ファイル  (.gitignore 適用済み)
+  Total  2 directories,  5 files  (.gitignore applied)
   .rs ×4  .toml ×1
-  推定トークン数: ~148 tok
-  TODO/FIXME等: 1件
+  Estimated tokens: ~148 tok
+  Tokens by file type:
+    .rs ×4  ~131 tok  42 lines
+    .toml ×1  ~17 tok  3 lines
+  TODO/FIXME items: 1
     src/main.rs:16 [TODO] // TODO: implement CLI parsing
-  テスト未整備: 0 ファイル
-  エントリーポイント候補: 1 件検出
-  設定ファイル: 1 件検出
-  依存度が高いファイル（多くのファイルから参照されている）:
+  Files without tests: 2 files
+  Entry point candidates: 1 found
+  Config files: 1 found
+  Most depended-on files (imported by many):
     src/util.rs  (used by 2)
     src/nested/mod.rs  (used by 1)
     src/nested/inner.rs  (used by 1)
-  読み始めの候補（エントリーポイント→依存度の高い順）:
+  Suggested reading order (entry points → most depended-on):
     1. src/main.rs
     2. src/util.rs
     3. src/nested/mod.rs
     4. src/nested/inner.rs
-  (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)
-  解析方式: gitignore=内蔵マッチャ(fnmatch近似) / outline=AST:py,js/ts,rs,go,c(他は正規表現) / imports=AST+マニフェスト解決 / tokens=BPE(o200k)
+  (no commit info: not a git repository, or git is not installed)
+  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k)
