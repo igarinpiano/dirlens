@@ -22,6 +22,7 @@ pub mod modes;
 pub mod provider;
 pub mod pyc;
 pub mod render_html;
+pub mod report;
 pub mod render_json;
 pub mod render_text;
 pub mod run;

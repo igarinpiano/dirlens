@@ -204,6 +204,86 @@ pub fn execute<F: FsProvider>(
         cfg.git_change_counts = counts;
     }
 
+    // ── ファイル単位レポート系モード ──────────────────────────
+    if let Some(files) = cfg.stdin_files.clone() {
+        let (text, json_val) = crate::report::render_stdin_report(sess, cfg, &files);
+        let stdout = match json_val {
+            Some(v) => {
+                let mut s = serde_json::to_string_pretty(&v).unwrap_or_default();
+                s.push('\n');
+                s
+            }
+            None => text,
+        };
+        return RunResult {
+            stdout,
+            ..Default::default()
+        };
+    }
+    if let Some(focus) = cfg.focus.clone() {
+        let (text, json_val, ok) = crate::report::render_focus(sess, cfg, &focus);
+        if !ok {
+            return early_exit(&text);
+        }
+        let stdout = match json_val {
+            Some(v) => {
+                let mut s = serde_json::to_string_pretty(&v).unwrap_or_default();
+                s.push('\n');
+                s
+            }
+            None => text,
+        };
+        return RunResult {
+            stdout,
+            ..Default::default()
+        };
+    }
+    if !cfg.pack.is_empty() {
+        let files = cfg.pack.clone();
+        let out = crate::report::render_pack(sess, cfg, &files);
+        let mut result = RunResult {
+            stdout: out,
+            ..Default::default()
+        };
+        if cfg.copy {
+            let ok = clip.copy(&strip_ansi(&result.stdout));
+            let msg = if ok {
+                c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
+            } else {
+                c(cfg.lang.t().copy_fail, &[BOLD, DIM], cfg.use_color)
+            };
+            result.stderr = format!("{}\n", msg);
+        }
+        return result;
+    }
+    if cfg.export_mermaid {
+        return RunResult {
+            stdout: crate::report::render_mermaid(cfg),
+            ..Default::default()
+        };
+    }
+    if cfg.export_dot {
+        return RunResult {
+            stdout: crate::report::render_dot(cfg),
+            ..Default::default()
+        };
+    }
+    if cfg.export_csv {
+        return RunResult {
+            stdout: crate::report::render_csv(sess, cfg, &active_pats),
+            ..Default::default()
+        };
+    }
+    if let Some(r) = cfg.api_diff.clone() {
+        return match crate::report::render_api_diff(sess, cfg, git, &active_pats, &r) {
+            Ok(out) => RunResult {
+                stdout: out,
+                ..Default::default()
+            },
+            Err(msg) => early_exit(&msg),
+        };
+    }
+
     // ── JSON ─────────────────────────────────────────────────
     if cfg.json {
         return RunResult {
