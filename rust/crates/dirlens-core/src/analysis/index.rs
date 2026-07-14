@@ -783,6 +783,93 @@ pub fn build_project_index<F: FsProvider>(
                         }
                     }
                 }
+                // 追加言語（enhanced のみ・正規表現ベースの軽量抽出）:
+                //   Java / Kotlin: import a.b.C → a/b/C.java 等のサフィックス一致で解決
+                //   PHP: use A\B\C → A/B/C.php、require/include → 相対解決
+                //   Ruby: require_relative → 相対解決、require → external
+                //   C# / Swift: 名前空間・モジュール単位のため external のみ
+                ".java" | ".kt" | ".kts" if cfg.enhanced_analysis => {
+                    let text = read_text();
+                    static IMPORT_RE: OnceLock<Regex> = OnceLock::new();
+                    let re = IMPORT_RE.get_or_init(|| {
+                        Regex::new(r"(?m)^\s*import\s+([\w.]+)").unwrap()
+                    });
+                    for m in re.captures_iter(&text) {
+                        let fq = m.get(1).unwrap().as_str();
+                        // JVM 系は .java / .kt が混在するため両方を試す
+                        let base = fq.replace('.', "/");
+                        let hit = [".java", ".kt"].iter().find_map(|se| {
+                            let suffix = format!("{}{}", base, se);
+                            st.all_relpaths
+                                .iter()
+                                .find(|r| r.ends_with(&suffix) && *r != relpath)
+                        });
+                        match hit {
+                            Some(r) => {
+                                local_targets.insert(r.clone());
+                            }
+                            None => external_raw.push(fq.to_string()),
+                        }
+                    }
+                }
+                ".php" if cfg.enhanced_analysis => {
+                    let text = read_text();
+                    static USE_RE: OnceLock<Regex> = OnceLock::new();
+                    static REQ_RE: OnceLock<Regex> = OnceLock::new();
+                    let use_re = USE_RE
+                        .get_or_init(|| Regex::new(r"(?m)^\s*use\s+([\w\\]+)").unwrap());
+                    let req_re = REQ_RE.get_or_init(|| {
+                        Regex::new(r#"(?:require|include)(?:_once)?\s*\(?\s*['"]([^'"]+)['"]"#)
+                            .unwrap()
+                    });
+                    for m in use_re.captures_iter(&text) {
+                        let fq = m.get(1).unwrap().as_str();
+                        let path_suffix = format!("{}.php", fq.replace('\\', "/"));
+                        let hit = st
+                            .all_relpaths
+                            .iter()
+                            .find(|r| r.ends_with(&path_suffix) && *r != relpath);
+                        match hit {
+                            Some(r) => {
+                                local_targets.insert(r.clone());
+                            }
+                            None => external_raw.push(fq.to_string()),
+                        }
+                    }
+                    for m in req_re.captures_iter(&text) {
+                        let spec = m.get(1).unwrap().as_str();
+                        let cand = normpath(&pjoin(&base_dir, spec));
+                        if st.all_relpaths.contains(&cand) && cand != *relpath {
+                            local_targets.insert(cand);
+                        } else {
+                            external_raw.push(spec.to_string());
+                        }
+                    }
+                }
+                ".rb" if cfg.enhanced_analysis => {
+                    let text = read_text();
+                    static REQ_RE: OnceLock<Regex> = OnceLock::new();
+                    let re = REQ_RE.get_or_init(|| {
+                        Regex::new(r#"(?m)^\s*require(_relative)?\s+['"]([^'"]+)['"]"#).unwrap()
+                    });
+                    for m in re.captures_iter(&text) {
+                        let relative = m.get(1).is_some();
+                        let spec = m.get(2).unwrap().as_str();
+                        if relative {
+                            let mut cand = normpath(&pjoin(&base_dir, spec));
+                            if !cand.ends_with(".rb") {
+                                cand.push_str(".rb");
+                            }
+                            if st.all_relpaths.contains(&cand) && cand != *relpath {
+                                local_targets.insert(cand);
+                            } else {
+                                external_raw.push(spec.to_string());
+                            }
+                        } else {
+                            external_raw.push(spec.to_string());
+                        }
+                    }
+                }
                 ".rs" => {
                     let text = read_text();
                     // Rust のインラインテスト検出（-V 用・enhanced のみ）

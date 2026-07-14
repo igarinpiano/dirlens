@@ -30,14 +30,14 @@ pub fn capabilities_json(cfg: &Cfg, probe: &EnvProbe) -> Value {
     outline.insert("js_ts".into(), json!(lang_method(CAPABILITIES.js_ts, e)));
     outline.insert("rust".into(), json!(lang_method(CAPABILITIES.rust, e)));
     outline.insert("go".into(), json!(lang_method(CAPABILITIES.go, e)));
-    outline.insert(
-        "c".into(),
-        if CAPABILITIES.c && e {
-            json!("ast")
-        } else {
-            json!("unsupported")
-        },
-    );
+    let ast_or_unsupported = |on: bool| if on && e { json!("ast") } else { json!("unsupported") };
+    outline.insert("c".into(), ast_or_unsupported(CAPABILITIES.c));
+    outline.insert("java".into(), ast_or_unsupported(CAPABILITIES.java));
+    outline.insert("ruby".into(), ast_or_unsupported(CAPABILITIES.ruby));
+    outline.insert("php".into(), ast_or_unsupported(CAPABILITIES.php));
+    outline.insert("csharp".into(), ast_or_unsupported(CAPABILITIES.csharp));
+    outline.insert("kotlin".into(), ast_or_unsupported(CAPABILITIES.kotlin));
+    outline.insert("swift".into(), ast_or_unsupported(CAPABILITIES.swift));
     outline.insert("fallback".into(), json!("regex"));
 
     let mut resolution = vec!["relative"];
@@ -99,6 +99,24 @@ pub fn agent_note(cfg: &Cfg) -> String {
         }
         if CAPABILITIES.c {
             ast_langs.push("c");
+        }
+        if CAPABILITIES.java {
+            ast_langs.push("java");
+        }
+        if CAPABILITIES.ruby {
+            ast_langs.push("rb");
+        }
+        if CAPABILITIES.php {
+            ast_langs.push("php");
+        }
+        if CAPABILITIES.csharp {
+            ast_langs.push("cs");
+        }
+        if CAPABILITIES.kotlin {
+            ast_langs.push("kt");
+        }
+        if CAPABILITIES.swift {
+            ast_langs.push("swift");
         }
     }
     let outline = if ast_langs.is_empty() {
@@ -192,6 +210,16 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
         lang_method(CAPABILITIES.rust, e),
         lang_method(CAPABILITIES.go, e),
         if CAPABILITIES.c && e { "ast" } else { t.check_unsupported },
+    ));
+    let aou = |on: bool| if on && e { "ast" } else { t.check_unsupported };
+    out.push_str(&format!(
+        "    Java: {} / Ruby: {} / PHP: {} / C#: {} / Kotlin: {} / Swift: {}\n",
+        aou(CAPABILITIES.java),
+        aou(CAPABILITIES.ruby),
+        aou(CAPABILITIES.php),
+        aou(CAPABILITIES.csharp),
+        aou(CAPABILITIES.kotlin),
+        aou(CAPABILITIES.swift),
     ));
     out.push_str(&format!(
         "  {} (-M): {}\n",
