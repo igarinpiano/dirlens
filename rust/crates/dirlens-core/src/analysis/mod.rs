@@ -3,6 +3,7 @@
 pub mod ast;
 pub mod extras;
 pub mod gitlog;
+pub mod gitstatus;
 pub mod index;
 pub mod outline;
 pub mod text_metrics;

@@ -9,6 +9,25 @@ use crate::args::Args;
 use crate::fmt::{parse_size, GitInfo};
 use crate::i18n::Lang;
 
+/// --heat のモード。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Heat {
+    Age,
+    Size,
+    Churn,
+}
+
+impl Heat {
+    pub fn parse(s: &str) -> Option<Heat> {
+        match s {
+            "age" => Some(Heat::Age),
+            "size" => Some(Heat::Size),
+            "churn" => Some(Heat::Churn),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Cfg {
     pub root: PathBuf,
@@ -77,6 +96,30 @@ pub struct Cfg {
     pub copy: bool,
     pub agent: bool,
 
+    // 表示モード・注釈（v1.2 拡張）
+    pub top: Option<usize>,
+    pub dupes: bool,
+    pub compare: Option<String>,
+    pub show_status: bool,
+    pub heat: Option<Heat>,
+    pub since: Option<String>,
+    pub focus: Option<String>,
+    pub stdin_files: Option<Vec<String>>,
+    pub budget: Option<i64>,
+    pub api_diff: Option<String>,
+    pub pack: Vec<String>,
+    pub export_mermaid: bool,
+    pub export_dot: bool,
+    pub export_csv: bool,
+
+    /// --status: rel path → porcelain XY コード（"M ", "??", …）
+    pub status_map: HashMap<String, String>,
+    /// --since: 変更ファイル集合（untracked 含む）と各ファイルの状態文字
+    pub since_set: HashSet<String>,
+    pub since_status: HashMap<String, char>,
+    /// --since: ref 以降に削除されたファイル（ツリーには出ないため一覧で出す）
+    pub since_deleted: Vec<String>,
+
     // main() 相当で必要に応じて埋める解析結果
     pub git_map: HashMap<String, GitInfo>,
     pub git_change_counts: IndexMap<String, u64>,
@@ -113,6 +156,18 @@ impl Cfg {
         });
         let has_extras = args.tokens || args.git || args.todo || args.tests
             || args.entry || args.outline || args.imports || args.config;
+        let heat = match &args.heat {
+            Some(s) => match Heat::parse(s) {
+                Some(h) => Some(h),
+                None => {
+                    return Err(match lang {
+                        Lang::Ja => format!("--heat の値が不正です: '{}'（age / size / churn）", s),
+                        Lang::En => format!("invalid --heat value: '{}' (age / size / churn)", s),
+                    })
+                }
+            },
+            None => None,
+        };
         Ok(Cfg {
             root,
             root_label,
@@ -136,7 +191,8 @@ impl Cfg {
             dirs_only: args.dirs_only,
             follow_syms: args.follow,
             full_path: args.full_path,
-            prune: args.prune,
+            // --since はフィルタ後に空になる枝を自動剪定する
+            prune: args.prune || args.since.is_some(),
             reverse: args.reverse,
             files_first: args.filesfirst,
             show_tokens: args.tokens,
@@ -155,6 +211,20 @@ impl Cfg {
             tokens_bpe: true,
             suppress_notes: false,
             check: args.check,
+            top: args.top,
+            dupes: args.dupes,
+            compare: args.compare.clone(),
+            show_status: args.status,
+            heat,
+            since: args.since.clone(),
+            focus: args.focus.clone(),
+            stdin_files: args.stdin_files.clone(),
+            budget: args.budget,
+            api_diff: args.api_diff.clone(),
+            pack: args.pack.clone(),
+            export_mermaid: args.mermaid,
+            export_dot: args.dot,
+            export_csv: args.csv,
             lang,
             use_color,
             markdown: args.markdown,

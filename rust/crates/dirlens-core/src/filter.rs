@@ -94,6 +94,14 @@ pub fn filter_entries<F: FsProvider>(
         });
     }
 
+    // --since REF: 変更されたファイルのみ表示（ディレクトリは prune で自然に消える）
+    if cfg.since.is_some() {
+        files.retain(|f| {
+            cfg.since_set
+                .contains(&crate::gitignore::relpath_slash(&f.path, &cfg.root))
+        });
+    }
+
     Some((dirs, files))
 }
 

@@ -12,6 +12,14 @@ pub enum Lang {
     Ja,
 }
 
+/// 新規機能（compat 対象外）向けの軽量な2言語切替。
+pub fn tr<'a>(lang: Lang, en: &'a str, ja: &'a str) -> &'a str {
+    match lang {
+        Lang::En => en,
+        Lang::Ja => ja,
+    }
+}
+
 impl Lang {
     pub fn parse(s: &str) -> Option<Lang> {
         match s.to_ascii_lowercase().as_str() {

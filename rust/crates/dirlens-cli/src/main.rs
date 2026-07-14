@@ -190,6 +190,65 @@ fn build_command(lang: Lang) -> Command {
         )
         .arg(Arg::new("prune").long("prune").action(ArgAction::SetTrue).help(h("hide directories that become empty after filtering", "フィルタ後に空になるディレクトリを非表示")))
         .arg(Arg::new("filesfirst").long("filesfirst").action(ArgAction::SetTrue).help(h("list files before directories", "ファイルをディレクトリより先に表示")))
+        // ── 表示モード・注釈（v1.2 拡張） ──────────────────────
+        .arg(
+            Arg::new("top")
+                .long("top")
+                .value_name("N")
+                .value_parser(clap::value_parser!(usize))
+                .help(h("flat list of the N largest files and directories (no tree)", "大きいファイル/ディレクトリ上位Nをフラット表示（ツリーなし）")),
+        )
+        .arg(Arg::new("dupes").long("dupes").action(ArgAction::SetTrue).help(h("find duplicate files by content (size + hash)", "内容が同一の重複ファイルを検出（サイズ+ハッシュ）")))
+        .arg(
+            Arg::new("compare")
+                .long("compare")
+                .value_name("DIR")
+                .help(h("compare the target tree against DIR (added/removed/changed)", "対象ツリーと DIR を比較（追加/削除/変更）")),
+        )
+        .arg(Arg::new("status").long("status").action(ArgAction::SetTrue).help(h("overlay git status marks ([M]/[??]/[A]) on the tree", "git status のマーク（[M]/[??]/[A]）をツリーに重ねて表示")))
+        .arg(
+            Arg::new("heat")
+                .long("heat")
+                .value_name("MODE")
+                .value_parser(["age", "size", "churn"])
+                .help(h("color file names by age / size / git churn", "ファイル名を age / size / churn でグラデーション着色")),
+        )
+        .arg(
+            Arg::new("since")
+                .long("since")
+                .value_name("REF")
+                .help(h("show only files changed since the git ref (plus untracked)", "指定 git ref 以降に変更されたファイルのみ表示（未追跡含む）")),
+        )
+        .arg(
+            Arg::new("focus")
+                .long("focus")
+                .value_name("FILE")
+                .help(h("impact analysis: what imports FILE and what it imports (implies -M)", "影響範囲: FILE の依存元/依存先を推移的に表示（-M を暗黙有効化）")),
+        )
+        .arg(Arg::new("stdin").long("stdin").action(ArgAction::SetTrue).help(h("analyze only the files listed on stdin (one per line)", "stdin のファイルリスト（1行1ファイル）だけを解析")))
+        .arg(
+            Arg::new("budget")
+                .long("budget")
+                .value_name("TOKENS")
+                .value_parser(clap::value_parser!(i64))
+                .help(h("fit text output within a token budget (reduces depth/detail)", "テキスト出力を指定トークン数以内に自動調整（深さ・詳細を削減）")),
+        )
+        .arg(
+            Arg::new("api_diff")
+                .long("api-diff")
+                .value_name("REF")
+                .help(h("diff public API symbols against a git ref", "公開APIシンボルを指定 git ref と比較")),
+        )
+        .arg(
+            Arg::new("pack")
+                .long("pack")
+                .value_name("FILE")
+                .action(ArgAction::Append)
+                .help(h("bundle files (tree context + contents + token count) for pasting", "指定ファイルの中身+文脈+トークン数を貼り付け用に整形（複数可）")),
+        )
+        .arg(Arg::new("mermaid").long("mermaid").action(ArgAction::SetTrue).help(h("output the import graph as a Mermaid diagram (implies -M)", "importグラフを Mermaid 形式で出力（-M を暗黙有効化）")))
+        .arg(Arg::new("dot").long("dot").action(ArgAction::SetTrue).help(h("output the import graph as Graphviz DOT (implies -M)", "importグラフを Graphviz DOT 形式で出力（-M を暗黙有効化）")))
+        .arg(Arg::new("csv").long("csv").action(ArgAction::SetTrue).help(h("output file metadata as CSV", "ファイルメタデータを CSV 形式で出力")))
         .arg(
             Arg::new("lang")
                 .long("lang")
@@ -355,6 +414,35 @@ fn main() {
         api: getb("api"),
         config: getb("config"),
         check: getb("check"),
+        top: m.get_one::<usize>("top").copied(),
+        dupes: getb("dupes"),
+        compare: m.get_one::<String>("compare").cloned(),
+        status: getb("status"),
+        heat: m.get_one::<String>("heat").cloned(),
+        since: m.get_one::<String>("since").cloned(),
+        focus: m.get_one::<String>("focus").cloned(),
+        stdin_files: if getb("stdin") {
+            let mut buf = String::new();
+            let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf);
+            Some(
+                buf.lines()
+                    .map(|l| l.trim())
+                    .filter(|l| !l.is_empty())
+                    .map(|l| l.to_string())
+                    .collect(),
+            )
+        } else {
+            None
+        },
+        budget: m.get_one::<i64>("budget").copied(),
+        api_diff: m.get_one::<String>("api_diff").cloned(),
+        pack: m
+            .get_many::<String>("pack")
+            .map(|v| v.cloned().collect())
+            .unwrap_or_default(),
+        mermaid: getb("mermaid"),
+        dot: getb("dot"),
+        csv: getb("csv"),
         lang: Some(match lang {
             Lang::En => "en".to_string(),
             Lang::Ja => "ja".to_string(),

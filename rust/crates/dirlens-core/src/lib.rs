@@ -18,6 +18,7 @@ pub mod fmt;
 pub mod fnmatch;
 pub mod gitignore;
 pub mod i18n;
+pub mod modes;
 pub mod provider;
 pub mod pyc;
 pub mod render_html;
