@@ -141,6 +141,85 @@ fn respond_err(out: &mut impl Write, id: Value, code: i64, message: &str) {
     let _ = out.flush();
 }
 
+/// --mcp-setup: 各 MCP ホスト向けの設定手順を、実行中バイナリの絶対パスを
+/// 埋め込んで表示する。GUI ホストはシェル PATH を継がないことが多いため、
+/// "command" には常に絶対パスを使う。
+pub fn print_setup(host: &str, ja: bool) {
+    let tr = |en: &'static str, ja_s: &'static str| if ja { ja_s } else { en };
+    // npm ラッパー経由でも current_exe はネイティブバイナリ本体を指す
+    let exe = std::env::current_exe()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "dirlens".to_string());
+    let json_block = serde_json::to_string_pretty(&json!({
+        "mcpServers": {
+            "dirlens": { "command": exe, "args": ["--mcp"] }
+        }
+    }))
+    .unwrap_or_default();
+
+    println!("{}", tr("dirlens MCP setup", "dirlens MCP セットアップ"));
+    println!();
+    println!("{}: {}", tr("binary", "バイナリ"), exe);
+    println!();
+
+    if host == "all" || host == "claude-code" {
+        println!("── Claude Code ──────────────────────────────────");
+        println!(
+            "  {}",
+            tr(
+                "run this one-liner in your terminal:",
+                "ターミナルで次の1行を実行:"
+            )
+        );
+        println!();
+        println!("  claude mcp add dirlens -- \"{}\" --mcp", exe);
+        println!();
+    }
+    if host == "all" || host == "claude-desktop" {
+        println!("── Claude Desktop ───────────────────────────────");
+        println!(
+            "  {}",
+            tr(
+                "add the JSON below to claude_desktop_config.json:",
+                "下の JSON を claude_desktop_config.json に追記:"
+            )
+        );
+        println!("    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json");
+        println!("    Windows: %APPDATA%\\Claude\\claude_desktop_config.json");
+        println!("    Linux:   ~/.config/Claude/claude_desktop_config.json");
+        println!();
+    }
+    if host == "all" || host == "cursor" {
+        println!("── Cursor ───────────────────────────────────────");
+        println!(
+            "  {}",
+            tr(
+                "add the JSON below to ~/.cursor/mcp.json (global) or .cursor/mcp.json (per project):",
+                "下の JSON を ~/.cursor/mcp.json（全体）か .cursor/mcp.json（プロジェクト単位）に追記:"
+            )
+        );
+        println!();
+    }
+    if host != "claude-code" {
+        for line in json_block.lines() {
+            println!("  {}", line);
+        }
+        println!();
+    }
+    println!(
+        "{}: analyze, tree, outline, imports, focus, todos",
+        tr("tools provided", "提供ツール")
+    );
+    println!(
+        "{}",
+        tr(
+            "(restart the host app after editing its config)",
+            "（設定ファイルを編集した場合はホストアプリを再起動してください）"
+        )
+    );
+}
+
 /// stdio で MCP サーバーを起動する（stdin が閉じるまでブロック）。
 pub fn serve() {
     let stdin = std::io::stdin();

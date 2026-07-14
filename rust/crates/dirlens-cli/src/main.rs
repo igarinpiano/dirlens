@@ -309,8 +309,20 @@ fn build_command(lang: Lang) -> Command {
                 .long("mcp")
                 .action(ArgAction::SetTrue)
                 .help(h(
-                    "run as an MCP server over stdio (register: claude mcp add dirlens -- dirlens --mcp)",
-                    "MCP サーバーとして stdio で起動（登録例: claude mcp add dirlens -- dirlens --mcp）",
+                    "run as an MCP server over stdio (see --mcp-setup for registration)",
+                    "MCP サーバーとして stdio で起動（登録手順は --mcp-setup を参照）",
+                )),
+        )
+        .arg(
+            Arg::new("mcp_setup")
+                .long("mcp-setup")
+                .value_name("HOST")
+                .num_args(0..=1)
+                .default_missing_value("all")
+                .value_parser(["all", "claude-code", "claude-desktop", "cursor"])
+                .help(h(
+                    "print MCP registration steps with this binary's absolute path (HOST: claude-code / claude-desktop / cursor)",
+                    "MCP の登録手順をこのバイナリの絶対パス入りで表示（HOST: claude-code / claude-desktop / cursor）",
                 )),
         )
         .arg(
@@ -377,6 +389,10 @@ fn main() {
     }
     if m.get_flag("mcp") {
         mcp::serve();
+        return;
+    }
+    if let Some(host) = m.get_one::<String>("mcp_setup") {
+        mcp::print_setup(host, lang == Lang::Ja);
         return;
     }
 
