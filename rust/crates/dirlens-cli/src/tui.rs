@@ -13,7 +13,10 @@ use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
+    ScrollbarState, Wrap,
+};
 
 use dirlens_core::analysis::extras::{file_extras, FileExtras};
 use dirlens_core::analysis::gitlog::load_git_log;
@@ -45,6 +48,10 @@ struct App<'a> {
     filter_mode: bool,
     extras_cache: HashMap<PathBuf, FileExtras>,
     git_loaded: bool,
+    /// 詳細ペインの縦スクロール位置（選択が動くと 0 に戻る）
+    detail_scroll: u16,
+    /// 直近の描画での詳細ペインの (総行数, 表示可能行数)。スクロールの上限計算用
+    detail_extent: (usize, usize),
 }
 
 impl<'a> App<'a> {
@@ -99,6 +106,7 @@ impl<'a> App<'a> {
         if self.selected >= self.visible.len() {
             self.selected = self.visible.len().saturating_sub(1);
         }
+        self.detail_scroll = 0;
     }
 
     fn toggle_expand(&mut self, open: Option<bool>) {
@@ -217,6 +225,8 @@ pub fn run_tui(mut args: Args) -> Result<(), String> {
         filter_mode: false,
         extras_cache: HashMap::new(),
         git_loaded: false,
+        detail_scroll: 0,
+        detail_extent: (0, 0),
     };
     app.roots = app.load_children(None);
     app.rebuild_visible();
@@ -275,25 +285,59 @@ fn event_loop(
             }
             continue;
         }
+        // 詳細ペインのスクロール上限（直近の描画時の行数から計算）
+        let detail_max = {
+            let (total, height) = app.detail_extent;
+            total.saturating_sub(height) as u16
+        };
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => break,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
             KeyCode::Up | KeyCode::Char('k') => {
                 app.selected = app.selected.saturating_sub(1);
+                app.detail_scroll = 0;
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 if app.selected + 1 < app.visible.len() {
                     app.selected += 1;
                 }
+                app.detail_scroll = 0;
             }
-            KeyCode::PageUp => app.selected = app.selected.saturating_sub(20),
+            // 詳細ペインのスクロール: J/K（1行）・PageUp/PageDown = Mac の fn+↑↓（10行）
+            KeyCode::Char('J') => {
+                app.detail_scroll = (app.detail_scroll + 1).min(detail_max);
+            }
+            KeyCode::Char('K') => {
+                app.detail_scroll = app.detail_scroll.saturating_sub(1);
+            }
             KeyCode::PageDown => {
-                app.selected = (app.selected + 20).min(app.visible.len().saturating_sub(1));
+                app.detail_scroll = (app.detail_scroll + 10).min(detail_max);
             }
-            KeyCode::Char('g') => app.selected = 0,
-            KeyCode::Char('G') => app.selected = app.visible.len().saturating_sub(1),
+            KeyCode::PageUp => {
+                app.detail_scroll = app.detail_scroll.saturating_sub(10);
+            }
+            // ツリーのページ移動は Ctrl+D / Ctrl+U（vim 慣習）
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.selected = (app.selected + 20).min(app.visible.len().saturating_sub(1));
+                app.detail_scroll = 0;
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.selected = app.selected.saturating_sub(20);
+                app.detail_scroll = 0;
+            }
+            KeyCode::Char('g') => {
+                app.selected = 0;
+                app.detail_scroll = 0;
+            }
+            KeyCode::Char('G') => {
+                app.selected = app.visible.len().saturating_sub(1);
+                app.detail_scroll = 0;
+            }
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.toggle_expand(Some(true)),
-            KeyCode::Left | KeyCode::Char('h') => app.collapse_or_parent(),
+            KeyCode::Left | KeyCode::Char('h') => {
+                app.collapse_or_parent();
+                app.detail_scroll = 0;
+            }
             KeyCode::Char(' ') => app.toggle_expand(None),
             KeyCode::Char('s') => {
                 app.cfg.by_size = !app.cfg.by_size;
@@ -586,10 +630,34 @@ fn draw(
             }
         }
     }
+    // スクロール適用（上限は「最終行が最下段に来る」まで）
+    let total_lines = lines.len();
+    let inner_height = panes[1].height.saturating_sub(2) as usize; // 枠線ぶん
+    app.detail_extent = (total_lines, inner_height);
+    let max_scroll = total_lines.saturating_sub(inner_height) as u16;
+    if app.detail_scroll > max_scroll {
+        app.detail_scroll = max_scroll;
+    }
+    let scrollable = total_lines > inner_height;
+    let title = if scrollable {
+        tr(" Details (J/K · PgUp/PgDn scroll) ", " 詳細 (J/K · PgUp/PgDn スクロール) ")
+    } else {
+        tr(" Details ", " 詳細 ")
+    };
     let details = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
-        .block(Block::default().borders(Borders::ALL).title(tr(" Details ", " 詳細 ")));
+        .scroll((app.detail_scroll, 0))
+        .block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(details, panes[1]);
+    if scrollable {
+        let mut sb_state = ScrollbarState::new(max_scroll as usize)
+            .position(app.detail_scroll as usize);
+        f.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::VerticalRight),
+            panes[1],
+            &mut sb_state,
+        );
+    }
 
     // ── ステータスバー ────────────────────────────────────────
     // 幅に収まるときは固定表示、収まらないときだけ電光掲示板のように流す
@@ -603,8 +671,8 @@ fn draw(
         )
     } else {
         tr(
-            " ↑↓ move · →/Enter open · ← close · Space toggle · s size-sort · a hidden · / filter · q quit",
-            " ↑↓ 移動 · →/Enter 展開 · ← 閉じる · Space 開閉 · s サイズ順 · a 隠し · / フィルタ · q 終了",
+            " ↑↓ move · →/Enter open · ← close · Space toggle · J/K scroll details · s size-sort · a hidden · / filter · q quit",
+            " ↑↓ 移動 · →/Enter 展開 · ← 閉じる · Space 開閉 · J/K 詳細スクロール · s サイズ順 · a 隠し · / フィルタ · q 終了",
         )
         .to_string()
     };
