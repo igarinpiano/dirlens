@@ -204,6 +204,98 @@ pub fn execute<F: FsProvider>(
         cfg.git_change_counts = counts;
     }
 
+    // ── --estimate: 階層別の出力コスト見積もり ─────────────────
+    // 「最低何トークン必要か / 次の階層は何トークンか / 解析注釈込みだと
+    //  何トークンか」を数行で答える。--budget の値を決める材料に使う。
+    if cfg.estimate {
+        let measure = |s: &str| {
+            crate::analysis::text_metrics::count_tokens(s, s.len(), None, false, cfg.tokens_bpe)
+        };
+        let orig_depth = cfg.max_depth;
+        let mut rows: Vec<(String, i64)> = Vec::new();
+
+        // ツリーだけ（解析注釈なし）の最小コスト
+        if cfg.has_extras {
+            let (st, sg, sk, sv, se, so, si, sc, ss) = (
+                cfg.show_tokens, cfg.show_git, cfg.show_todo, cfg.show_tests,
+                cfg.show_entry, cfg.show_outline, cfg.show_imports, cfg.show_config,
+                cfg.show_status,
+            );
+            cfg.show_tokens = false;
+            cfg.show_git = false;
+            cfg.show_todo = false;
+            cfg.show_tests = false;
+            cfg.show_entry = false;
+            cfg.show_outline = false;
+            cfg.show_imports = false;
+            cfg.show_config = false;
+            cfg.show_status = false;
+            cfg.has_extras = false;
+            cfg.max_depth = Some(1);
+            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            rows.push((
+                i18n::tr(cfg.lang, "-L 1, tree only", "-L 1・ツリーのみ").to_string(),
+                measure(&t),
+            ));
+            cfg.show_tokens = st;
+            cfg.show_git = sg;
+            cfg.show_todo = sk;
+            cfg.show_tests = sv;
+            cfg.show_entry = se;
+            cfg.show_outline = so;
+            cfg.show_imports = si;
+            cfg.show_config = sc;
+            cfg.show_status = ss;
+            cfg.has_extras = true;
+        }
+
+        // 現在のフラグでの階層別コスト
+        for d in [1i64, 2, 3] {
+            if let Some(orig) = orig_depth {
+                if d >= orig {
+                    break;
+                }
+            }
+            cfg.max_depth = Some(d);
+            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            rows.push((format!("-L {}", d), measure(&t)));
+        }
+        cfg.max_depth = orig_depth;
+        let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+        rows.push((
+            match orig_depth {
+                Some(d) => format!("-L {} ({})", d, i18n::tr(cfg.lang, "current", "現在")),
+                None => i18n::tr(cfg.lang, "full depth", "全階層").to_string(),
+            },
+            measure(&t),
+        ));
+
+        let mut out = String::new();
+        out.push_str(i18n::tr(
+            cfg.lang,
+            "Estimated output tokens for the current flags (BPE o200k):\n",
+            "現在のフラグでの出力トークン見積もり（BPE o200k）:\n",
+        ));
+        let label_w = rows.iter().map(|(l, _)| l.chars().count()).max().unwrap_or(0);
+        for (label, toks) in &rows {
+            out.push_str(&format!(
+                "  {:<w$}  {}\n",
+                label,
+                crate::fmt::fmt_tokens(*toks),
+                w = label_w
+            ));
+        }
+        out.push_str(i18n::tr(
+            cfg.lang,
+            "Use --budget N to fit the output automatically.\n",
+            "--budget N を付けると出力を自動で予算内に調整できます。\n",
+        ));
+        return RunResult {
+            stdout: out,
+            ..Default::default()
+        };
+    }
+
     // ── ファイル単位レポート系モード ──────────────────────────
     if let Some(files) = cfg.stdin_files.clone() {
         let (text, json_val) = crate::report::render_stdin_report(sess, cfg, &files);
@@ -357,21 +449,100 @@ pub fn execute<F: FsProvider>(
                 used = measure(&text);
             }
         }
+
+        // 最終段: はしごを使い切っても超過するなら、ツリー行そのものを
+        // 予算内に収まるまで末尾から間引く（サマリ部は残す）。
+        // 「この階層を全て表示するには何トークン必要か」を案内する。
+        let mut level_full_cost: Option<i64> = None;
+        if used > budget {
+            level_full_cost = Some(used);
+            // ツリー部（先頭〜最初の空行）とサマリ部（空行以降）に分ける
+            let lines: Vec<&str> = text.split('\n').collect();
+            let split_at = lines
+                .iter()
+                .position(|l| l.is_empty())
+                .unwrap_or(lines.len());
+            let mut tree: Vec<String> =
+                lines[..split_at].iter().map(|s| s.to_string()).collect();
+            let tail: Vec<String> = lines[split_at..].iter().map(|s| s.to_string()).collect();
+            let tail_str = tail.join("\n");
+            let omitted_marker = |n: usize| match cfg.lang {
+                Lang::Ja => format!("└── … 他 {} エントリ（--budget により省略）", n),
+                Lang::En => format!("└── … {} more entries (omitted by --budget)", n),
+            };
+            let all_tree: Vec<String> = tree.clone();
+            let mut omitted = 0usize;
+            // ルート行（先頭1行）は必ず残す。1行ずつではなく残超過量に応じて間引く
+            while tree.len() > 1 {
+                let candidate = format!(
+                    "{}\n{}\n{}",
+                    tree.join("\n"),
+                    omitted_marker(omitted.max(1)),
+                    tail_str
+                );
+                used = measure(&candidate);
+                if used <= budget {
+                    break;
+                }
+                // 平均トークン/行から間引き行数を見積もる（最低1行）
+                let over = (used - budget).max(1) as usize;
+                let per_line = (used as usize / candidate.lines().count().max(1)).max(1);
+                let drop = (over / per_line).clamp(1, tree.len() - 1);
+                tree.truncate(tree.len() - drop);
+                omitted += drop;
+            }
+            // 見積もりで削りすぎた分を、予算に収まる範囲で1行ずつ戻す
+            let mut back_steps = 0;
+            while omitted > 0 && back_steps < 64 {
+                let candidate = format!(
+                    "{}\n{}\n{}\n{}",
+                    tree.join("\n"),
+                    all_tree[tree.len()],
+                    omitted_marker(omitted - 1),
+                    tail_str
+                );
+                if measure(&candidate) > budget {
+                    break;
+                }
+                tree.push(all_tree[tree.len()].clone());
+                omitted -= 1;
+                back_steps += 1;
+            }
+            if omitted > 0 {
+                text = format!(
+                    "{}\n{}\n{}",
+                    tree.join("\n"),
+                    omitted_marker(omitted),
+                    tail_str
+                );
+                used = measure(&text);
+            }
+        }
+
         let depth_note = match cfg.max_depth {
             Some(d) => format!(", depth={}", d),
             None => String::new(),
+        };
+        let full_note = match (level_full_cost, cfg.lang) {
+            (Some(f), Lang::Ja) => {
+                format!("。この階層を全て表示するには ~{} tok 必要", f)
+            }
+            (Some(f), Lang::En) => {
+                format!("; showing this level fully needs ~{} tok", f)
+            }
+            (None, _) => String::new(),
         };
         text.push_str(&format!(
             "{}\n",
             c(
                 &match cfg.lang {
                     Lang::Ja => format!(
-                        "  (--budget {} に調整: ~{} tok{})",
-                        budget, used, depth_note
+                        "  (--budget {} に調整: ~{} tok{}{})",
+                        budget, used, depth_note, full_note
                     ),
                     Lang::En => format!(
-                        "  (fitted to --budget {}: ~{} tok{})",
-                        budget, used, depth_note
+                        "  (fitted to --budget {}: ~{} tok{}{})",
+                        budget, used, depth_note, full_note
                     ),
                 },
                 &[DIM],

@@ -44,6 +44,7 @@
               "path": "nested/sub/other.txt",
               "tokens": 2,
               "lines": 1,
+              "git_status": null,
               "git": null,
               "todos": [],
               "has_test": true,
@@ -65,6 +66,7 @@
           "path": "nested/kept.txt",
           "tokens": 2,
           "lines": 1,
+          "git_status": null,
           "git": {
             "hash": "<HASH>",
             "date": "<GITDATE>",
@@ -103,6 +105,7 @@
           "path": "src/main.py",
           "tokens": 8,
           "lines": 2,
+          "git_status": null,
           "git": {
             "hash": "<HASH>",
             "date": "<GITDATE>",
@@ -139,6 +142,7 @@
       "path": "important.log",
       "tokens": 6,
       "lines": 1,
+      "git_status": null,
       "git": {
         "hash": "<HASH>",
         "date": "<GITDATE>",
@@ -163,6 +167,7 @@
       "path": "README.md",
       "tokens": 7,
       "lines": 1,
+      "git_status": null,
       "git": {
         "hash": "<HASH>",
         "date": "<GITDATE>",

@@ -67,6 +67,7 @@ pub struct Args {
     pub focus: Option<String>,      // --focus FILE（影響範囲クエリ・-M を暗黙有効化）
     pub stdin_files: Option<Vec<String>>, // --stdin（CLI が読み取ったファイルリスト）
     pub budget: Option<i64>,        // --budget N（出力トークン予算）
+    pub estimate: bool,             // --estimate（階層別の出力コスト見積もり）
     pub api_diff: Option<String>,   // --api-diff REF（公開APIの差分）
     pub pack: Vec<String>,          // --pack FILE...（貼り付け用ブロック整形）
     pub mermaid: bool,              // --mermaid（import グラフを Mermaid で出力）
@@ -83,6 +84,9 @@ impl Args {
             self.date = true;
             self.markdown = true;
             self.copy = true;
+            // 作業中のファイルが分かるよう git status マークも重ねる
+            // （compat モードでは CLI 側で無効化される）
+            self.status = true;
         }
         if self.agent {
             self.gitignore = true;
@@ -95,6 +99,7 @@ impl Args {
             self.outline = true;
             self.imports = true;
             self.config = true;
+            self.status = true;
             self.no_color = true;
         }
         if self.api {

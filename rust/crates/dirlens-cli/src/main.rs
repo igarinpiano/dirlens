@@ -245,6 +245,12 @@ fn build_command(lang: Lang) -> Command {
                 .help(h("fit text output within a token budget (reduces depth/detail)", "テキスト出力を指定トークン数以内に自動調整（深さ・詳細を削減）")),
         )
         .arg(
+            Arg::new("estimate")
+                .long("estimate")
+                .action(ArgAction::SetTrue)
+                .help(h("estimate output token cost per depth level (for choosing --budget)", "階層別の出力トークンコストを見積もる（--budget の値決めに）")),
+        )
+        .arg(
             Arg::new("api_diff")
                 .long("api-diff")
                 .value_name("REF")
@@ -311,13 +317,13 @@ fn build_command(lang: Lang) -> Command {
             Arg::new("ai")
                 .long("ai")
                 .action(ArgAction::SetTrue)
-                .help(h("shortcut for -G --date -m -C (for pasting into AI chats)", "-G --date -m -C のショートカット（人間がAIチャットに貼り付ける用）")),
+                .help(h("shortcut for -G --date -m -C --status (for pasting into AI chats)", "-G --date -m -C --status のショートカット（人間がAIチャットに貼り付ける用）")),
         )
         .arg(
             Arg::new("agent")
                 .long("agent")
                 .action(ArgAction::SetTrue)
-                .help(h("shortcut for -G -T -H -K -V -N -O -M -F --no-color (agent-oriented analysis; no clipboard)", "-G -T -H -K -V -N -O -M -F --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）")),
+                .help(h("shortcut for -G -T -H -K -V -N -O -M -F --status --no-color (agent-oriented analysis; no clipboard)", "-G -T -H -K -V -N -O -M -F --status --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）")),
         )
         .arg(
             Arg::new("check")
@@ -494,6 +500,7 @@ fn main() {
             None
         },
         budget: m.get_one::<i64>("budget").copied(),
+        estimate: getb("estimate"),
         api_diff: m.get_one::<String>("api_diff").cloned(),
         pack: m
             .get_many::<String>("pack")
@@ -592,9 +599,11 @@ fn main() {
     if compat_python || std::env::var("DIRLENS_TOKENS").as_deref() == Ok("heuristic") {
         cfg.tokens_bpe = false;
     }
-    // 互換モードでは精度注記・schema_version・capabilities も出さない
+    // 互換モードでは精度注記・schema_version・capabilities も出さない。
+    // --agent/--ai バンドルに含まれる --status も Python 版に無いため無効化する
     if compat_python {
         cfg.suppress_notes = true;
+        cfg.show_status = false;
     }
 
     let mut sess = Session::new(&fs);
