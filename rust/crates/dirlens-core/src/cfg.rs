@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 
 use crate::args::Args;
 use crate::fmt::{parse_size, GitInfo};
+use crate::i18n::Lang;
 
 #[derive(Debug, Default)]
 pub struct Cfg {
@@ -68,6 +69,7 @@ pub struct Cfg {
     pub check: bool,
 
     // 出力モード
+    pub lang: Lang,
     pub use_color: bool,
     pub markdown: bool,
     pub json: bool,
@@ -93,12 +95,17 @@ impl Cfg {
     pub fn from_args(args: &Args, root: PathBuf, root_label: String, use_color: bool)
         -> Result<Cfg, String>
     {
+        let lang = args
+            .lang
+            .as_deref()
+            .and_then(Lang::parse)
+            .unwrap_or_default();
         let min_size = match &args.min_size {
-            Some(s) => Some(parse_size(s)?),
+            Some(s) => Some(parse_size(s, lang)?),
             None => None,
         };
         let max_size = match &args.max_size {
-            Some(s) => Some(parse_size(s)?),
+            Some(s) => Some(parse_size(s, lang)?),
             None => None,
         };
         let type_ext = args.type_ext.as_ref().map(|t| {
@@ -148,6 +155,7 @@ impl Cfg {
             tokens_bpe: true,
             suppress_notes: false,
             check: args.check,
+            lang,
             use_color,
             markdown: args.markdown,
             json: args.json,

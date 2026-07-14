@@ -42,6 +42,9 @@ pub struct Args {
     pub ai: bool,
     pub agent: bool,
     pub check: bool,   // --check（能力レポート）
+    /// 出力言語（"en" / "ja"）。None なら英語（デフォルト）。
+    /// CLI 側で --lang / 設定ファイル / DIRLENS_LANG を解決して入れる。
+    pub lang: Option<String>,
 
     // AI/エージェント解析
     pub tokens: bool,   // -T

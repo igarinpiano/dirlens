@@ -16,6 +16,7 @@ use crate::fmt::{
     sanitize_ctrl, splitext,
 };
 use crate::gitignore::{extend_pats, relpath_slash};
+use crate::i18n;
 use crate::provider::{Entry, FsProvider};
 use crate::session::Session;
 
@@ -111,7 +112,7 @@ fn render_node<F: FsProvider>(
                 "{}{}{}\n",
                 prefix,
                 LAST,
-                c("[循環リンク]", &[DIM], cfg.use_color)
+                c(cfg.lang.t().cyclic_link, &[DIM], cfg.use_color)
             ));
             return;
         }
@@ -128,7 +129,7 @@ fn render_node<F: FsProvider>(
                 "{}{}{}\n",
                 prefix,
                 LAST,
-                c("[アクセス拒否]", &[BOLD, RED], cfg.use_color)
+                c(cfg.lang.t().access_denied, &[BOLD, RED], cfg.use_color)
             ));
             return;
         }
@@ -187,7 +188,7 @@ fn render_node<F: FsProvider>(
             let mut parts = vec![fmt_count(nd, nf, denied), fmt_size(sz, sz_err)];
             if cfg.show_date {
                 if let Some(st) = sess.fs.stat(&entry.path, false) {
-                    parts.push(fmt_date(sess.fs.now(), st.mtime));
+                    parts.push(fmt_date(sess.fs.now(), st.mtime, cfg.lang));
                 }
             }
             let bar = if cfg.show_bar && cur_dir_size != 0 {
@@ -258,7 +259,7 @@ fn render_node<F: FsProvider>(
             if cfg.show_date {
                 let mt = emtime(sess, entry);
                 if mt != 0.0 {
-                    parts.push(fmt_date(sess.fs.now(), mt));
+                    parts.push(fmt_date(sess.fs.now(), mt, cfg.lang));
                 }
             }
 
@@ -292,7 +293,7 @@ fn render_node<F: FsProvider>(
             }
 
             if cfg.show_tests && extras.no_test {
-                parts.push("テスト無し".to_string());
+                parts.push(cfg.lang.t().no_test.to_string());
             }
 
             if cfg.show_config && extras.is_config {
@@ -363,7 +364,7 @@ pub fn render_text<F: FsProvider>(
     ];
     if cfg.show_date {
         if let Some(st) = sess.fs.stat(&cfg.root, true) {
-            root_parts.push(fmt_date(sess.fs.now(), st.mtime));
+            root_parts.push(fmt_date(sess.fs.now(), st.mtime, cfg.lang));
         }
     }
 
@@ -386,37 +387,39 @@ pub fn render_text<F: FsProvider>(
     render_node(sess, &cfg.root, "", 0, cfg, &mut stats, active_pats, None, &mut out);
 
     out.push('\n');
-    let mut summary = format!("  合計  {} ディレクトリ", stats.dirs);
+    let lang = cfg.lang;
+    let t = lang.t();
+    let mut summary = i18n::summary_total_dirs(lang, stats.dirs);
     if !cfg.dirs_only {
-        summary += &format!(",  {} ファイル", stats.files);
+        summary += &i18n::summary_files(lang, stats.files);
     }
     if cfg.use_gitignore {
-        summary += "  (.gitignore 適用済み)";
+        summary += &format!("  {}", t.gitignore_applied);
     }
     if let Some(te) = &cfg.type_ext {
-        summary += &format!("  (フィルタ: {})", te);
+        summary += &i18n::filter_note(lang, te);
     }
     if !cfg.excludes.is_empty() {
-        summary += &format!("  (除外: {})", cfg.excludes.join(", "));
+        summary += &i18n::exclude_note(lang, &cfg.excludes.join(", "));
     }
     if !cfg.includes.is_empty() {
-        summary += &format!("  (抽出: {})", cfg.includes.join(", "));
+        summary += &i18n::include_note(lang, &cfg.includes.join(", "));
     }
     if let Some(ms) = cfg.min_size {
         if ms != 0 {
-            summary += &format!("  (最小: {})", fmt_size_i(ms));
+            summary += &i18n::min_note(lang, &fmt_size_i(ms));
         }
     }
     if let Some(ms) = cfg.max_size {
         if ms != 0 {
-            summary += &format!("  (最大: {})", fmt_size_i(ms));
+            summary += &i18n::max_note(lang, &fmt_size_i(ms));
         }
     }
     if cfg.prune {
-        summary += "  (剪定済み)";
+        summary += &format!("  {}", t.pruned);
     }
     if cfg.dirs_only {
-        summary += "  (ディレクトリのみ)";
+        summary += &format!("  {}", t.dirs_only);
     }
     out.push_str(&format!("{}\n", c(&summary, &[DIM], color)));
 
@@ -436,7 +439,7 @@ pub fn render_text<F: FsProvider>(
         out.push_str(&format!(
             "{}\n",
             c(
-                &format!("  推定トークン数: {}", fmt_tokens(stats.tokens)),
+                &i18n::estimated_tokens(lang, &fmt_tokens(stats.tokens)),
                 &[DIM],
                 color
             )
@@ -447,11 +450,7 @@ pub fn render_text<F: FsProvider>(
         if stats.todo_total > 0 {
             out.push_str(&format!(
                 "{}\n",
-                c(
-                    &format!("  TODO/FIXME等: {}件", stats.todo_total),
-                    &[DIM],
-                    color
-                )
+                c(&i18n::todo_count(lang, stats.todo_total), &[DIM], color)
             ));
             for (rel, ln, kind, snippet) in stats.todo_samples.iter().take(8) {
                 out.push_str(&format!(
@@ -474,11 +473,14 @@ pub fn render_text<F: FsProvider>(
                 let rest = stats.todo_total - shown;
                 out.push_str(&format!(
                     "{}\n",
-                    c(&format!("    …他 {} 件", rest), &[DIM], color)
+                    c(&i18n::more_items(lang, rest), &[DIM], color)
                 ));
             }
         } else {
-            out.push_str(&format!("{}\n", c("  TODO/FIXME等: 0件", &[DIM], color)));
+            out.push_str(&format!(
+                "{}\n",
+                c(&i18n::todo_count(lang, 0), &[DIM], color)
+            ));
         }
     }
 
@@ -486,7 +488,7 @@ pub fn render_text<F: FsProvider>(
         out.push_str(&format!(
             "{}\n",
             c(
-                &format!("  テスト未整備: {} ファイル", cfg.untested_set.len()),
+                &i18n::missing_tests(lang, cfg.untested_set.len()),
                 &[DIM],
                 color
             )
@@ -496,22 +498,14 @@ pub fn render_text<F: FsProvider>(
     if cfg.show_entry {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  エントリーポイント候補: {} 件検出", cfg.entry_set.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::entry_points(lang, cfg.entry_set.len()), &[DIM], color)
         ));
     }
 
     if cfg.show_config {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  設定ファイル: {} 件検出", cfg.config_set.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::config_files(lang, cfg.config_set.len()), &[DIM], color)
         ));
     }
 
@@ -522,14 +516,7 @@ pub fn render_text<F: FsProvider>(
             .map(|(k, v)| (k, v.len()))
             .collect();
         items.sort_by(|a, b| b.1.cmp(&a.1));
-        out.push_str(&format!(
-            "{}\n",
-            c(
-                "  依存度が高いファイル（多くのファイルから参照されている）:",
-                &[DIM],
-                color
-            )
-        ));
+        out.push_str(&format!("{}\n", c(t.most_depended, &[DIM], color)));
         for (relpath, n) in items.into_iter().take(5) {
             out.push_str(&format!(
                 "{}\n",
@@ -545,11 +532,7 @@ pub fn render_text<F: FsProvider>(
     if cfg.show_imports && !cfg.cycles.is_empty() {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  循環依存: {} 件検出", cfg.cycles.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::cycles_found(lang, cfg.cycles.len()), &[DIM], color)
         ));
         for cycle in cfg.cycles.iter().take(5) {
             out.push_str(&format!(
@@ -565,7 +548,7 @@ pub fn render_text<F: FsProvider>(
             out.push_str(&format!(
                 "{}\n",
                 c(
-                    &format!("    …他 {} 件", cfg.cycles.len() - 5),
+                    &i18n::more_items(lang, (cfg.cycles.len() - 5) as u64),
                     &[DIM],
                     color
                 )
@@ -582,15 +565,16 @@ pub fn render_text<F: FsProvider>(
         items.sort_by(|a, b| b.1.cmp(&a.1));
         let top_hot: Vec<_> = items.into_iter().take(5).collect();
         if !top_hot.is_empty() && top_hot[0].1 > 1 {
-            out.push_str(&format!(
-                "{}\n",
-                c("  変更頻度が高いファイル（直近の履歴内）:", &[DIM], color)
-            ));
+            out.push_str(&format!("{}\n", c(t.hotspots, &[DIM], color)));
             for (relpath, n) in top_hot {
                 out.push_str(&format!(
                     "{}\n",
                     c(
-                        &format!("    {}  ({} 回変更)", sanitize_ctrl(relpath), n),
+                        &format!(
+                            "    {}  {}",
+                            sanitize_ctrl(relpath),
+                            i18n::change_count(lang, n)
+                        ),
                         &[DIM],
                         color
                     )
@@ -605,14 +589,7 @@ pub fn render_text<F: FsProvider>(
     {
         let candidates = reading_order_candidates(cfg, 3, 5);
         if !candidates.is_empty() {
-            out.push_str(&format!(
-                "{}\n",
-                c(
-                    "  読み始めの候補（エントリーポイント→依存度の高い順）:",
-                    &[DIM],
-                    color
-                )
-            ));
+            out.push_str(&format!("{}\n", c(t.reading_order, &[DIM], color)));
             for (i, p) in candidates.iter().enumerate() {
                 out.push_str(&format!(
                     "{}\n",
@@ -627,14 +604,7 @@ pub fn render_text<F: FsProvider>(
     }
 
     if cfg.show_git && cfg.git_map.is_empty() {
-        out.push_str(&format!(
-            "{}\n",
-            c(
-                "  (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)",
-                &[DIM],
-                color
-            )
-        ));
+        out.push_str(&format!("{}\n", c(t.no_git_info, &[DIM], color)));
     }
 
     // --agent の末尾に短い精度注記（spec 機能5）。互換モードでは出さない。

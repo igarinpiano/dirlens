@@ -17,6 +17,7 @@ pub mod filter;
 pub mod fmt;
 pub mod fnmatch;
 pub mod gitignore;
+pub mod i18n;
 pub mod provider;
 pub mod pyc;
 pub mod render_html;
@@ -27,6 +28,7 @@ pub mod session;
 
 pub use args::Args;
 pub use cfg::Cfg;
+pub use i18n::Lang;
 pub use provider::{ClipboardProvider, Entry, FsProvider, GitProvider, StatInfo};
 pub use run::{execute, prepare, prefetch_targets, run, RunResult};
 pub use session::Session;

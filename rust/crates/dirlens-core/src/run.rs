@@ -11,6 +11,7 @@ use crate::args::Args;
 use crate::cfg::Cfg;
 use crate::colors::{c, strip_ansi, BOLD, DIM, GREEN};
 use crate::fmt::fmt_size;
+use crate::i18n::{self, Lang};
 use crate::provider::{ClipboardProvider, FsProvider, GitProvider};
 use crate::render_html::generate_html;
 use crate::render_json::render_json;
@@ -41,14 +42,13 @@ pub fn prepare<F: FsProvider>(
     use_color_hint: bool,
 ) -> Result<Cfg, RunResult> {
     let use_color = use_color_hint && !(args.no_color || args.markdown || args.json);
+    let lang = args.lang.as_deref().and_then(Lang::parse).unwrap_or_default();
 
     let target = match fs.resolve(&args.path) {
         Some(t) => t,
         None => {
             return Err(RunResult {
-                stderr: "エラー: 現在のディレクトリへのアクセス権限がありません。\n\
-                         絶対パスを明示的に指定してください（例: dirlens /path/to/project）。\n"
-                    .to_string(),
+                stderr: format!("{}\n", lang.t().err_cwd_denied),
                 exit_code: 1,
                 ..Default::default()
             })
@@ -57,17 +57,9 @@ pub fn prepare<F: FsProvider>(
 
     let st = fs.stat(&target, true);
     match st {
-        None => {
-            return Err(early_exit(&format!(
-                "エラー: '{}' が見つかりません",
-                args.path
-            )))
-        }
+        None => return Err(early_exit(&i18n::err_not_found(lang, &args.path))),
         Some(st) if st.mode & 0o170000 != 0o040000 => {
-            return Err(early_exit(&format!(
-                "エラー: '{}' はディレクトリではありません",
-                args.path
-            )))
+            return Err(early_exit(&i18n::err_not_dir(lang, &args.path)))
         }
         _ => {}
     }
@@ -78,7 +70,7 @@ pub fn prepare<F: FsProvider>(
         .unwrap_or_else(|| target.to_string_lossy().into_owned());
 
     Cfg::from_args(args, target, root_label, use_color)
-        .map_err(|msg| early_exit(&format!("エラー: {}", msg)))
+        .map_err(|msg| early_exit(&i18n::err_prefix(lang, &msg)))
 }
 
 /// ルート直下のディレクトリ一覧（並列プリフェッチ用・_prefetch_sizes の対象列挙）。
@@ -169,9 +161,8 @@ pub fn execute<F: FsProvider>(
         let size = content.len() as u64;
         return RunResult {
             stdout: format!(
-                "✓ {} を生成しました ({})\n",
-                html_path,
-                fmt_size(size, false)
+                "{}\n",
+                i18n::html_generated(cfg.lang, &html_path, &fmt_size(size, false))
             ),
             html_file: Some((html_path, content)),
             ..Default::default()
@@ -187,13 +178,9 @@ pub fn execute<F: FsProvider>(
     if cfg.copy {
         let ok = clip.copy(&strip_ansi(&result.stdout));
         let msg = if ok {
-            c("✓ クリップボードにコピーしました", &[BOLD, GREEN], cfg.use_color)
+            c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
         } else {
-            c(
-                "✗ コピー失敗 (pbcopy / xclip / wl-copy が必要)",
-                &[BOLD, DIM],
-                cfg.use_color,
-            )
+            c(cfg.lang.t().copy_fail, &[BOLD, DIM], cfg.use_color)
         };
         result.stderr = format!("{}\n", msg);
     }

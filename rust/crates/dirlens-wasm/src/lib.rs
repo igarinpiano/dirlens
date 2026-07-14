@@ -180,6 +180,8 @@ pub fn run_with_manifest(manifest_json: &str, args_json: &str) -> Result<String,
                     if let Ok(n) = rest.parse::<i64>() {
                         args.depth = Some(n);
                     }
+                } else if let Some(l) = other.strip_prefix("--lang=") {
+                    args.lang = Some(l.to_string());
                 }
             }
         }
@@ -247,14 +249,18 @@ mod tests {
         assert_eq!(v["project_summary"]["git_available"], false);
     }
 
-    /// テキスト出力のスモーク（日本語サマリ・精度注記）。
+    /// テキスト出力のスモーク（英語デフォルト・--lang=ja で日本語サマリ・精度注記）。
     #[test]
     fn manifest_text_smoke() {
         let manifest = r#"{"now": 1750000000.0, "files": [
             {"path": "a.txt", "content": "hello\n", "mtime": 1740000000.0}
         ]}"#;
         let out = run_with_manifest(manifest, r#"["--agent"]"#).unwrap();
-        assert!(out.contains("合計"));
-        assert!(out.contains("解析方式:"));
+        assert!(out.contains("Total"));
+        assert!(out.contains("Analysis methods:"));
+
+        let out_ja = run_with_manifest(manifest, r#"["--agent", "--lang=ja"]"#).unwrap();
+        assert!(out_ja.contains("合計"));
+        assert!(out_ja.contains("解析方式:"));
     }
 }
