@@ -6,6 +6,7 @@
 
 mod cache;
 mod config;
+mod mcp;
 mod providers;
 mod spinner;
 
@@ -290,6 +291,15 @@ fn build_command(lang: Lang) -> Command {
                 .help(h("print the man page (roff) to stdout and exit", "man ページ（roff）を標準出力に出して終了")),
         )
         .arg(
+            Arg::new("mcp")
+                .long("mcp")
+                .action(ArgAction::SetTrue)
+                .help(h(
+                    "run as an MCP server over stdio (register: claude mcp add dirlens -- dirlens --mcp)",
+                    "MCP サーバーとして stdio で起動（登録例: claude mcp add dirlens -- dirlens --mcp）",
+                )),
+        )
+        .arg(
             Arg::new("ai")
                 .long("ai")
                 .action(ArgAction::SetTrue)
@@ -349,6 +359,10 @@ fn main() {
         if clap_mangen::Man::new(build_command(lang)).render(&mut buf).is_ok() {
             let _ = std::io::stdout().write_all(&buf);
         }
+        return;
+    }
+    if m.get_flag("mcp") {
+        mcp::serve();
         return;
     }
 
