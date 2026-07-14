@@ -54,6 +54,7 @@ pub const CAPABILITIES: AstCapabilities = AstCapabilities {
 
 /// AST によるアウトライン抽出。None → 正規表現へ縮退。
 pub fn ast_outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
+    let _ = text; // 全 feature 無効ビルド（wasm 等）での未使用警告を抑止
     match ext {
         #[cfg(feature = "ast-python")]
         ".py" => python::outline(text),

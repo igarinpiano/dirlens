@@ -9,6 +9,7 @@ mod config;
 mod mcp;
 mod providers;
 mod spinner;
+mod tui;
 
 use std::io::{IsTerminal, Write};
 
@@ -194,6 +195,13 @@ fn build_command(lang: Lang) -> Command {
         .arg(Arg::new("prune").long("prune").action(ArgAction::SetTrue).help(h("hide directories that become empty after filtering", "フィルタ後に空になるディレクトリを非表示")))
         .arg(Arg::new("filesfirst").long("filesfirst").action(ArgAction::SetTrue).help(h("list files before directories", "ファイルをディレクトリより先に表示")))
         // ── 表示モード・注釈（v1.2 拡張） ──────────────────────
+        .arg(
+            Arg::new("interactive")
+                .short('i')
+                .long("interactive")
+                .action(ArgAction::SetTrue)
+                .help(h("interactive TUI browser (tree + details pane)", "インタラクティブなツリーブラウザ（TUI・詳細ペイン付き）")),
+        )
         .arg(
             Arg::new("top")
                 .long("top")
@@ -541,6 +549,15 @@ fn main() {
     }
 
     args.merge_aliases();
+
+    // ── インタラクティブ TUI ────────────────────────────────
+    if getb("interactive") {
+        if let Err(e) = tui::run_tui(args) {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let fs = StdFs;
     let git = StdGit;
