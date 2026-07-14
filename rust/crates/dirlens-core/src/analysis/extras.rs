@@ -102,7 +102,7 @@ pub fn file_extras<F: FsProvider>(
         };
         if let Some(items) = &mut outline {
             if !items.is_empty() && cfg.public_only {
-                items.retain(|item| item.2);
+                items.retain(|item| item.public);
             }
         }
         ex.outline = outline;

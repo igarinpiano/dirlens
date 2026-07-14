@@ -1,7 +1,7 @@
 //! Python の AST 解析（rustpython-parser）。
 //! CPython の `ast` モジュール相当の忠実度で outline / import を抽出する。
 
-use rustpython_parser::ast::{Mod, Stmt};
+use rustpython_parser::ast::{Constant, Expr, Mod, Ranged, Stmt};
 use rustpython_parser::{parse, Mode};
 
 use crate::fmt::OutlineItem;
@@ -13,39 +13,87 @@ fn parse_module(text: &str) -> Option<Vec<Stmt>> {
     }
 }
 
+/// 各行の開始バイトオフセット（行番号変換用・1行目 = index 0）。
+fn line_starts(text: &str) -> Vec<usize> {
+    let mut v = vec![0usize];
+    for (i, b) in text.bytes().enumerate() {
+        if b == b'\n' {
+            v.push(i + 1);
+        }
+    }
+    v
+}
+
+/// バイトオフセット → 1-indexed 行番号。
+fn line_of(starts: &[usize], byte: usize) -> u32 {
+    (starts.partition_point(|&s| s <= byte)) as u32
+}
+
+/// 本文先頭の docstring の1行目を返す。
+fn docstring_head(body: &[Stmt]) -> Option<String> {
+    if let Some(Stmt::Expr(e)) = body.first() {
+        if let Expr::Constant(c) = e.value.as_ref() {
+            if let Constant::Str(s) = &c.value {
+                let head = s.lines().next().unwrap_or("").trim();
+                if !head.is_empty() {
+                    return Some(head.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// ソース順（再帰）で class / def を抽出する。
 /// 公開判定は正規表現版と同じ「名前が _ 始まりでない」。
 pub fn outline(text: &str) -> Option<Vec<OutlineItem>> {
     let body = parse_module(text)?;
+    let starts = line_starts(text);
     let mut out = Vec::new();
-    collect_outline(&body, &mut out);
+    collect_outline(&body, &starts, &mut out);
     Some(out)
 }
 
-fn collect_outline(stmts: &[Stmt], out: &mut Vec<OutlineItem>) {
+fn collect_outline(stmts: &[Stmt], starts: &[usize], out: &mut Vec<OutlineItem>) {
     for stmt in stmts {
+        let span = {
+            let r = stmt.range();
+            Some((
+                line_of(starts, r.start().to_usize()),
+                line_of(starts, r.end().to_usize().saturating_sub(1).max(r.start().to_usize())),
+            ))
+        };
         match stmt {
             Stmt::ClassDef(c) => {
                 let name = c.name.to_string();
                 let public = !name.starts_with('_');
-                out.push(("class".to_string(), name, public));
-                collect_outline(&c.body, out);
+                let mut item = OutlineItem::new("class", name, public);
+                item.doc = docstring_head(&c.body);
+                item.span = span;
+                out.push(item);
+                collect_outline(&c.body, starts, out);
             }
             Stmt::FunctionDef(f) => {
                 let name = f.name.to_string();
                 let public = !name.starts_with('_');
-                out.push(("def".to_string(), name, public));
-                collect_outline(&f.body, out);
+                let mut item = OutlineItem::new("def", name, public);
+                item.doc = docstring_head(&f.body);
+                item.span = span;
+                out.push(item);
+                collect_outline(&f.body, starts, out);
             }
             Stmt::AsyncFunctionDef(f) => {
                 let name = f.name.to_string();
                 let public = !name.starts_with('_');
-                out.push(("def".to_string(), name, public));
-                collect_outline(&f.body, out);
+                let mut item = OutlineItem::new("def", name, public);
+                item.doc = docstring_head(&f.body);
+                item.span = span;
+                out.push(item);
+                collect_outline(&f.body, starts, out);
             }
             _ => {
                 for child in child_bodies(stmt) {
-                    collect_outline(child, out);
+                    collect_outline(child, starts, out);
                 }
             }
         }

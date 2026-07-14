@@ -1,12 +1,50 @@
 //! Rust の AST 解析（syn）。
 
-use syn::{ImplItem, Item, TraitItem, UseTree, Visibility};
+use syn::spanned::Spanned;
+use syn::{Attribute, Expr, ImplItem, Item, Lit, Meta, TraitItem, UseTree, Visibility};
 
 use crate::fmt::OutlineItem;
 
 fn is_pub(vis: &Visibility) -> bool {
     // 正規表現版の「行に pub を含む」相当: pub / pub(crate) 等はすべて公開扱い
     !matches!(vis, Visibility::Inherited)
+}
+
+/// `///` doc コメントの先頭1行（`#[doc = "..."]` 属性の最初のもの）。
+fn doc_head(attrs: &[Attribute]) -> Option<String> {
+    for attr in attrs {
+        if attr.path().is_ident("doc") {
+            if let Meta::NameValue(nv) = &attr.meta {
+                if let Expr::Lit(l) = &nv.value {
+                    if let Lit::Str(s) = &l.lit {
+                        let head = s.value().trim().to_string();
+                        if !head.is_empty() {
+                            return Some(head);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// span → 1-indexed 行範囲（proc-macro2 の span-locations 前提）。
+fn span_lines<T: Spanned>(node: &T) -> Option<(u32, u32)> {
+    let s = node.span();
+    let (a, b) = (s.start().line, s.end().line);
+    if a == 0 {
+        None // span-locations 無効時は 0 が返る
+    } else {
+        Some((a as u32, b as u32))
+    }
+}
+
+fn item(kind: &str, name: String, public: bool, doc: Option<String>, span: Option<(u32, u32)>) -> OutlineItem {
+    let mut it = OutlineItem::new(kind, name, public);
+    it.doc = doc;
+    it.span = span;
+    it
 }
 
 /// ソース順で fn / struct / enum / trait を抽出する（mod / impl / trait 内も再帰）。
@@ -18,37 +56,61 @@ pub fn outline(text: &str) -> Option<Vec<OutlineItem>> {
 }
 
 fn collect_items(items: &[Item], out: &mut Vec<OutlineItem>) {
-    for item in items {
-        match item {
-            Item::Fn(f) => out.push((
-                "fn".to_string(),
+    for it in items {
+        match it {
+            Item::Fn(f) => out.push(item(
+                "fn",
                 f.sig.ident.to_string(),
                 is_pub(&f.vis),
+                doc_head(&f.attrs),
+                span_lines(f),
             )),
-            Item::Struct(s) => out.push((
-                "struct".to_string(),
+            Item::Struct(s) => out.push(item(
+                "struct",
                 s.ident.to_string(),
                 is_pub(&s.vis),
+                doc_head(&s.attrs),
+                span_lines(s),
             )),
-            Item::Enum(e) => out.push((
-                "enum".to_string(),
+            Item::Enum(e) => out.push(item(
+                "enum",
                 e.ident.to_string(),
                 is_pub(&e.vis),
+                doc_head(&e.attrs),
+                span_lines(e),
             )),
             Item::Trait(t) => {
-                out.push(("trait".to_string(), t.ident.to_string(), is_pub(&t.vis)));
+                out.push(item(
+                    "trait",
+                    t.ident.to_string(),
+                    is_pub(&t.vis),
+                    doc_head(&t.attrs),
+                    span_lines(t),
+                ));
                 for ti in &t.items {
                     if let TraitItem::Fn(f) = ti {
                         // trait 内メソッド: 明示的な pub は無いので非公開扱い
                         // （正規表現版の「行に pub を含むか」と同じ結果になる）
-                        out.push(("fn".to_string(), f.sig.ident.to_string(), false));
+                        out.push(item(
+                            "fn",
+                            f.sig.ident.to_string(),
+                            false,
+                            doc_head(&f.attrs),
+                            span_lines(f),
+                        ));
                     }
                 }
             }
             Item::Impl(imp) => {
                 for ii in &imp.items {
                     if let ImplItem::Fn(f) = ii {
-                        out.push(("fn".to_string(), f.sig.ident.to_string(), is_pub(&f.vis)));
+                        out.push(item(
+                            "fn",
+                            f.sig.ident.to_string(),
+                            is_pub(&f.vis),
+                            doc_head(&f.attrs),
+                            span_lines(f),
+                        ));
                     }
                 }
             }

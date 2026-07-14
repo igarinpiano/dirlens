@@ -139,8 +139,29 @@ pub fn fmt_git(g: &GitInfo) -> String {
     format!("\"{}\" ({})", sanitize_ctrl(&subj), sanitize_ctrl(&g.date))
 }
 
-/// アウトライン 1 項目: (kind, name, is_public)
-pub type OutlineItem = (String, String, bool);
+/// アウトライン 1 項目。
+#[derive(Debug, Clone)]
+pub struct OutlineItem {
+    pub kind: String,
+    pub name: String,
+    pub public: bool,
+    /// docstring / doc コメントの先頭1行（Python・Rust の AST 層のみ取得）
+    pub doc: Option<String>,
+    /// 定義の行範囲（1-indexed・両端含む）。AST 層で取得できた言語のみ
+    pub span: Option<(u32, u32)>,
+}
+
+impl OutlineItem {
+    pub fn new(kind: &str, name: String, public: bool) -> Self {
+        OutlineItem {
+            kind: kind.to_string(),
+            name,
+            public,
+            doc: None,
+            span: None,
+        }
+    }
+}
 
 pub fn fmt_outline(outline: &[OutlineItem], limit: usize) -> Option<String> {
     if outline.is_empty() {
@@ -148,7 +169,7 @@ pub fn fmt_outline(outline: &[OutlineItem], limit: usize) -> Option<String> {
     }
     let items: Vec<String> = outline
         .iter()
-        .map(|(kind, name, _)| format!("{} {}", kind, name))
+        .map(|item| format!("{} {}", item.kind, item.name))
         .collect();
     let shown = &items[..items.len().min(limit)];
     let mut s = shown.join(", ");

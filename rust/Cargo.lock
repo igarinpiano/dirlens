@@ -260,6 +260,7 @@ dependencies = [
  "oxc_ast",
  "oxc_parser",
  "oxc_span",
+ "proc-macro2",
  "regex",
  "rustpython-parser",
  "serde",

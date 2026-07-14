@@ -7,9 +7,39 @@
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{Declaration, ExportDefaultDeclarationKind, Expression, Statement};
 use oxc_parser::Parser;
-use oxc_span::SourceType;
+use oxc_span::{GetSpan, SourceType};
 
 use crate::fmt::OutlineItem;
+
+/// 各行の開始バイトオフセット（行番号変換用）。
+fn line_starts(text: &str) -> Vec<usize> {
+    let mut v = vec![0usize];
+    for (i, b) in text.bytes().enumerate() {
+        if b == b'\n' {
+            v.push(i + 1);
+        }
+    }
+    v
+}
+
+fn line_of(starts: &[usize], byte: usize) -> u32 {
+    starts.partition_point(|&s| s <= byte) as u32
+}
+
+fn item(
+    kind: &str,
+    name: String,
+    public: bool,
+    span: oxc_span::Span,
+    starts: &[usize],
+) -> OutlineItem {
+    let mut it = OutlineItem::new(kind, name, public);
+    it.span = Some((
+        line_of(starts, span.start as usize),
+        line_of(starts, (span.end as usize).saturating_sub(1).max(span.start as usize)),
+    ));
+    it
+}
 
 fn source_type(ext: &str) -> SourceType {
     match ext {
@@ -42,16 +72,16 @@ fn is_function_init(expr: &Expression) -> bool {
     )
 }
 
-fn decl_items(decl: &Declaration, exported: bool, out: &mut Vec<OutlineItem>) {
+fn decl_items(decl: &Declaration, exported: bool, starts: &[usize], out: &mut Vec<OutlineItem>) {
     match decl {
         Declaration::ClassDeclaration(c) => {
             if let Some(id) = &c.id {
-                out.push(("class".to_string(), id.name.to_string(), exported));
+                out.push(item("class", id.name.to_string(), exported, c.span, starts));
             }
         }
         Declaration::FunctionDeclaration(f) => {
             if let Some(id) = &f.id {
-                out.push(("func".to_string(), id.name.to_string(), exported));
+                out.push(item("func", id.name.to_string(), exported, f.span, starts));
             }
         }
         Declaration::VariableDeclaration(v) => {
@@ -59,7 +89,7 @@ fn decl_items(decl: &Declaration, exported: bool, out: &mut Vec<OutlineItem>) {
                 if let Some(init) = &d.init {
                     if is_function_init(init) {
                         if let Some(name) = d.id.get_identifier_name() {
-                            out.push(("func".to_string(), name.to_string(), exported));
+                            out.push(item("func", name.to_string(), exported, init.span(), starts));
                         }
                     }
                 }
@@ -72,17 +102,18 @@ fn decl_items(decl: &Declaration, exported: bool, out: &mut Vec<OutlineItem>) {
 pub fn outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
     let alloc = Allocator::default();
     let program = parse_program(&alloc, text, ext)?;
+    let starts = line_starts(text);
     let mut out = Vec::new();
     for stmt in &program.body {
         match stmt {
             Statement::ClassDeclaration(c) => {
                 if let Some(id) = &c.id {
-                    out.push(("class".to_string(), id.name.to_string(), false));
+                    out.push(item("class", id.name.to_string(), false, c.span, &starts));
                 }
             }
             Statement::FunctionDeclaration(f) => {
                 if let Some(id) = &f.id {
-                    out.push(("func".to_string(), id.name.to_string(), false));
+                    out.push(item("func", id.name.to_string(), false, f.span, &starts));
                 }
             }
             Statement::VariableDeclaration(v) => {
@@ -90,7 +121,13 @@ pub fn outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
                     if let Some(init) = &d.init {
                         if is_function_init(init) {
                             if let Some(name) = d.id.get_identifier_name() {
-                                out.push(("func".to_string(), name.to_string(), false));
+                                out.push(item(
+                                    "func",
+                                    name.to_string(),
+                                    false,
+                                    init.span(),
+                                    &starts,
+                                ));
                             }
                         }
                     }
@@ -98,18 +135,18 @@ pub fn outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
             }
             Statement::ExportNamedDeclaration(e) => {
                 if let Some(decl) = &e.declaration {
-                    decl_items(decl, true, &mut out);
+                    decl_items(decl, true, &starts, &mut out);
                 }
             }
             Statement::ExportDefaultDeclaration(e) => match &e.declaration {
                 ExportDefaultDeclarationKind::ClassDeclaration(c) => {
                     if let Some(id) = &c.id {
-                        out.push(("class".to_string(), id.name.to_string(), true));
+                        out.push(item("class", id.name.to_string(), true, c.span, &starts));
                     }
                 }
                 ExportDefaultDeclarationKind::FunctionDeclaration(f) => {
                     if let Some(id) = &f.id {
-                        out.push(("func".to_string(), id.name.to_string(), true));
+                        out.push(item("func", id.name.to_string(), true, f.span, &starts));
                     }
                 }
                 _ => {}

@@ -19,6 +19,21 @@ fn node_text<'a>(node: tree_sitter::Node, text: &'a str) -> &'a str {
     &text[node.byte_range()]
 }
 
+#[cfg(any(feature = "lang-go", feature = "lang-c"))]
+fn node_span(node: tree_sitter::Node) -> Option<(u32, u32)> {
+    Some((
+        node.start_position().row as u32 + 1,
+        node.end_position().row as u32 + 1,
+    ))
+}
+
+#[cfg(any(feature = "lang-go", feature = "lang-c"))]
+fn ts_item(kind: &str, name: String, public: bool, node: tree_sitter::Node) -> OutlineItem {
+    let mut it = OutlineItem::new(kind, name, public);
+    it.span = node_span(node);
+    it
+}
+
 #[cfg(feature = "lang-go")]
 pub fn outline_go(text: &str) -> Option<Vec<OutlineItem>> {
     let lang = tree_sitter_go::LANGUAGE.into();
@@ -38,7 +53,7 @@ pub fn outline_go(text: &str) -> Option<Vec<OutlineItem>> {
                 if let Some(name) = node.child_by_field_name("name") {
                     let n = node_text(name, text).to_string();
                     let p = is_public(&n);
-                    out.push(("func".to_string(), n, p));
+                    out.push(ts_item("func", n, p, node));
                 }
             }
             "type_declaration" => {
@@ -56,7 +71,7 @@ pub fn outline_go(text: &str) -> Option<Vec<OutlineItem>> {
                             if let Some(kind) = kind {
                                 let n = node_text(name, text).to_string();
                                 let p = is_public(&n);
-                                out.push((kind.to_string(), n, p));
+                                out.push(ts_item(kind, n, p, node));
                             }
                         }
                     }
@@ -110,13 +125,13 @@ pub fn outline_c(text: &str) -> Option<Vec<OutlineItem>> {
             "function_definition" => {
                 if let Some(decl) = node.child_by_field_name("declarator") {
                     if let Some(name) = find_identifier(decl, text) {
-                        out.push(("func".to_string(), name, true));
+                        out.push(ts_item("func", name, true, node));
                     }
                 }
             }
             "struct_specifier" => {
                 if let Some(name) = node.child_by_field_name("name") {
-                    out.push(("struct".to_string(), node_text(name, text).to_string(), true));
+                    out.push(ts_item("struct", node_text(name, text).to_string(), true, node));
                 }
             }
             _ => {}

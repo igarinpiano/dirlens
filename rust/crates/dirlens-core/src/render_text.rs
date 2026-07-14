@@ -37,6 +37,8 @@ pub struct TextStats {
     pub sensitive: Vec<String>,
     /// 拡張子 → (ファイル数, 行数, トークン数)。-T 時のみ集計。
     pub lang_stats: IndexMap<String, (u64, i64, i64)>,
+    /// 長大関数の候補（行数, "rel:name"）。-O 時のみ集計。
+    pub long_funcs: Vec<(u32, String)>,
 }
 
 /// AI チャットへ貼り付ける際に警告すべき「機密の可能性が高い」ファイル名か。
@@ -389,6 +391,18 @@ fn render_node<F: FsProvider>(
                     if !outline.is_empty() {
                         if let Some(ostr) = fmt_outline(outline, 5) {
                             parts.push(ostr);
+                        }
+                        // 長大関数の収集（--agent サマリ / JSON 用）
+                        for it in outline {
+                            if let Some((a, b)) = it.span {
+                                if it.kind != "class" && it.kind != "struct" && b > a {
+                                    stats.long_funcs.push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                }
+                            }
+                        }
+                        if stats.long_funcs.len() > 512 {
+                            stats.long_funcs.sort_by(|x, y| y.0.cmp(&x.0));
+                            stats.long_funcs.truncate(16);
                         }
                     }
                 }
@@ -805,6 +819,33 @@ pub fn render_text_with_stats<F: FsProvider>(
                     "{}\n",
                     c(
                         &format!("    {}. {}", i + 1, sanitize_ctrl(p)),
+                        &[DIM],
+                        color
+                    )
+                ));
+            }
+        }
+    }
+
+    // 長大関数トップ5（compat モードでは出さない・Python 版に無い機能）
+    if cfg.show_outline && !cfg.suppress_notes && !stats.long_funcs.is_empty() {
+        let mut lf = stats.long_funcs.clone();
+        lf.sort_by(|x, y| y.0.cmp(&x.0).then_with(|| x.1.cmp(&y.1)));
+        let top: Vec<&(u32, String)> = lf.iter().take(5).filter(|(n, _)| *n >= 50).collect();
+        if !top.is_empty() {
+            out.push_str(&format!(
+                "{}\n",
+                c(
+                    i18n::tr(lang, "  Longest functions (50+ lines):", "  長大な関数（50行以上）:"),
+                    &[DIM],
+                    color
+                )
+            ));
+            for (n, name) in top {
+                out.push_str(&format!(
+                    "{}\n",
+                    c(
+                        &format!("    {} lines  {}", n, sanitize_ctrl(name)),
                         &[DIM],
                         color
                     )

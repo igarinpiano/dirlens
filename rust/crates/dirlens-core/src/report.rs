@@ -112,7 +112,19 @@ pub fn render_stdin_report<F: FsProvider>(
                     Some(items) => Value::Array(
                         items
                             .iter()
-                            .map(|(k, n, p)| json!({"kind": k, "name": n, "public": p}))
+                            .map(|it| {
+                                let mut m = Map::new();
+                                m.insert("kind".into(), json!(it.kind));
+                                m.insert("name".into(), json!(it.name));
+                                m.insert("public".into(), json!(it.public));
+                                if let Some(doc) = &it.doc {
+                                    m.insert("doc".into(), json!(doc));
+                                }
+                                if let Some((a, b)) = it.span {
+                                    m.insert("lines".into(), json!([a, b]));
+                                }
+                                Value::Object(m)
+                            })
                             .collect(),
                     ),
                 },
@@ -155,7 +167,7 @@ pub fn render_stdin_report<F: FsProvider>(
                     let names: Vec<String> = items
                         .iter()
                         .take(12)
-                        .map(|(k, n, _)| format!("{} {}", k, n))
+                        .map(|it| format!("{} {}", it.kind, it.name))
                         .collect();
                     let extra = if items.len() > 12 {
                         format!(", +{}", items.len() - 12)
@@ -613,7 +625,7 @@ fn public_outline(text: &str, ext: &str, enhanced: bool) -> Option<Vec<OutlineIt
     } else {
         extract_outline(text, ext)
     };
-    outline.map(|items| items.into_iter().filter(|i| i.2).collect())
+    outline.map(|items| items.into_iter().filter(|i| i.public).collect())
 }
 
 pub fn render_api_diff<F: FsProvider>(
@@ -662,7 +674,7 @@ pub fn render_api_diff<F: FsProvider>(
         items
             .unwrap_or_default()
             .into_iter()
-            .map(|(k, n, _)| format!("{} {}", k, n))
+            .map(|it| format!("{} {}", it.kind, it.name))
             .collect()
     };
 

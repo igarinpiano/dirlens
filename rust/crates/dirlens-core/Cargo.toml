@@ -15,6 +15,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # AST 第1段（言語別最良パーサ・すべて任意依存）
 rustpython-parser = { version = "0.4", optional = true }
 syn = { version = "2", features = ["full"], optional = true }
+# syn の span から行番号を取るために必要（--outline の行スパン・長大関数検出）
+proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 oxc_parser = { version = "0.138", optional = true }
 oxc_ast = { version = "0.138", optional = true }
 oxc_allocator = { version = "0.138", optional = true }
@@ -32,7 +34,7 @@ default = []
 # 純 Rust パーサ（wasm でも動く）
 ast-python = ["dep:rustpython-parser"]
 ast-js = ["dep:oxc_parser", "dep:oxc_ast", "dep:oxc_allocator", "dep:oxc_span"]
-ast-rust = ["dep:syn"]
+ast-rust = ["dep:syn", "dep:proc-macro2"]
 # C 文法（tree-sitter）— wasm ビルドでは無効にする
 lang-go = ["dep:tree-sitter", "dep:tree-sitter-go"]
 lang-c = ["dep:tree-sitter", "dep:tree-sitter-c"]

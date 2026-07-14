@@ -606,8 +606,12 @@ pub fn build_project_index<F: FsProvider>(
     let mut imports_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut imported_by_acc: IndexMap<String, BTreeSet<String>> = IndexMap::new();
     let mut external_map: HashMap<String, Vec<String>> = HashMap::new();
+    // -V 精度向上（enhanced のみ）: テストからの import を辿るため、
+    // -M が無くても import 解決を回す。Rust のインラインテストもここで検出する。
+    let compute_imports = cfg.show_imports || (cfg.show_tests && cfg.enhanced_analysis);
+    let mut rs_self_tested: HashSet<String> = HashSet::new();
 
-    if cfg.show_imports {
+    if compute_imports {
         // Go のローカル import 解決用の前計算
         let mut go_files_by_dir: HashMap<String, Vec<String>> = HashMap::new();
         for r in &st.all_relpaths {
@@ -781,6 +785,13 @@ pub fn build_project_index<F: FsProvider>(
                 }
                 ".rs" => {
                     let text = read_text();
+                    // Rust のインラインテスト検出（-V 用・enhanced のみ）
+                    if cfg.show_tests
+                        && cfg.enhanced_analysis
+                        && (text.contains("#[cfg(test)]") || text.contains("#[test]"))
+                    {
+                        rs_self_tested.insert(relpath.clone());
+                    }
                     let (uses, mods) = if cfg.enhanced_analysis {
                         crate::analysis::ast::ast_imports_rs(&text)
                     } else {
@@ -859,6 +870,50 @@ pub fn build_project_index<F: FsProvider>(
     } else {
         Vec::new()
     };
+
+    // -V 精度向上（enhanced のみ）: テストファイル（命名規則 or tests/ 配下）から
+    // 推移的に import されているソースは「テスト有り」とみなす。
+    if cfg.show_tests && cfg.enhanced_analysis {
+        let is_testish = |rel: &str| {
+            let fname = rel.rsplit('/').next().unwrap_or(rel);
+            is_test_file(fname)
+                || rel.starts_with("tests/")
+                || rel.starts_with("test/")
+                || rel.contains("/tests/")
+                || rel.contains("/test/")
+                || rel.contains("/__tests__/")
+        };
+        let mut covered: HashSet<&str> = HashSet::new();
+        let mut queue: Vec<&str> = Vec::new();
+        for from in imports_map.keys() {
+            if is_testish(from) {
+                queue.push(from);
+            }
+        }
+        while let Some(cur) = queue.pop() {
+            if let Some(tos) = imports_map.get(cur) {
+                for t in tos {
+                    if covered.insert(t) {
+                        queue.push(t);
+                    }
+                }
+            }
+        }
+        untested.retain(|p| !covered.contains(p.as_str()));
+        untested.retain(|p| !rs_self_tested.contains(p));
+        // Rust: インラインテストが無い .rs をテスト未整備として追加
+        // （命名規則ベースの対象外だったため、ここで補完する）
+        for rel in &st.all_relpaths {
+            if rel.ends_with(".rs")
+                && !is_testish(rel)
+                && !rs_self_tested.contains(rel)
+                && !covered.contains(rel.as_str())
+                && rel.rsplit('/').next().map(|f| f != "mod.rs" && f != "lib.rs" && f != "main.rs").unwrap_or(true)
+            {
+                untested.insert(rel.clone());
+            }
+        }
+    }
 
     ProjectIndex {
         untested,
