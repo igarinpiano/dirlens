@@ -28,23 +28,40 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "analyze",
-            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand a project.",
-            "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop}), vec![])
+            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand a project. On large projects the JSON can be huge: pass `budget` to get compact annotated text fitted to a token budget instead, or `estimate: true` first to see the cost per depth level.",
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "depth": depth_prop,
+                "budget": {"type": "integer", "description": "fit output to about this many tokens (o200k BPE). Returns compact annotated text instead of JSON, trimming depth, then annotations, then tree rows"},
+                "estimate": {"type": "boolean", "description": "return a few-line token-cost estimate per depth level instead of the analysis (use it to pick a budget). Overrides budget"}
+            }), vec![])
         },
         {
             "name": "tree",
             "description": "Plain directory tree with sizes (gitignore applied), as text.",
-            "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop}), vec![])
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "depth": depth_prop,
+                "budget": {"type": "integer", "description": "fit output to about this many tokens (o200k BPE) by trimming depth, then tree rows"},
+                "top": {"type": "integer", "description": "if set, return a flat list of the N largest files and directories instead of a tree"}
+            }), vec![])
         },
         {
             "name": "outline",
-            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift).",
-            "inputSchema": obj(json!({"files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze"}}), vec!["files"])
+            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once. If `files` is omitted, returns the project-wide public API instead (public symbols only, like `dirlens -A`).",
+            "inputSchema": obj(json!({
+                "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline"},
+                "path": path_prop,
+                "depth": depth_prop
+            }), vec![])
         },
         {
             "name": "imports",
-            "description": "Local import/dependency graph with most-depended-on files and circular dependencies, as JSON.",
-            "inputSchema": obj(json!({"path": path_prop}), vec![])
+            "description": "Local import/dependency graph with most-depended-on files and circular dependencies. JSON by default; set `format` to get a Mermaid or Graphviz DOT diagram.",
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "format": {"type": "string", "enum": ["json", "mermaid", "dot"], "description": "output format (default: json)"}
+            }), vec![])
         },
         {
             "name": "focus",
@@ -55,6 +72,27 @@ fn tool_defs() -> Value {
             "name": "todos",
             "description": "TODO/FIXME/HACK/XXX comments across the project with file/line, as JSON.",
             "inputSchema": obj(json!({"path": path_prop}), vec![])
+        },
+        {
+            "name": "since",
+            "description": "Only the files changed since a git ref (default HEAD), as a JSON tree annotated with tokens, outline, and TODOs per changed file. Much cheaper than re-running analyze mid-session.",
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "ref": {"type": "string", "description": "git ref to diff against (default: HEAD, i.e. uncommitted changes)"}
+            }), vec![])
+        },
+        {
+            "name": "history",
+            "description": "Recent git activity as compact text: tree annotated with each file's last commit, plus frequently-changed hotspot files. Depth defaults to 1 to stay small.",
+            "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop}), vec![])
+        },
+        {
+            "name": "api_diff",
+            "description": "Public API diff against a git ref (added/removed public symbols) to spot breaking changes, as text.",
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "ref": {"type": "string", "description": "git ref to compare the public API against (e.g. a release tag or HEAD~5)"}
+            }), vec!["ref"])
         }
     ])
 }
@@ -77,10 +115,26 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
     match name {
         "analyze" => {
             a.agent = true;
-            a.json = true;
+            // --budget / --estimate はコアがテキスト経路でのみ処理するため、
+            // 指定時は JSON ではなく予算調整済みテキスト / 見積もりテキストを返す
+            if args_val
+                .get("estimate")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                a.estimate = true;
+            } else if let Some(b) = args_val.get("budget").and_then(|v| v.as_i64()) {
+                a.budget = Some(b);
+            } else {
+                a.json = true;
+            }
         }
         "tree" => {
             a.gitignore = true;
+            a.budget = args_val.get("budget").and_then(|v| v.as_i64());
+            if let Some(n) = args_val.get("top").and_then(|v| v.as_u64()) {
+                a.top = Some(n as usize);
+            }
         }
         "outline" => {
             let files: Vec<String> = args_val
@@ -93,16 +147,42 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
                 })
                 .unwrap_or_default();
             if files.is_empty() {
-                return ("error: 'files' must be a non-empty array".to_string(), true);
+                // files 省略時はプロジェクト全体の公開API（-A 相当）
+                a.api = true;
+                a.gitignore = true;
+                a.json = true;
+            } else {
+                // 相対パスは path 基準に解決する（サーバーの cwd はホスト依存のため）
+                let base = std::path::Path::new(&a.path);
+                let files = files
+                    .into_iter()
+                    .map(|f| {
+                        if a.path != "." && std::path::Path::new(&f).is_relative() {
+                            base.join(&f).to_string_lossy().into_owned()
+                        } else {
+                            f
+                        }
+                    })
+                    .collect();
+                a.stdin_files = Some(files);
+                a.json = true;
+                a.git = true;
             }
-            a.stdin_files = Some(files);
-            a.json = true;
-            a.git = true;
         }
         "imports" => {
             a.imports = true;
             a.gitignore = true;
-            a.json = true;
+            match args_val.get("format").and_then(|v| v.as_str()) {
+                None | Some("json") => a.json = true,
+                Some("mermaid") => a.mermaid = true,
+                Some("dot") => a.dot = true,
+                Some(other) => {
+                    return (
+                        format!("error: unknown format '{}' (expected json, mermaid, or dot)", other),
+                        true,
+                    )
+                }
+            }
         }
         "focus" => {
             let Some(file) = args_val.get("file").and_then(|v| v.as_str()) else {
@@ -116,6 +196,36 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
             a.todo = true;
             a.gitignore = true;
             a.json = true;
+        }
+        "since" => {
+            let git_ref = args_val
+                .get("ref")
+                .and_then(|v| v.as_str())
+                .unwrap_or("HEAD");
+            a.since = Some(git_ref.to_string());
+            a.gitignore = true;
+            a.json = true;
+            // 変更ファイルにはトークン・アウトライン・TODO を注釈する
+            // （`git diff --name-only | dirlens --stdin --json` と同じ粒度）
+            a.tokens = true;
+            a.outline = true;
+            a.todo = true;
+        }
+        "history" => {
+            a.git = true;
+            a.gitignore = true;
+            // ファイル毎の git 注釈で JSON は肥大化するためテキスト固定。
+            // 深さも既定 1 に抑える（ホットスポット一覧は深さに依らず全体を反映）
+            if a.depth.is_none() {
+                a.depth = Some(1);
+            }
+        }
+        "api_diff" => {
+            let Some(git_ref) = args_val.get("ref").and_then(|v| v.as_str()) else {
+                return ("error: 'ref' is required".to_string(), true);
+            };
+            a.api_diff = Some(git_ref.to_string());
+            a.gitignore = true;
         }
         _ => return (format!("error: unknown tool '{}'", name), true),
     }
@@ -217,7 +327,7 @@ pub fn print_setup(host: &str, ja: bool) {
         println!();
     }
     println!(
-        "{}: analyze, tree, outline, imports, focus, todos",
+        "{}: analyze, tree, outline, imports, focus, todos, since, history, api_diff",
         tr("tools provided", "提供ツール")
     );
     println!(

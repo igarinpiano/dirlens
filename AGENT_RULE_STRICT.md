@@ -43,7 +43,7 @@
 
 6. **個別の情報だけが必要なら単体フラグを使う**
 
-   - `dirlens -O <path>` — 特定ファイルの関数/クラス一覧（JSON では doc 1行目・行範囲つき）
+   - `dirlens -O <path>` — 特定ファイルの関数/クラス一覧（JSON では doc 1行目・行範囲つき。単一ファイルのみ。複数ファイルは `--stdin` か MCP の `outline` を使う）
    - `dirlens -A` — プロジェクト全体の公開API（公開シンボルのみ）
    - `dirlens -M` — import依存グラフ（循環依存の検出つき。`--mermaid`/`--dot` で図の出力も可）
    - `dirlens -H` — 最近のコミット履歴・ホットスポット
@@ -54,6 +54,8 @@
    - `dirlens --api-diff <ref>` — 公開APIの git ref との差分（破壊的変更の検出）
    - `dirlens --status` — git status をツリーに重ねて表示
    - `dirlens --top 10` — 大きいファイル/ディレクトリ上位だけフラット表示
+
+   単体フラグ（`-V`/`-K`/`-N`/`-F`/`-A`等）の出力は「該当ファイルだけの一覧」ではなく「**全ツリーに該当マーカーを注釈した表示**」である（例: `-V` は全ファイルのうち該当分に `no test` が付く）。出力サイズはプロジェクト規模に比例するため、大きなリポジトリでは `-L`/`--budget`/`-G` と組み合わせること（`--budget`/`--estimate` は単体フラグにもそのまま効く）。フラット出力は `--top N` のみ。
 
 7. **`--ai` はエージェントでは使わない**
 
@@ -74,7 +76,18 @@
     claude mcp add dirlens -s user -- dirlens --mcp  # Claude Code ならこの1行
     ```
 
-    analyze / tree / outline / imports / focus / todos の6ツールが使えるようになり、シェル経由の往復が不要になる。GUI ホスト（Claude Desktop 等）はシェル PATH を継がないため、`--mcp-setup` が出力する絶対パス入りの設定を使うこと。`-s user` を付けないと local scope になり、登録時のカレントディレクトリのプロジェクトにしか有効にならない点に注意。
+    analyze / tree / outline / imports / focus / todos / since / history / api_diff の9ツール（v1.2.2+。v1.2.1以前は前6つのみ）が使えるようになり、シェル経由の往復が不要になる。GUI ホスト（Claude Desktop 等）はシェル PATH を継がないため、`--mcp-setup` が出力する絶対パス入りの設定を使うこと。`-s user` を付けないと local scope になり、登録時のカレントディレクトリのプロジェクトにしか有効にならない点に注意。
+
+    CLI との対応と MCP 固有の注意点:
+
+    - `analyze` = `--agent --json`。大きなプロジェクトでは JSON が巨大化してホスト側の出力上限に当たるため、`estimate: true` でコスト見積もり → `budget: N` で予算内に収める（`budget` 指定時は JSON ではなく注釈付きテキストが返る）。`tree` にも `budget` と `top`（大きいファイルのフラット表示）がある
+    - `outline` は **複数ファイルを配列で一括処理できる**（CLI の `-O` は単一ファイルのみ）。`files` を省略するとプロジェクト全体の公開 API（`-A` 相当）になる。相対パスは `path` 基準で解決される
+    - `since` = `--since REF -G` ＋ 変更ファイルへのトークン/アウトライン/TODO 注釈（`git diff --name-only | dirlens --stdin --json` と同粒度）。セッション途中の再確認はこれを使う（ref 省略時は HEAD＝未コミット変更）
+    - `history` = `-H`（既定で深さ1のコンパクトなテキスト。ホットスポット一覧は深さに依らず全体を反映）
+    - `api_diff` = `--api-diff <ref>`（破壊的変更の検出）
+    - `imports` は `format: "mermaid"` / `"dot"` で図の出力も可
+    - MCP サーバーは実装レベルでクリップボード無効（`NoClipboard` 固定）のため、`capabilities.clipboard: false` は異常ではない
+    - MCP に**無い**もの: `--pack` / `--compare` / `--dupes` / `--heat` / `--csv` / stdin パイプ。必要ならシェルで CLI を直接使う
 
 ---
 
