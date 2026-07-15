@@ -44,6 +44,8 @@ cargo binstall dirlens-cli --git https://github.com/igarinpiano/dirlens
 ```
 
 GitHub Releases のビルド済みバイナリを取得します（`[package.metadata.binstall]` 対応済み）。
+`dirlens-cli` は Cargo ワークスペース内のパッケージ名で、インストールされるコマンド名は
+`dirlens` です（`[[bin]] name = "dirlens"` のため一致しません）。
 
 ### ソースからビルド
 
@@ -53,7 +55,7 @@ cd dirlens/rust && cargo build --release
 # バイナリ: rust/target/release/dirlens
 ```
 
-> **pip 版について**: `pip install dirlens` は旧 Python 実装（v1.x）を配布しています。
+> **pip 版について**: `pip install dirlens` は旧 Python 実装（v1.0.x）を配布しています。
 > 新機能・精度改善は Rust 版のみです。
 
 ---
