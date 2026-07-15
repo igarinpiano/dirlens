@@ -82,7 +82,7 @@
 
     - `analyze` = `--agent --json`。大きなプロジェクトでは JSON が巨大化してホスト側の出力上限に当たるため、`estimate: true` でコスト見積もり → `budget: N` で予算内に収める（`budget` 指定時は JSON ではなく注釈付きテキストが返る）。`tree` にも `budget` と `top`（大きいファイルのフラット表示）がある
     - `outline` は **複数ファイルを配列で一括処理できる**（CLI の `-O` は単一ファイルのみ）。`files` を省略するとプロジェクト全体の公開 API（`-A` 相当）になる。相対パスは `path` 基準で解決される
-    - `since` = `--since REF -G` ＋ 変更ファイルへのトークン/アウトライン/TODO 注釈（`git diff --name-only | dirlens --stdin --json` と同粒度）。セッション途中の再確認はこれを使う（ref 省略時は HEAD＝未コミット変更）
+    - `outline`（`files` 省略時）と `history` は、呼び出し側が `depth` を省略すると自動的に小さい既定値（それぞれ 2 / 1）に制限される（全ツリー走査で応答が肥大化するのを防ぐため）。全階層が必要な場合は `depth` を明示するか `unlimited_depth: true` を渡す（`depth` を指定した場合はそちらが常に優先され、`unlimited_depth` は無視される）
     - `history` = `-H`（既定で深さ1のコンパクトなテキスト。ホットスポット一覧は深さに依らず全体を反映）
     - `api_diff` = `--api-diff <ref>`（破壊的変更の検出）
     - `imports` は `format: "mermaid"` / `"dot"` で図の出力も可
