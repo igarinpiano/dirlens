@@ -24,31 +24,31 @@ fn tool_defs() -> Value {
         json!({"type": "object", "properties": props, "required": required})
     };
     let path_prop = json!({"type": "string", "description": "target directory (default: current directory)"});
-    let depth_prop = json!({"type": "integer", "description": "max tree depth (aggregates still cover the whole project)"});
+    let depth_prop = json!({"type": "integer", "description": "how many directory levels deep to show (default: unlimited, i.e. the full tree). Project-wide counts and summaries (TODO count, hotspots, etc.) always cover the whole project regardless of this value — only the tree/listing gets shallower. If you don't know how big the project is yet, don't omit this on the first call: pass a small value like 1 or 2, or use `estimate`/`budget` where available instead of guessing"});
     json!([
         {
             "name": "analyze",
-            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand a project. On large projects the JSON can be huge: pass `budget` to get compact annotated text fitted to a token budget instead, or `estimate: true` first to see the cost per depth level.",
+            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand an unfamiliar project. Guidance for the FIRST call on a project you know nothing about: call with `estimate: true` (returns a few lines, negligible cost) to see the token cost per depth level, THEN decide — either set `depth` to a small number (1-2) for a quick look, or set `budget` to a token ceiling and let it auto-fit. Calling this with no `depth`/`budget`/`estimate` on a large project can return tens of thousands of tokens and get truncated by the host.",
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "depth": depth_prop,
-                "budget": {"type": "integer", "description": "fit output to about this many tokens (o200k BPE). Returns compact annotated text instead of JSON, trimming depth, then annotations, then tree rows"},
-                "estimate": {"type": "boolean", "description": "return a few-line token-cost estimate per depth level instead of the analysis (use it to pick a budget). Overrides budget"}
+                "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then annotations, then tree rows. When set, returns compact annotated TEXT instead of JSON — use this instead of guessing a `depth`"},
+                "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget`. Overrides `budget` if both are set"}
             }), vec![])
         },
         {
             "name": "tree",
-            "description": "Plain directory tree with sizes (gitignore applied), as text.",
+            "description": "Plain directory tree with sizes (gitignore applied), as text. On a large or unfamiliar project, pass `depth` (e.g. 1-2) or `budget` on the first call to avoid a very long response — or use `top` if you only want the biggest files/directories rather than the project shape.",
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "depth": depth_prop,
-                "budget": {"type": "integer", "description": "fit output to about this many tokens (o200k BPE) by trimming depth, then tree rows"},
-                "top": {"type": "integer", "description": "if set, return a flat list of the N largest files and directories instead of a tree"}
+                "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then tree rows"},
+                "top": {"type": "integer", "description": "return a flat list of the N largest files and directories instead of a tree — cheap and safe on any project size, no depth guessing needed"}
             }), vec![])
         },
         {
             "name": "outline",
-            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once. If `files` is omitted, returns the project-wide public API instead (public symbols only, like `dirlens -A`).",
+            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (raise it if you need deeper coverage, or pass `files` explicitly once you know which ones you need).",
             "inputSchema": obj(json!({
                 "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline"},
                 "path": path_prop,
@@ -83,7 +83,7 @@ fn tool_defs() -> Value {
         },
         {
             "name": "history",
-            "description": "Recent git activity as compact text: tree annotated with each file's last commit, plus frequently-changed hotspot files. Depth defaults to 1 to stay small.",
+            "description": "Recent git activity as compact text: tree annotated with each file's last commit, plus frequently-changed hotspot files. `depth` defaults to 1 here (unlike other tools) to stay small automatically — the hotspot list itself always covers the whole project regardless, so you rarely need to raise it.",
             "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop}), vec![])
         },
         {
@@ -147,10 +147,16 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
                 })
                 .unwrap_or_default();
             if files.is_empty() {
-                // files 省略時はプロジェクト全体の公開API（-A 相当）
+                // files 省略時はプロジェクト全体の公開API（-A 相当）。
+                // -A は全ツリーを歩く方式で depth 未指定だと肥大化しうるため
+                // （実測: このリポジトリで 145,016 文字・MCP応答上限超過）、
+                // 呼び出し側が depth を指定しなければ 2 を既定にして安全側に倒す
                 a.api = true;
                 a.gitignore = true;
                 a.json = true;
+                if a.depth.is_none() {
+                    a.depth = Some(2);
+                }
             } else {
                 // 相対パスは path 基準に解決する（サーバーの cwd はホスト依存のため）
                 let base = std::path::Path::new(&a.path);
