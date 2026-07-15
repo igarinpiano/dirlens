@@ -1,0 +1,115 @@
+# 指定バージョンをビルドし、GitHub Release を即時公開（non-draft）するワークフロー。
+#
+# rust-release.yml との違い: あちらは draft を作るだけで、公開（Publish ボタン）は
+# オーナーが artifacts を確認したうえで手動で行う設計。こちらはボタン1つで
+# 公開まで完了させたい場合向けに、`gh release create` から `--draft` を外しただけの
+# 姉妹ワークフロー。rust-release.yml 自体の挙動は変更しない（引き続き draft 用途で使える）。
+#
+# 【重要】version 入力は rust-release.yml と同じく確認用のみ（rust/Cargo.toml の値との
+# 一致チェック）。実際にどのコミット/タグをビルドするかは、実行時に GitHub Actions の
+# 「Use workflow from」で明示的にブランチ/タグを選ぶこと。ここが食い違うとチェックで
+# 失敗する（＝ 誤ったコミットを黙って公開することはない）。
+#
+# 自動トリガーは無し。GitHub → Actions → このワークフロー → Run workflow のボタン操作のみ。
+name: github-releases-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "確認用バージョン（例: 1.2.1）。rust/Cargo.toml の値と一致しないと失敗する。空欄なら確認をスキップ"
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
+          - target: x86_64-apple-darwin
+            os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
+                            # x86_64 クロスコンパイルに対応する保証が無いため固定
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build (release)
+        working-directory: rust
+        run: cargo build --release -p dirlens-cli --target ${{ matrix.target }}
+      - name: Collect
+        run: |
+          mkdir -p out/${{ matrix.target }}
+          exe=dirlens; [[ "${{ matrix.target }}" == *windows* ]] && exe=dirlens.exe
+          cp "rust/target/${{ matrix.target }}/release/$exe" "out/${{ matrix.target }}/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.target }}
+          path: out/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # gh release create に必要（既定の GITHUB_TOKEN は read-only）
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: binaries
+      - name: Resolve version
+        id: ver
+        env:
+          # スクリプトインジェクション対策: 入力値はシェルに直接展開せず env 経由で渡す
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          v="$(grep -m1 '^version' rust/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$v" ]; then
+            echo "::error::rust/Cargo.toml の version ($v) と入力値 ($INPUT_VERSION) が一致しません。「Use workflow from」で正しいタグ/ブランチを選び直してください。"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Archive binaries for GitHub Release
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          mkdir -p release
+          for t in binaries/*/; do
+            t="${t%/}"; name="dirlens-$VERSION-$(basename "$t")"
+            if [ -f "$t/dirlens.exe" ]; then
+              (cd "$t" && zip -q "../../release/$name.zip" dirlens.exe)
+            else
+              tar -czf "release/$name.tar.gz" -C "$t" dirlens
+            fi
+          done
+      - name: Create GitHub Release (published immediately)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # rust-release.yml と異なり --draft を付けない＝実行した時点で一般公開される。
+          # タグ v${version} が既に push 済みならそれを使い、無ければこの実行時点の
+          # コミットに新規作成する（gh release create の標準動作）。
+          gh release create "v$VERSION" \
+            --title "dirlens v$VERSION" \
+            release/*
