@@ -112,8 +112,8 @@ pub fn extract_outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
             // Python は re.match（行頭アンカー）。パターン自体が ^ 始まりなので同義。
             if let Some(m) = pat.re.captures(line) {
                 let name = m.get(pat.name_group).map(|g| g.as_str()).unwrap_or("");
-                out.push((
-                    pat.kind.to_string(),
+                out.push(OutlineItem::new(
+                    pat.kind,
                     name.to_string(),
                     is_public_symbol(ext, line, name),
                 ));

@@ -25,5 +25,5 @@ basic/ (4 dirs, 9 files, 305.56 KB)
 ├── single.b (1 byte)
 └── empty.txt (0 bytes)
 
-  合計  7 ディレクトリ,  18 ファイル
+  Total  7 directories,  18 files
   .txt ×7  (no ext) ×4  .md ×3  .py ×1  .bin ×1  .log ×1  .b ×1

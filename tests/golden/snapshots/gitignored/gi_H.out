@@ -17,11 +17,11 @@ gitignored/ (3 dirs, 5 files, 3.8 KB)
 ├── temp1.txt (10 bytes)
 └── temporary_notes.md (12 bytes)
 
-  合計  4 ディレクトリ,  13 ファイル
+  Total  4 directories,  13 files
   .txt ×7  .log ×3  .md ×2  .py ×1
-  変更頻度が高いファイル（直近の履歴内）:
-    src/main.py  (3 回変更)
-    README.md  (2 回変更)
-    .gitignore  (1 回変更)
-    important.log  (1 回変更)
-    nested/kept.txt  (1 回変更)
+  Frequently changed files (recent history):
+    src/main.py  (changed 3 times)
+    README.md  (changed 2 times)
+    .gitignore  (changed 1 times)
+    important.log  (changed 1 times)
+    nested/kept.txt  (changed 1 times)

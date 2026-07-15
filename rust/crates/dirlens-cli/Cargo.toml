@@ -12,9 +12,24 @@ path = "src/main.rs"
 
 [dependencies]
 dirlens-core = { path = "../dirlens-core", features = [
-    "ast-python", "ast-js", "ast-rust", "lang-go", "lang-c", "tokens-bpe",
+    "ast-python", "ast-js", "ast-rust", "lang-go", "lang-c", "lang-extra", "tokens-bpe",
 ] }
 clap = { version = "4", features = ["string"] }
+clap_complete = "4"
+clap_mangen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+ratatui = "0.29"
+unicode-width = "0.2"
+
+# cargo-binstall 用メタデータ（GitHub Releases のアーカイブ命名に一致させる）
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/dirlens-{ version }-{ target }{ archive-suffix }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

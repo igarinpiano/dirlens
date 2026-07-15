@@ -1,5 +1,6 @@
 //! フォーマット関数群（dirlens.py の「フォーマット」セクションの等価移植）。
 
+use crate::i18n::Lang;
 use crate::pyc::{char_len, fmt_prec, py_round, py_strip, py_trunc, rstrip_zeros, truncate_chars};
 
 /// 端末出力用サニタイズ: 制御文字（Cc カテゴリ = C0/DEL/C1）を '?' に置換する。
@@ -57,31 +58,8 @@ pub fn fmt_count(nd: usize, nf: usize, denied: bool) -> String {
 
 /// now / mtime は epoch 秒。Python 版は naive datetime の差分だが、
 /// DST の無いタイムゾーン（テストでは TZ=UTC）では epoch 差分と一致する。
-pub fn fmt_date(now: f64, mtime: f64) -> String {
-    let sec = py_trunc(now - mtime);
-    if sec < 60 {
-        return "今".to_string();
-    }
-    if sec < 3600 {
-        return format!("{}分前", sec / 60);
-    }
-    if sec < 86400 {
-        return format!("{}時間前", sec / 3600);
-    }
-    let d = sec / 86400;
-    if d == 1 {
-        return "昨日".to_string();
-    }
-    if d < 7 {
-        return format!("{}日前", d);
-    }
-    if d < 30 {
-        return format!("{}週間前", d / 7);
-    }
-    if d < 365 {
-        return format!("{}ヶ月前", d / 30);
-    }
-    format!("{}年前", d / 365)
+pub fn fmt_date(now: f64, mtime: f64, lang: Lang) -> String {
+    crate::i18n::rel_date(lang, py_trunc(now - mtime))
 }
 
 pub fn fmt_bar(part: u64, total: u64, width: i64) -> String {
@@ -100,8 +78,9 @@ pub fn fmt_bar(part: u64, total: u64, width: i64) -> String {
     )
 }
 
-/// parse_size: "50M" / "1G" / "500K" / 素の整数。エラー時は Python と同じ文言を返す。
-pub fn parse_size(s: &str) -> Result<i64, String> {
+/// parse_size: "50M" / "1G" / "500K" / 素の整数。
+/// エラー時は表示言語のメッセージ（ja は Python と同じ文言）を返す。
+pub fn parse_size(s: &str, lang: Lang) -> Result<i64, String> {
     let s = py_strip(s);
     let upper = s.to_uppercase();
     for (sfx, mult) in [
@@ -130,7 +109,7 @@ pub fn parse_size(s: &str) -> Result<i64, String> {
         }
     }
     s.parse::<i64>()
-        .map_err(|_| format!("無効なサイズ: '{}'（例: 50M, 1G, 500K）", s))
+        .map_err(|_| crate::i18n::invalid_size(lang, s))
 }
 
 pub fn fmt_tokens(n: i64) -> String {
@@ -160,8 +139,29 @@ pub fn fmt_git(g: &GitInfo) -> String {
     format!("\"{}\" ({})", sanitize_ctrl(&subj), sanitize_ctrl(&g.date))
 }
 
-/// アウトライン 1 項目: (kind, name, is_public)
-pub type OutlineItem = (String, String, bool);
+/// アウトライン 1 項目。
+#[derive(Debug, Clone)]
+pub struct OutlineItem {
+    pub kind: String,
+    pub name: String,
+    pub public: bool,
+    /// docstring / doc コメントの先頭1行（Python・Rust の AST 層のみ取得）
+    pub doc: Option<String>,
+    /// 定義の行範囲（1-indexed・両端含む）。AST 層で取得できた言語のみ
+    pub span: Option<(u32, u32)>,
+}
+
+impl OutlineItem {
+    pub fn new(kind: &str, name: String, public: bool) -> Self {
+        OutlineItem {
+            kind: kind.to_string(),
+            name,
+            public,
+            doc: None,
+            span: None,
+        }
+    }
+}
 
 pub fn fmt_outline(outline: &[OutlineItem], limit: usize) -> Option<String> {
     if outline.is_empty() {
@@ -169,7 +169,7 @@ pub fn fmt_outline(outline: &[OutlineItem], limit: usize) -> Option<String> {
     }
     let items: Vec<String> = outline
         .iter()
-        .map(|(kind, name, _)| format!("{} {}", kind, name))
+        .map(|item| format!("{} {}", item.kind, item.name))
         .collect();
     let shown = &items[..items.len().min(limit)];
     let mut s = shown.join(", ");
@@ -241,22 +241,27 @@ mod tests {
 
     #[test]
     fn dates() {
-        assert_eq!(fmt_date(1000.0, 990.0), "今");
-        assert_eq!(fmt_date(90.0 * 60.0, 0.0), "1時間前");
-        assert_eq!(fmt_date(100.0 * 86400.0, 0.0), "3ヶ月前");
-        assert_eq!(fmt_date(30.0 * 3600.0, 0.0), "昨日");
+        assert_eq!(fmt_date(1000.0, 990.0, Lang::Ja), "今");
+        assert_eq!(fmt_date(90.0 * 60.0, 0.0, Lang::Ja), "1時間前");
+        assert_eq!(fmt_date(100.0 * 86400.0, 0.0, Lang::Ja), "3ヶ月前");
+        assert_eq!(fmt_date(30.0 * 3600.0, 0.0, Lang::Ja), "昨日");
+        assert_eq!(fmt_date(1000.0, 990.0, Lang::En), "now");
+        assert_eq!(fmt_date(90.0 * 60.0, 0.0, Lang::En), "1 hour ago");
     }
 
     #[test]
     fn parse_sizes() {
-        assert_eq!(parse_size("1K"), Ok(1024));
-        assert_eq!(parse_size("1.5M"), Ok(1572864));
-        assert_eq!(parse_size("2000"), Ok(2000));
-        assert!(parse_size("xyz").is_err());
+        assert_eq!(parse_size("1K", Lang::En), Ok(1024));
+        assert_eq!(parse_size("1.5M", Lang::En), Ok(1572864));
+        assert_eq!(parse_size("2000", Lang::En), Ok(2000));
+        assert!(parse_size("xyz", Lang::En).is_err());
+        assert!(parse_size("xyz", Lang::Ja)
+            .unwrap_err()
+            .starts_with("無効なサイズ"));
         // 大文字化で長さが変わる文字でもパニックしない（CPython と同じ解釈）:
         // "5ﬆ".upper() == "5ST" → 接尾辞 "T"、head は "5"
-        assert_eq!(parse_size("5ﬆ"), Ok(5 << 40));
-        assert!(parse_size("ﬆ").is_err());
+        assert_eq!(parse_size("5ﬆ", Lang::En), Ok(5 << 40));
+        assert!(parse_size("ﬆ", Lang::En).is_err());
     }
 
     #[test]

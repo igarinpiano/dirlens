@@ -17,5 +17,5 @@ gitignored/ (3 dirs, 5 files, 3.8 KB)
 ├── temp1.txt (10 bytes)
 └── temporary_notes.md (12 bytes)
 
-  合計  4 ディレクトリ,  13 ファイル
+  Total  4 directories,  13 files
   .txt ×7  .log ×3  .md ×2  .py ×1

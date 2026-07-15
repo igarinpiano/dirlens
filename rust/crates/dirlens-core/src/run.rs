@@ -6,15 +6,17 @@
 use std::sync::Arc;
 
 use crate::analysis::gitlog::load_git_log;
+use crate::analysis::gitstatus::{build_since_set, parse_status_porcelain};
 use crate::analysis::index::build_project_index;
 use crate::args::Args;
-use crate::cfg::Cfg;
-use crate::colors::{c, strip_ansi, BOLD, DIM, GREEN};
+use crate::cfg::{Cfg, Heat};
+use crate::colors::{c, strip_ansi, BOLD, DIM, GREEN, YELLOW};
 use crate::fmt::fmt_size;
+use crate::i18n::{self, Lang};
 use crate::provider::{ClipboardProvider, FsProvider, GitProvider};
 use crate::render_html::generate_html;
 use crate::render_json::render_json;
-use crate::render_text::render_text;
+use crate::render_text::render_text_with_stats;
 use crate::session::Session;
 
 #[derive(Debug, Default)]
@@ -41,14 +43,13 @@ pub fn prepare<F: FsProvider>(
     use_color_hint: bool,
 ) -> Result<Cfg, RunResult> {
     let use_color = use_color_hint && !(args.no_color || args.markdown || args.json);
+    let lang = args.lang.as_deref().and_then(Lang::parse).unwrap_or_default();
 
     let target = match fs.resolve(&args.path) {
         Some(t) => t,
         None => {
             return Err(RunResult {
-                stderr: "エラー: 現在のディレクトリへのアクセス権限がありません。\n\
-                         絶対パスを明示的に指定してください（例: dirlens /path/to/project）。\n"
-                    .to_string(),
+                stderr: format!("{}\n", lang.t().err_cwd_denied),
                 exit_code: 1,
                 ..Default::default()
             })
@@ -57,17 +58,9 @@ pub fn prepare<F: FsProvider>(
 
     let st = fs.stat(&target, true);
     match st {
-        None => {
-            return Err(early_exit(&format!(
-                "エラー: '{}' が見つかりません",
-                args.path
-            )))
-        }
+        None => return Err(early_exit(&i18n::err_not_found(lang, &args.path))),
         Some(st) if st.mode & 0o170000 != 0o040000 => {
-            return Err(early_exit(&format!(
-                "エラー: '{}' はディレクトリではありません",
-                args.path
-            )))
+            return Err(early_exit(&i18n::err_not_dir(lang, &args.path)))
         }
         _ => {}
     }
@@ -78,7 +71,7 @@ pub fn prepare<F: FsProvider>(
         .unwrap_or_else(|| target.to_string_lossy().into_owned());
 
     Cfg::from_args(args, target, root_label, use_color)
-        .map_err(|msg| early_exit(&format!("エラー: {}", msg)))
+        .map_err(|msg| early_exit(&i18n::err_prefix(lang, &msg)))
 }
 
 /// ルート直下のディレクトリ一覧（並列プリフェッチ用・_prefetch_sizes の対象列挙）。
@@ -136,6 +129,65 @@ pub fn execute<F: FsProvider>(
         cfg.gitignore_tier = Some(tier);
     }
 
+    // ── git status / since の読み込み ────────────────────────
+    if cfg.show_status || cfg.since.is_some() {
+        if let Some(out) = git.status_output(&cfg.root) {
+            cfg.status_map = parse_status_porcelain(&out);
+        }
+    }
+    if let Some(r) = cfg.since.clone() {
+        let diff = git.diff_names(&cfg.root, &r);
+        if diff.is_none() {
+            return early_exit(&match cfg.lang {
+                Lang::Ja => format!(
+                    "エラー: --since {} を解決できません（git が無いか、ref が不正です）",
+                    r
+                ),
+                Lang::En => format!(
+                    "error: cannot resolve --since {} (git unavailable or bad ref)",
+                    r
+                ),
+            });
+        }
+        let status = git.status_output(&cfg.root);
+        let (set, marks, deleted) = build_since_set(diff.as_deref(), status.as_deref());
+        cfg.since_set = set;
+        cfg.since_status = marks;
+        cfg.since_deleted = deleted;
+    }
+
+    // ── ツリー以外の出力モード（--compare / --dupes / --top） ──
+    if let Some(other) = cfg.compare.clone() {
+        let other_path = match sess.fs.resolve(&other) {
+            Some(p) => p,
+            None => return early_exit(&i18n::err_not_found(cfg.lang, &other)),
+        };
+        match sess.fs.stat(&other_path, true) {
+            Some(st) if st.mode & 0o170000 == 0o040000 => {}
+            Some(_) => return early_exit(&i18n::err_not_dir(cfg.lang, &other)),
+            None => return early_exit(&i18n::err_not_found(cfg.lang, &other)),
+        }
+        // Tier1（git check-ignore）はルート A 基準のため、比較では内蔵マッチャに統一
+        sess.git_ignored = None;
+        let out = crate::modes::render_compare(sess, cfg, &active_pats, &other_path);
+        return RunResult {
+            stdout: out,
+            ..Default::default()
+        };
+    }
+    if cfg.dupes {
+        return RunResult {
+            stdout: crate::modes::render_dupes(sess, cfg, &active_pats),
+            ..Default::default()
+        };
+    }
+    if let Some(n) = cfg.top {
+        return RunResult {
+            stdout: crate::modes::render_top(sess, cfg, &active_pats, n),
+            ..Default::default()
+        };
+    }
+
     if cfg.show_tests || cfg.show_entry || cfg.show_config || cfg.show_imports {
         let idx = build_project_index(sess, &cfg.root.clone(), cfg, &active_pats);
         cfg.untested_set = idx.untested;
@@ -146,10 +198,182 @@ pub fn execute<F: FsProvider>(
         cfg.external_map = idx.external_map;
         cfg.cycles = idx.cycles;
     }
-    if cfg.show_git {
+    if cfg.show_git || cfg.heat == Some(Heat::Churn) {
         let (map, counts) = load_git_log(git, &cfg.root);
         cfg.git_map = map;
         cfg.git_change_counts = counts;
+    }
+
+    // ── --estimate: 階層別の出力コスト見積もり ─────────────────
+    // 「最低何トークン必要か / 次の階層は何トークンか / 解析注釈込みだと
+    //  何トークンか」を数行で答える。--budget の値を決める材料に使う。
+    if cfg.estimate {
+        let measure = |s: &str| {
+            crate::analysis::text_metrics::count_tokens(s, s.len(), None, false, cfg.tokens_bpe)
+        };
+        let orig_depth = cfg.max_depth;
+        let mut rows: Vec<(String, i64)> = Vec::new();
+
+        // ツリーだけ（解析注釈なし）の最小コスト
+        if cfg.has_extras {
+            let (st, sg, sk, sv, se, so, si, sc, ss) = (
+                cfg.show_tokens, cfg.show_git, cfg.show_todo, cfg.show_tests,
+                cfg.show_entry, cfg.show_outline, cfg.show_imports, cfg.show_config,
+                cfg.show_status,
+            );
+            cfg.show_tokens = false;
+            cfg.show_git = false;
+            cfg.show_todo = false;
+            cfg.show_tests = false;
+            cfg.show_entry = false;
+            cfg.show_outline = false;
+            cfg.show_imports = false;
+            cfg.show_config = false;
+            cfg.show_status = false;
+            cfg.has_extras = false;
+            cfg.max_depth = Some(1);
+            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            rows.push((
+                i18n::tr(cfg.lang, "-L 1, tree only", "-L 1・ツリーのみ").to_string(),
+                measure(&t),
+            ));
+            cfg.show_tokens = st;
+            cfg.show_git = sg;
+            cfg.show_todo = sk;
+            cfg.show_tests = sv;
+            cfg.show_entry = se;
+            cfg.show_outline = so;
+            cfg.show_imports = si;
+            cfg.show_config = sc;
+            cfg.show_status = ss;
+            cfg.has_extras = true;
+        }
+
+        // 現在のフラグでの階層別コスト
+        for d in [1i64, 2, 3] {
+            if let Some(orig) = orig_depth {
+                if d >= orig {
+                    break;
+                }
+            }
+            cfg.max_depth = Some(d);
+            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            rows.push((format!("-L {}", d), measure(&t)));
+        }
+        cfg.max_depth = orig_depth;
+        let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+        rows.push((
+            match orig_depth {
+                Some(d) => format!("-L {} ({})", d, i18n::tr(cfg.lang, "current", "現在")),
+                None => i18n::tr(cfg.lang, "full depth", "全階層").to_string(),
+            },
+            measure(&t),
+        ));
+
+        let mut out = String::new();
+        out.push_str(i18n::tr(
+            cfg.lang,
+            "Estimated output tokens for the current flags (BPE o200k):\n",
+            "現在のフラグでの出力トークン見積もり（BPE o200k）:\n",
+        ));
+        let label_w = rows.iter().map(|(l, _)| l.chars().count()).max().unwrap_or(0);
+        for (label, toks) in &rows {
+            out.push_str(&format!(
+                "  {:<w$}  {}\n",
+                label,
+                crate::fmt::fmt_tokens(*toks),
+                w = label_w
+            ));
+        }
+        out.push_str(i18n::tr(
+            cfg.lang,
+            "Use --budget N to fit the output automatically.\n",
+            "--budget N を付けると出力を自動で予算内に調整できます。\n",
+        ));
+        return RunResult {
+            stdout: out,
+            ..Default::default()
+        };
+    }
+
+    // ── ファイル単位レポート系モード ──────────────────────────
+    if let Some(files) = cfg.stdin_files.clone() {
+        let (text, json_val) = crate::report::render_stdin_report(sess, cfg, &files);
+        let stdout = match json_val {
+            Some(v) => {
+                let mut s = serde_json::to_string_pretty(&v).unwrap_or_default();
+                s.push('\n');
+                s
+            }
+            None => text,
+        };
+        return RunResult {
+            stdout,
+            ..Default::default()
+        };
+    }
+    if let Some(focus) = cfg.focus.clone() {
+        let (text, json_val, ok) = crate::report::render_focus(sess, cfg, &focus);
+        if !ok {
+            return early_exit(&text);
+        }
+        let stdout = match json_val {
+            Some(v) => {
+                let mut s = serde_json::to_string_pretty(&v).unwrap_or_default();
+                s.push('\n');
+                s
+            }
+            None => text,
+        };
+        return RunResult {
+            stdout,
+            ..Default::default()
+        };
+    }
+    if !cfg.pack.is_empty() {
+        let files = cfg.pack.clone();
+        let out = crate::report::render_pack(sess, cfg, &files);
+        let mut result = RunResult {
+            stdout: out,
+            ..Default::default()
+        };
+        if cfg.copy {
+            let ok = clip.copy(&strip_ansi(&result.stdout));
+            let msg = if ok {
+                c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
+            } else {
+                c(cfg.lang.t().copy_fail, &[BOLD, DIM], cfg.use_color)
+            };
+            result.stderr = format!("{}\n", msg);
+        }
+        return result;
+    }
+    if cfg.export_mermaid {
+        return RunResult {
+            stdout: crate::report::render_mermaid(cfg),
+            ..Default::default()
+        };
+    }
+    if cfg.export_dot {
+        return RunResult {
+            stdout: crate::report::render_dot(cfg),
+            ..Default::default()
+        };
+    }
+    if cfg.export_csv {
+        return RunResult {
+            stdout: crate::report::render_csv(sess, cfg, &active_pats),
+            ..Default::default()
+        };
+    }
+    if let Some(r) = cfg.api_diff.clone() {
+        return match crate::report::render_api_diff(sess, cfg, git, &active_pats, &r) {
+            Ok(out) => RunResult {
+                stdout: out,
+                ..Default::default()
+            },
+            Err(msg) => early_exit(&msg),
+        };
     }
 
     // ── JSON ─────────────────────────────────────────────────
@@ -169,9 +393,8 @@ pub fn execute<F: FsProvider>(
         let size = content.len() as u64;
         return RunResult {
             stdout: format!(
-                "✓ {} を生成しました ({})\n",
-                html_path,
-                fmt_size(size, false)
+                "{}\n",
+                i18n::html_generated(cfg.lang, &html_path, &fmt_size(size, false))
             ),
             html_file: Some((html_path, content)),
             ..Default::default()
@@ -179,23 +402,193 @@ pub fn execute<F: FsProvider>(
     }
 
     // ── テキスト出力 ─────────────────────────────────────────
-    let text = render_text(sess, cfg, &active_pats);
+    let (mut text, mut stats) = render_text_with_stats(sess, cfg, &active_pats);
+
+    // --budget N: 出力トークンが予算内に収まるまで深さ→アウトラインの順で削る。
+    // 自前の BPE でレンダリング結果そのものを測れるのが dirlens の強み。
+    if let Some(budget) = cfg.budget {
+        let measure = |s: &str| {
+            crate::analysis::text_metrics::count_tokens(s, s.len(), None, false, cfg.tokens_bpe)
+        };
+        let mut used = measure(&text);
+        if used > budget {
+            let start_depth = cfg.max_depth.unwrap_or(i64::MAX);
+            for d in [6i64, 5, 4, 3, 2, 1] {
+                if d >= start_depth {
+                    continue;
+                }
+                cfg.max_depth = Some(d);
+                let (t, s) = render_text_with_stats(sess, cfg, &active_pats);
+                text = t;
+                stats = s;
+                used = measure(&text);
+                if used <= budget {
+                    break;
+                }
+            }
+            if used > budget && cfg.show_outline {
+                cfg.show_outline = false;
+                let (t, s) = render_text_with_stats(sess, cfg, &active_pats);
+                text = t;
+                stats = s;
+                used = measure(&text);
+            }
+            // それでも超過するなら解析注釈（TODO・import・git・トークン）を落とし、
+            // ツリーの骨格とサマリだけ残す
+            if used > budget
+                && (cfg.show_todo || cfg.show_imports || cfg.show_git || cfg.show_tokens)
+            {
+                cfg.show_todo = false;
+                cfg.show_imports = false;
+                cfg.show_git = false;
+                cfg.show_tokens = false;
+                cfg.has_extras = cfg.show_tests || cfg.show_entry || cfg.show_config;
+                let (t, s) = render_text_with_stats(sess, cfg, &active_pats);
+                text = t;
+                stats = s;
+                used = measure(&text);
+            }
+        }
+
+        // 最終段: はしごを使い切っても超過するなら、ツリー行そのものを
+        // 予算内に収まるまで末尾から間引く（サマリ部は残す）。
+        // 「この階層を全て表示するには何トークン必要か」を案内する。
+        let mut level_full_cost: Option<i64> = None;
+        if used > budget {
+            level_full_cost = Some(used);
+            // ツリー部（先頭〜最初の空行）とサマリ部（空行以降）に分ける
+            let lines: Vec<&str> = text.split('\n').collect();
+            let split_at = lines
+                .iter()
+                .position(|l| l.is_empty())
+                .unwrap_or(lines.len());
+            let mut tree: Vec<String> =
+                lines[..split_at].iter().map(|s| s.to_string()).collect();
+            let tail: Vec<String> = lines[split_at..].iter().map(|s| s.to_string()).collect();
+            let tail_str = tail.join("\n");
+            let omitted_marker = |n: usize| match cfg.lang {
+                Lang::Ja => format!("└── … 他 {} エントリ（--budget により省略）", n),
+                Lang::En => format!("└── … {} more entries (omitted by --budget)", n),
+            };
+            let all_tree: Vec<String> = tree.clone();
+            let mut omitted = 0usize;
+            // ルート行（先頭1行）は必ず残す。1行ずつではなく残超過量に応じて間引く
+            while tree.len() > 1 {
+                let candidate = format!(
+                    "{}\n{}\n{}",
+                    tree.join("\n"),
+                    omitted_marker(omitted.max(1)),
+                    tail_str
+                );
+                used = measure(&candidate);
+                if used <= budget {
+                    break;
+                }
+                // 平均トークン/行から間引き行数を見積もる（最低1行）
+                let over = (used - budget).max(1) as usize;
+                let per_line = (used as usize / candidate.lines().count().max(1)).max(1);
+                let drop = (over / per_line).clamp(1, tree.len() - 1);
+                tree.truncate(tree.len() - drop);
+                omitted += drop;
+            }
+            // 見積もりで削りすぎた分を、予算に収まる範囲で1行ずつ戻す
+            let mut back_steps = 0;
+            while omitted > 0 && back_steps < 64 {
+                let candidate = format!(
+                    "{}\n{}\n{}\n{}",
+                    tree.join("\n"),
+                    all_tree[tree.len()],
+                    omitted_marker(omitted - 1),
+                    tail_str
+                );
+                if measure(&candidate) > budget {
+                    break;
+                }
+                tree.push(all_tree[tree.len()].clone());
+                omitted -= 1;
+                back_steps += 1;
+            }
+            if omitted > 0 {
+                text = format!(
+                    "{}\n{}\n{}",
+                    tree.join("\n"),
+                    omitted_marker(omitted),
+                    tail_str
+                );
+                used = measure(&text);
+            }
+        }
+
+        let depth_note = match cfg.max_depth {
+            Some(d) => format!(", depth={}", d),
+            None => String::new(),
+        };
+        let full_note = match (level_full_cost, cfg.lang) {
+            (Some(f), Lang::Ja) => {
+                format!("。この階層を全て表示するには ~{} tok 必要", f)
+            }
+            (Some(f), Lang::En) => {
+                format!("; showing this level fully needs ~{} tok", f)
+            }
+            (None, _) => String::new(),
+        };
+        text.push_str(&format!(
+            "{}\n",
+            c(
+                &match cfg.lang {
+                    Lang::Ja => format!(
+                        "  (--budget {} に調整: ~{} tok{}{})",
+                        budget, used, depth_note, full_note
+                    ),
+                    Lang::En => format!(
+                        "  (fitted to --budget {}: ~{} tok{}{})",
+                        budget, used, depth_note, full_note
+                    ),
+                },
+                &[DIM],
+                cfg.use_color
+            )
+        ));
+    }
+
     let mut result = RunResult {
         stdout: text,
         ..Default::default()
     };
+
+    // 機密の可能性があるファイルの警告（--ai / -C でクリップボードへ送る時のみ）。
+    // compat モード（Python 版とのバイト一致検証）では出さない。
+    if cfg.copy && !cfg.suppress_notes && !stats.sensitive.is_empty() {
+        let shown: Vec<&str> = stats.sensitive.iter().take(5).map(|s| s.as_str()).collect();
+        let more = stats.sensitive.len().saturating_sub(shown.len());
+        let list = if more > 0 {
+            format!("{} (+{})", shown.join(", "), more)
+        } else {
+            shown.join(", ")
+        };
+        let warn = match cfg.lang {
+            Lang::Ja => format!(
+                "⚠ コピーした出力に機密の可能性があるファイル名が含まれています: {}",
+                list
+            ),
+            Lang::En => format!(
+                "⚠ copied output includes potentially sensitive files: {}",
+                list
+            ),
+        };
+        result
+            .stderr
+            .push_str(&format!("{}\n", c(&warn, &[BOLD, YELLOW], cfg.use_color)));
+    }
+
     if cfg.copy {
         let ok = clip.copy(&strip_ansi(&result.stdout));
         let msg = if ok {
-            c("✓ クリップボードにコピーしました", &[BOLD, GREEN], cfg.use_color)
+            c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
         } else {
-            c(
-                "✗ コピー失敗 (pbcopy / xclip / wl-copy が必要)",
-                &[BOLD, DIM],
-                cfg.use_color,
-            )
+            c(cfg.lang.t().copy_fail, &[BOLD, DIM], cfg.use_color)
         };
-        result.stderr = format!("{}\n", msg);
+        result.stderr.push_str(&format!("{}\n", msg));
     }
     result
 }

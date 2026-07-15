@@ -365,5 +365,62 @@
     "hotspots": null,
     "circular_dependencies": null,
     "reading_order_candidates": null
-  }
+  },
+  "language_breakdown": [
+    {
+      "ext": ".py",
+      "files": 7,
+      "lines": 53,
+      "tokens": 259
+    },
+    {
+      "ext": ".md",
+      "files": 1,
+      "lines": 15,
+      "tokens": 245
+    },
+    {
+      "ext": ".ts",
+      "files": 4,
+      "lines": 26,
+      "tokens": 124
+    },
+    {
+      "ext": ".js",
+      "files": 3,
+      "lines": 21,
+      "tokens": 99
+    },
+    {
+      "ext": ".go",
+      "files": 2,
+      "lines": 31,
+      "tokens": 78
+    },
+    {
+      "ext": ".json",
+      "files": 2,
+      "lines": 11,
+      "tokens": 58
+    },
+    {
+      "ext": "(no ext)",
+      "files": 2,
+      "lines": 4,
+      "tokens": 17
+    },
+    {
+      "ext": ".toml",
+      "files": 1,
+      "lines": 3,
+      "tokens": 17
+    },
+    {
+      "ext": ".mod",
+      "files": 1,
+      "lines": 3,
+      "tokens": 11
+    }
+  ],
+  "errors": []
 }

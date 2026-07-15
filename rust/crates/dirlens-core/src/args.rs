@@ -42,6 +42,9 @@ pub struct Args {
     pub ai: bool,
     pub agent: bool,
     pub check: bool,   // --check（能力レポート）
+    /// 出力言語（"en" / "ja"）。None なら英語（デフォルト）。
+    /// CLI 側で --lang / 設定ファイル / DIRLENS_LANG を解決して入れる。
+    pub lang: Option<String>,
 
     // AI/エージェント解析
     pub tokens: bool,   // -T
@@ -53,6 +56,23 @@ pub struct Args {
     pub imports: bool,  // -M
     pub api: bool,      // -A
     pub config: bool,   // -F
+
+    // 表示モード・注釈（v1.2 拡張）
+    pub top: Option<usize>,         // --top N（大きいファイル/ディレクトリの一覧）
+    pub dupes: bool,                // --dupes（重複ファイル検出）
+    pub compare: Option<String>,    // --compare DIR（ディレクトリ比較）
+    pub status: bool,               // --status（git status オーバーレイ）
+    pub heat: Option<String>,       // --heat age|size|churn
+    pub since: Option<String>,      // --since REF（変更ファイルのみ表示）
+    pub focus: Option<String>,      // --focus FILE（影響範囲クエリ・-M を暗黙有効化）
+    pub stdin_files: Option<Vec<String>>, // --stdin（CLI が読み取ったファイルリスト）
+    pub budget: Option<i64>,        // --budget N（出力トークン予算）
+    pub estimate: bool,             // --estimate（階層別の出力コスト見積もり）
+    pub api_diff: Option<String>,   // --api-diff REF（公開APIの差分）
+    pub pack: Vec<String>,          // --pack FILE...（貼り付け用ブロック整形）
+    pub mermaid: bool,              // --mermaid（import グラフを Mermaid で出力）
+    pub dot: bool,                  // --dot（import グラフを Graphviz DOT で出力）
+    pub csv: bool,                  // --csv（ファイルメタデータを CSV で出力）
 }
 
 impl Args {
@@ -64,6 +84,9 @@ impl Args {
             self.date = true;
             self.markdown = true;
             self.copy = true;
+            // 作業中のファイルが分かるよう git status マークも重ねる
+            // （compat モードでは CLI 側で無効化される）
+            self.status = true;
         }
         if self.agent {
             self.gitignore = true;
@@ -76,10 +99,21 @@ impl Args {
             self.outline = true;
             self.imports = true;
             self.config = true;
+            self.status = true;
             self.no_color = true;
         }
         if self.api {
             self.outline = true;
+        }
+        // --focus / --mermaid / --dot は import グラフが前提
+        if self.focus.is_some() || self.mermaid || self.dot {
+            self.imports = true;
+        }
+        // --stdin はファイル単位の解析が本体（トークン・アウトライン・TODO）
+        if self.stdin_files.is_some() {
+            self.tokens = true;
+            self.outline = true;
+            self.todo = true;
         }
     }
 }

@@ -30,14 +30,14 @@ pub fn capabilities_json(cfg: &Cfg, probe: &EnvProbe) -> Value {
     outline.insert("js_ts".into(), json!(lang_method(CAPABILITIES.js_ts, e)));
     outline.insert("rust".into(), json!(lang_method(CAPABILITIES.rust, e)));
     outline.insert("go".into(), json!(lang_method(CAPABILITIES.go, e)));
-    outline.insert(
-        "c".into(),
-        if CAPABILITIES.c && e {
-            json!("ast")
-        } else {
-            json!("unsupported")
-        },
-    );
+    let ast_or_unsupported = |on: bool| if on && e { json!("ast") } else { json!("unsupported") };
+    outline.insert("c".into(), ast_or_unsupported(CAPABILITIES.c));
+    outline.insert("java".into(), ast_or_unsupported(CAPABILITIES.java));
+    outline.insert("ruby".into(), ast_or_unsupported(CAPABILITIES.ruby));
+    outline.insert("php".into(), ast_or_unsupported(CAPABILITIES.php));
+    outline.insert("csharp".into(), ast_or_unsupported(CAPABILITIES.csharp));
+    outline.insert("kotlin".into(), ast_or_unsupported(CAPABILITIES.kotlin));
+    outline.insert("swift".into(), ast_or_unsupported(CAPABILITIES.swift));
     outline.insert("fallback".into(), json!("regex"));
 
     let mut resolution = vec!["relative"];
@@ -77,10 +77,11 @@ pub fn tokens_mode(cfg: &Cfg) -> &'static str {
 /// --agent テキスト末尾の精度注記（1〜2 行）。
 pub fn agent_note(cfg: &Cfg) -> String {
     let e = cfg.enhanced_analysis;
+    let t = cfg.lang.t();
     let gitignore = match cfg.gitignore_tier {
-        Some("git") => "git check-ignore(厳密)",
-        Some(_) => "内蔵マッチャ(fnmatch近似)",
-        None => "未使用",
+        Some("git") => t.note_gitignore_git,
+        Some(_) => t.note_gitignore_builtin,
+        None => t.note_gitignore_unused,
     };
     let mut ast_langs: Vec<&str> = Vec::new();
     if e {
@@ -99,51 +100,75 @@ pub fn agent_note(cfg: &Cfg) -> String {
         if CAPABILITIES.c {
             ast_langs.push("c");
         }
+        if CAPABILITIES.java {
+            ast_langs.push("java");
+        }
+        if CAPABILITIES.ruby {
+            ast_langs.push("rb");
+        }
+        if CAPABILITIES.php {
+            ast_langs.push("php");
+        }
+        if CAPABILITIES.csharp {
+            ast_langs.push("cs");
+        }
+        if CAPABILITIES.kotlin {
+            ast_langs.push("kt");
+        }
+        if CAPABILITIES.swift {
+            ast_langs.push("swift");
+        }
     }
     let outline = if ast_langs.is_empty() {
-        "正規表現のみ".to_string()
+        t.note_outline_regex_only.to_string()
     } else {
-        format!("AST:{}(他は正規表現)", ast_langs.join(","))
+        match cfg.lang {
+            crate::i18n::Lang::Ja => format!("AST:{}(他は正規表現)", ast_langs.join(",")),
+            crate::i18n::Lang::En => format!("AST:{} (regex otherwise)", ast_langs.join(",")),
+        }
     };
-    let imports = if e {
-        "AST+マニフェスト解決"
-    } else {
-        "正規表現+相対パス解決"
-    };
+    let imports = if e { t.note_imports_ast } else { t.note_imports_regex };
     let tokens = if tokens_mode(cfg) == "bpe-o200k_base" {
-        "BPE(o200k)"
+        t.note_tokens_bpe
     } else {
-        "文字数概算"
+        t.note_tokens_char
     };
-    format!(
-        "  解析方式: gitignore={} / outline={} / imports={} / tokens={}",
-        gitignore, outline, imports, tokens
-    )
+    match cfg.lang {
+        crate::i18n::Lang::Ja => format!(
+            "  解析方式: gitignore={} / outline={} / imports={} / tokens={}",
+            gitignore, outline, imports, tokens
+        ),
+        crate::i18n::Lang::En => format!(
+            "  Analysis methods: gitignore={} / outline={} / imports={} / tokens={}",
+            gitignore, outline, imports, tokens
+        ),
+    }
 }
 
 /// --check の出力を組み立てる。戻り値: (stdout, exit_code)
 pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32) {
     let e = cfg.enhanced_analysis;
+    let t = cfg.lang.t();
     let mut degraded: Vec<String> = Vec::new();
     if !probe.git_available {
-        degraded.push("git が見つからない（-H 不可・gitignore は内蔵マッチャ）".into());
+        degraded.push(t.deg_no_git.into());
     } else if !probe.is_work_tree {
-        degraded.push("対象が git work tree ではない（gitignore は内蔵マッチャ）".into());
+        degraded.push(t.deg_not_worktree.into());
     }
     if !e {
-        degraded.push("AST 解析が無効（正規表現のみ）".into());
+        degraded.push(t.deg_no_ast.into());
     }
     if !CAPABILITIES.go {
-        degraded.push("tree-sitter-go 未同梱（Go は正規表現）".into());
+        degraded.push(t.deg_no_ts_go.into());
     }
     if !CAPABILITIES.c {
-        degraded.push("tree-sitter-c 未同梱（C は未対応）".into());
+        degraded.push(t.deg_no_ts_c.into());
     }
     if !probe.clipboard {
-        degraded.push("クリップボードツールが見つからない（-C 不可）".into());
+        degraded.push(t.deg_no_clipboard.into());
     }
     if tokens_mode(cfg) != "bpe-o200k_base" {
-        degraded.push("BPE トークナイザ未使用（-T は文字数概算）".into());
+        degraded.push(t.deg_no_bpe.into());
     }
     let exit = if degraded.is_empty() { 0 } else { 1 };
 
@@ -159,53 +184,66 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
     }
 
     let onoff = |b: bool| if b { "✓" } else { "✗" };
+    let is_ja = cfg.lang == crate::i18n::Lang::Ja;
     let mut out = String::new();
-    out.push_str("dirlens 能力レポート\n");
+    out.push_str(t.check_title);
+    out.push('\n');
     out.push_str(&format!(
         "  gitignore (-G): {}\n",
         if probe.git_available && probe.is_work_tree {
-            "git check-ignore（厳密・ネスト/否定/グローバル除外に完全対応）"
+            t.check_gitignore_git
         } else {
-            "内蔵マッチャ（fnmatch 近似・基本パターンのみ）"
+            t.check_gitignore_builtin
         }
     ));
     out.push_str(&format!(
-        "  git 履歴 (-H): {} git\n",
+        "  {} (-H): {} git\n",
+        if is_ja { "git 履歴" } else { "git history" },
         onoff(probe.git_available)
     ));
-    out.push_str("  アウトライン (-O/-A):\n");
+    out.push_str(t.check_outline_label);
+    out.push('\n');
     out.push_str(&format!(
         "    Python: {} / JS・TS: {} / Rust: {} / Go: {} / C: {}\n",
         lang_method(CAPABILITIES.python, e),
         lang_method(CAPABILITIES.js_ts, e),
         lang_method(CAPABILITIES.rust, e),
         lang_method(CAPABILITIES.go, e),
-        if CAPABILITIES.c && e { "ast" } else { "未対応" },
+        if CAPABILITIES.c && e { "ast" } else { t.check_unsupported },
+    ));
+    let aou = |on: bool| if on && e { "ast" } else { t.check_unsupported };
+    out.push_str(&format!(
+        "    Java: {} / Ruby: {} / PHP: {} / C#: {} / Kotlin: {} / Swift: {}\n",
+        aou(CAPABILITIES.java),
+        aou(CAPABILITIES.ruby),
+        aou(CAPABILITIES.php),
+        aou(CAPABILITIES.csharp),
+        aou(CAPABILITIES.kotlin),
+        aou(CAPABILITIES.swift),
     ));
     out.push_str(&format!(
-        "  import 解決 (-M): {}\n",
-        if e {
-            "AST + マニフェスト（tsconfig paths / package.json imports / go.mod / Rust モジュールツリー）"
-        } else {
-            "正規表現 + 相対パス解決"
-        }
+        "  {} (-M): {}\n",
+        if is_ja { "import 解決" } else { "import resolution" },
+        if e { t.check_imports_ast } else { t.check_imports_regex }
     ));
     out.push_str(&format!(
-        "  トークン計数 (-T): {}\n",
+        "  {} (-T): {}\n",
+        if is_ja { "トークン計数" } else { "token counting" },
         if tokens_mode(cfg) == "bpe-o200k_base" {
-            "BPE（o200k_base）による正確値（5MB 超は比例概算）"
+            t.check_tokens_bpe
         } else {
-            "文字数ベースの概算"
+            t.check_tokens_heuristic
         }
     ));
     out.push_str(&format!(
-        "  クリップボード (-C): {}\n",
+        "  {} (-C): {}\n",
+        if is_ja { "クリップボード" } else { "clipboard" },
         onoff(probe.clipboard)
     ));
     if degraded.is_empty() {
-        out.push_str("\nすべての機能が最良の方式で動作します。\n");
+        out.push_str(t.check_all_best);
     } else {
-        out.push_str("\n縮退している項目:\n");
+        out.push_str(t.check_degraded_header);
         for d in &degraded {
             out.push_str(&format!("  - {}\n", d));
         }

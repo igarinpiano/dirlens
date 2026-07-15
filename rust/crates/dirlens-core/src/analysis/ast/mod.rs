@@ -13,7 +13,11 @@ pub mod python;
 #[cfg(feature = "ast-rust")]
 pub mod rustlang;
 
-#[cfg(any(feature = "lang-go", feature = "lang-c"))]
+#[cfg(any(
+    feature = "lang-go", feature = "lang-c", feature = "lang-java",
+    feature = "lang-ruby", feature = "lang-php", feature = "lang-csharp",
+    feature = "lang-kotlin", feature = "lang-swift"
+))]
 pub mod treesitter;
 
 use crate::fmt::OutlineItem;
@@ -26,6 +30,12 @@ pub struct AstCapabilities {
     pub rust: bool,
     pub go: bool,
     pub c: bool,
+    pub java: bool,
+    pub ruby: bool,
+    pub php: bool,
+    pub csharp: bool,
+    pub kotlin: bool,
+    pub swift: bool,
 }
 
 pub const CAPABILITIES: AstCapabilities = AstCapabilities {
@@ -34,10 +44,17 @@ pub const CAPABILITIES: AstCapabilities = AstCapabilities {
     rust: cfg!(feature = "ast-rust"),
     go: cfg!(feature = "lang-go"),
     c: cfg!(feature = "lang-c"),
+    java: cfg!(feature = "lang-java"),
+    ruby: cfg!(feature = "lang-ruby"),
+    php: cfg!(feature = "lang-php"),
+    csharp: cfg!(feature = "lang-csharp"),
+    kotlin: cfg!(feature = "lang-kotlin"),
+    swift: cfg!(feature = "lang-swift"),
 };
 
 /// AST によるアウトライン抽出。None → 正規表現へ縮退。
 pub fn ast_outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
+    let _ = text; // 全 feature 無効ビルド（wasm 等）での未使用警告を抑止
     match ext {
         #[cfg(feature = "ast-python")]
         ".py" => python::outline(text),
@@ -49,6 +66,18 @@ pub fn ast_outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
         ".go" => treesitter::outline_go(text),
         #[cfg(feature = "lang-c")]
         ".c" | ".h" => treesitter::outline_c(text),
+        #[cfg(feature = "lang-java")]
+        ".java" => treesitter::outline_java(text),
+        #[cfg(feature = "lang-ruby")]
+        ".rb" => treesitter::outline_ruby(text),
+        #[cfg(feature = "lang-php")]
+        ".php" => treesitter::outline_php(text),
+        #[cfg(feature = "lang-csharp")]
+        ".cs" => treesitter::outline_csharp(text),
+        #[cfg(feature = "lang-kotlin")]
+        ".kt" | ".kts" => treesitter::outline_kotlin(text),
+        #[cfg(feature = "lang-swift")]
+        ".swift" => treesitter::outline_swift(text),
         _ => None,
     }
 }

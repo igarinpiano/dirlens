@@ -237,5 +237,6 @@
     ],
     "circular_dependencies": null,
     "reading_order_candidates": null
-  }
+  },
+  "errors": []
 }

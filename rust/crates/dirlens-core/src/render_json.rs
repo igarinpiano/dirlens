@@ -19,6 +19,10 @@ pub struct JsonStats {
     pub tokens: i64,
     pub todo_total: u64,
     pub todo_samples: Vec<(String, usize, String, String)>,
+    /// 拡張子 → (ファイル数, 行数, トークン数)。-T 時のみ集計（非 compat の出力用）。
+    pub lang_stats: indexmap::IndexMap<String, (u64, i64, i64)>,
+    /// 長大関数の候補（行数, "rel:name"）。-O 時のみ集計。
+    pub long_funcs: Vec<(u32, String)>,
 }
 
 fn build_json_tree<F: FsProvider>(
@@ -76,7 +80,23 @@ fn build_json_tree<F: FsProvider>(
                     obj.insert("lines".into(), json!(extras.lines));
                     if let Some(t) = extras.tokens {
                         stats.tokens += t;
+                        let (_, ext_raw2) = splitext(&entry.name);
+                        let ext2 = ext_raw2.to_lowercase();
+                        let key = if ext2.is_empty() { "(no ext)".to_string() } else { ext2 };
+                        let agg = stats.lang_stats.entry(key).or_insert((0, 0, 0));
+                        agg.0 += 1;
+                        agg.1 += extras.lines.unwrap_or(0);
+                        agg.2 += t;
                     }
+                }
+                if cfg.show_status {
+                    obj.insert(
+                        "git_status".into(),
+                        cfg.status_map
+                            .get(&rel)
+                            .map(|xy| json!(xy.trim()))
+                            .unwrap_or(Value::Null),
+                    );
                 }
                 if cfg.show_git {
                     let g = extras.git.as_ref().map(|g| {
@@ -124,16 +144,41 @@ fn build_json_tree<F: FsProvider>(
                     obj.insert("is_config".into(), json!(extras.is_config));
                 }
                 if cfg.show_outline {
+                    if let Some(items) = &extras.outline {
+                        for it in items {
+                            if let Some((a, b)) = it.span {
+                                if it.kind != "class" && it.kind != "struct" && b > a {
+                                    stats
+                                        .long_funcs
+                                        .push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                }
+                            }
+                        }
+                        if stats.long_funcs.len() > 512 {
+                            stats.long_funcs.sort_by(|x, y| y.0.cmp(&x.0));
+                            stats.long_funcs.truncate(16);
+                        }
+                    }
                     let v = match &extras.outline {
                         None => Value::Null,
                         Some(items) => Value::Array(
                             items
                                 .iter()
-                                .map(|(k, nm, p)| {
+                                .map(|it| {
                                     let mut m = Map::new();
-                                    m.insert("kind".into(), json!(k));
-                                    m.insert("name".into(), json!(nm));
-                                    m.insert("public".into(), json!(p));
+                                    m.insert("kind".into(), json!(it.kind));
+                                    m.insert("name".into(), json!(it.name));
+                                    m.insert("public".into(), json!(it.public));
+                                    // doc / lines は Python 版に無いフィールドのため
+                                    // compat モードでは出さない（バイト一致維持）
+                                    if !cfg.suppress_notes {
+                                        if let Some(doc) = &it.doc {
+                                            m.insert("doc".into(), json!(doc));
+                                        }
+                                        if let Some((a, b)) = it.span {
+                                            m.insert("lines".into(), json!([a, b]));
+                                        }
+                                    }
                                     Value::Object(m)
                                 })
                                 .collect(),
@@ -299,6 +344,51 @@ pub fn render_json<F: FsProvider>(
             for (k, v) in map {
                 wrapped.insert(k, v);
             }
+            // 言語別統計・長大関数（Python 版に無い追加集計。compat では出さない）
+            if cfg.show_tokens && !stats.lang_stats.is_empty() {
+                let mut items: Vec<(&String, &(u64, i64, i64))> =
+                    stats.lang_stats.iter().collect();
+                items.sort_by(|a, b| b.1 .2.cmp(&a.1 .2));
+                wrapped.insert(
+                    "language_breakdown".into(),
+                    Value::Array(
+                        items
+                            .into_iter()
+                            .map(|(ext, (files, lines, tokens))| {
+                                json!({"ext": ext, "files": files, "lines": lines, "tokens": tokens})
+                            })
+                            .collect(),
+                    ),
+                );
+            }
+            if cfg.show_outline && !stats.long_funcs.is_empty() {
+                let mut lf = stats.long_funcs.clone();
+                lf.sort_by(|x, y| y.0.cmp(&x.0).then_with(|| x.1.cmp(&y.1)));
+                wrapped.insert(
+                    "longest_functions".into(),
+                    Value::Array(
+                        lf.iter()
+                            .take(10)
+                            .map(|(n, name)| json!({"lines": n, "symbol": name}))
+                            .collect(),
+                    ),
+                );
+            }
+            // 構造化エラー: 部分的に取得できなかった情報を機械可読で示す
+            let mut errors: Vec<Value> = Vec::new();
+            if cfg.show_git && cfg.git_map.is_empty() {
+                errors.push(json!({
+                    "code": "git_log_unavailable",
+                    "message": "commit info unavailable (not a git repository, or git not installed)"
+                }));
+            }
+            if cfg.use_gitignore && cfg.gitignore_tier == Some("builtin") {
+                errors.push(json!({
+                    "code": "gitignore_degraded",
+                    "message": "gitignore uses the builtin matcher (git check-ignore unavailable)"
+                }));
+            }
+            wrapped.insert("errors".into(), Value::Array(errors));
             if cfg.agent {
                 wrapped.insert(
                     "capabilities".into(),

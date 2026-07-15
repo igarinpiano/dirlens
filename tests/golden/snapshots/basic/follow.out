@@ -13,7 +13,7 @@ basic/ (4 dirs, 9 files, 305.56 KB)
 ├── loop/ (1 dir, 0 files, 8 bytes)
 │   └── inner/ (1 dir, 1 file, 8 bytes)
 │       ├── back → ../../loop/ (1 dir, 0 files, 8 bytes)
-│       │   └── [循環リンク]
+│       │   └── [cyclic link]
 │       └── file.txt (8 bytes)
 ├── sub/ (1 dir, 1 file, 627 bytes)
 │   ├── grandchild/ (1 dir, 1 file, 395 bytes)
@@ -31,5 +31,5 @@ basic/ (4 dirs, 9 files, 305.56 KB)
 ├── single.b (1 byte)
 └── Zeta.txt (1.5 KB)
 
-  合計  11 ディレクトリ,  19 ファイル
+  Total  11 directories,  19 files
   .txt ×8  .md ×4  .py ×2  (no ext) ×2  .log ×1  .bin ×1  .b ×1

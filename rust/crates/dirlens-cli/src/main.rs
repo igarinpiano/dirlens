@@ -4,16 +4,50 @@
 // Licensed under the Apache License, Version 2.0.
 // See the LICENSE file or http://www.apache.org/licenses/LICENSE-2.0
 
+mod cache;
+mod config;
+mod mcp;
 mod providers;
+mod spinner;
+mod tui;
 
 use std::io::{IsTerminal, Write};
 
 use clap::{Arg, ArgAction, Command};
-use dirlens_core::{execute, prefetch_targets, prepare, Args, Session};
+use dirlens_core::{execute, prefetch_targets, prepare, Args, Lang, Session};
 
 use providers::{StdClipboard, StdFs, StdGit};
 
-fn build_command() -> Command {
+/// ヘルプ言語を argv / 環境変数から先読みする（clap パース前に必要なため）。
+/// 優先順: DIRLENS_COMPAT=python（ja 固定）> --lang > DIRLENS_LANG > 英語。
+fn detect_lang() -> Lang {
+    if std::env::var("DIRLENS_COMPAT").as_deref() == Ok("python") {
+        return Lang::Ja;
+    }
+    let argv: Vec<String> = std::env::args().collect();
+    for (i, a) in argv.iter().enumerate() {
+        if a == "--lang" {
+            if let Some(l) = argv.get(i + 1).and_then(|v| Lang::parse(v)) {
+                return l;
+            }
+        } else if let Some(v) = a.strip_prefix("--lang=") {
+            if let Some(l) = Lang::parse(v) {
+                return l;
+            }
+        }
+    }
+    if let Ok(v) = std::env::var("DIRLENS_LANG") {
+        if let Some(l) = Lang::parse(&v) {
+            return l;
+        }
+    }
+    Lang::En
+}
+
+fn build_command(lang: Lang) -> Command {
+    let ja = lang == Lang::Ja;
+    // ヘルプ文字列の言語選択（en がデフォルト）
+    let h = move |en: &'static str, ja_s: &'static str| if ja { ja_s } else { en };
     let flag = |short: char, long: Option<&'static str>, id: &'static str, help: &'static str| {
         let mut a = Arg::new(id).short(short).action(ArgAction::SetTrue).help(help);
         if let Some(l) = long {
@@ -22,11 +56,28 @@ fn build_command() -> Command {
         a
     };
     Command::new("dirlens")
-        .about("ファイルサイズ付きのディレクトリツリーを表示します")
+        .about(h(
+            "Display a directory tree with file sizes and code analysis",
+            "ファイルサイズ付きのディレクトリツリーを表示します",
+        ))
         .version(env!("CARGO_PKG_VERSION"))
         // -V は --missing-tests が使うため、バージョンは --version のみ（下で定義）
         .disable_version_flag(true)
-        .after_help(
+        .after_help(h(
+            "Examples:\n\
+             \x20 dirlens --ai             for pasting into an AI chat (human copy-paste)\n\
+             \x20 dirlens --agent          agent-oriented analysis (no color, no clipboard)\n\
+             \x20 dirlens -d               directories only (tree -d compatible)\n\
+             \x20 dirlens -L 2             limit depth to 2 (tree -L compatible)\n\
+             \x20 dirlens -G --prune       apply .gitignore + prune empty branches\n\
+             \x20 dirlens -T               per-file token counts\n\
+             \x20 dirlens -H               last commit info (requires git)\n\
+             \x20 dirlens -K               extract TODO/FIXME/HACK comments\n\
+             \x20 dirlens -V               source files without tests\n\
+             \x20 dirlens -N               mark likely entry points\n\
+             \x20 dirlens -O               function/class outline\n\
+             \x20 dirlens -M               local import/dependency analysis\n\
+             \x20 dirlens --no-color > dirlens.txt   write to a file",
             "使用例:\n\
              \x20 dirlens --ai             AIチャット貼り付け用（人間がコピペする想定）\n\
              \x20 dirlens --agent          エージェント向け解析（カラーなし・クリップボードは使わない）\n\
@@ -41,131 +92,262 @@ fn build_command() -> Command {
              \x20 dirlens -O               関数・クラスの簡易アウトラインを表示\n\
              \x20 dirlens -M               ローカルなimport/依存関係を解析\n\
              \x20 dirlens --no-color > dirlens.txt   ファイルに書き出す",
-        )
+        ))
         // ── tree互換フラグ ────────────────────────────────────
-        .arg(flag('d', None, "dirs_only", "ディレクトリのみ表示（tree -d 互換）"))
-        .arg(flag('g', None, "show_group", "グループ名を表示（tree -g 互換）"))
-        .arg(flag('s', None, "show_size_compat", "サイズ表示（常時有効・tree -s 互換）"))
-        .arg(flag('t', None, "sort_mtime", "更新日時順にソート（tree -t 互換）"))
-        .arg(flag('c', None, "sort_ctime", "ステータス変更日時順にソート（tree -c 互換）"))
+        .arg(flag('d', None, "dirs_only", h("directories only (tree -d)", "ディレクトリのみ表示（tree -d 互換）")))
+        .arg(flag('g', None, "show_group", h("show group name (tree -g)", "グループ名を表示（tree -g 互換）")))
+        .arg(flag('s', None, "show_size_compat", h("show sizes (always on; tree -s)", "サイズ表示（常時有効・tree -s 互換）")))
+        .arg(flag('t', None, "sort_mtime", h("sort by modification time (tree -t)", "更新日時順にソート（tree -t 互換）")))
+        .arg(flag('c', None, "sort_ctime", h("sort by status-change time (tree -c)", "ステータス変更日時順にソート（tree -c 互換）")))
         // ── dirlens独自フラグ ─────────────────────────────────
-        .arg(flag('G', Some("gitignore"), "gitignore", ".gitignoreのファイルを除外（旧 -g）"))
-        .arg(flag('S', Some("sort-size"), "sort_size", "サイズ順にソート（旧 -s）"))
+        .arg(flag('G', Some("gitignore"), "gitignore", h("exclude files listed in .gitignore", ".gitignoreのファイルを除外（旧 -g）")))
+        .arg(flag('S', Some("sort-size"), "sort_size", h("sort by size, largest first", "サイズ順にソート（旧 -s）")))
         .arg(
             Arg::new("type")
                 .short('e')
                 .long("type")
                 .value_name("EXT")
-                .help("指定した拡張子のみ表示（旧 -t）"),
+                .help(h("show only files with this extension", "指定した拡張子のみ表示（旧 -t）")),
         )
-        .arg(flag('C', Some("copy"), "copy", "クリップボードにコピー（旧 -c）"))
+        .arg(flag('C', Some("copy"), "copy", h("copy output to clipboard", "クリップボードにコピー（旧 -c）")))
         // ── tree互換フラグ（変更なし） ────────────────────────
-        .arg(flag('a', Some("all"), "all", "隠しファイルも表示"))
-        .arg(flag('f', Some("full-path"), "full_path", "ルートからのフルパスで表示"))
-        .arg(flag('l', Some("follow"), "follow", "シンボリックリンク先ディレクトリを展開"))
-        .arg(flag('p', Some("perms"), "perms", "パーミッション文字列を表示"))
-        .arg(flag('u', Some("user"), "user", "所有者のユーザー名を表示"))
-        .arg(flag('r', Some("reverse"), "reverse", "ソート順を逆にする"))
-        .arg(flag('n', None, "no_color_tree", "カラーなし（tree -n 互換）"))
-        .arg(flag('J', None, "json_tree", "JSON形式で出力（tree -J 互換）"))
+        .arg(flag('a', Some("all"), "all", h("show hidden files too", "隠しファイルも表示")))
+        .arg(flag('f', Some("full-path"), "full_path", h("print full paths from the root", "ルートからのフルパスで表示")))
+        .arg(flag('l', Some("follow"), "follow", h("follow symlinked directories", "シンボリックリンク先ディレクトリを展開")))
+        .arg(flag('p', Some("perms"), "perms", h("show permission string", "パーミッション文字列を表示")))
+        .arg(flag('u', Some("user"), "user", h("show owner user name", "所有者のユーザー名を表示")))
+        .arg(flag('r', Some("reverse"), "reverse", h("reverse sort order", "ソート順を逆にする")))
+        .arg(flag('n', None, "no_color_tree", h("no colors (tree -n)", "カラーなし（tree -n 互換）")))
+        .arg(flag('J', None, "json_tree", h("JSON output (tree -J)", "JSON形式で出力（tree -J 互換）")))
         .arg(
             Arg::new("level")
                 .short('L')
                 .value_name("N")
                 .allow_negative_numbers(true)
                 .value_parser(clap::value_parser!(i64))
-                .help("表示する最大の深さ（tree -L 互換）"),
+                .help(h("max display depth (tree -L)", "表示する最大の深さ（tree -L 互換）")),
         )
-        .arg(flag('D', None, "date_tree", "最終更新日時を表示（tree -D 互換）"))
+        .arg(flag('D', None, "date_tree", h("show last-modified time (tree -D)", "最終更新日時を表示（tree -D 互換）")))
         .arg(
             Arg::new("include_tree")
                 .short('P')
                 .value_name("PATTERN")
                 .action(ArgAction::Append)
-                .help("このパターンのみ表示（tree -P 互換）"),
+                .help(h("show only entries matching pattern (tree -P)", "このパターンのみ表示（tree -P 互換）")),
         )
         .arg(
             Arg::new("exclude_tree")
                 .short('I')
                 .value_name("PATTERN")
                 .action(ArgAction::Append)
-                .help("除外パターン（tree -I 互換）"),
+                .help(h("exclude entries matching pattern (tree -I)", "除外パターン（tree -I 互換）")),
         )
         // ── AI/エージェント向け解析フラグ ─────────────────────
-        .arg(flag('T', Some("tokens"), "tokens", "ファイルごとの推定トークン数を表示（概算）"))
-        .arg(flag('H', Some("git"), "git", "最終コミット情報を表示（要git、直近2000コミットまで走査）"))
-        .arg(flag('K', Some("todo"), "todo", "TODO/FIXME/HACK/XXXコメントを抽出"))
-        .arg(flag('V', Some("missing-tests"), "tests", "対応するテストファイルが見つからないソースファイルを表示"))
-        .arg(flag('N', Some("entry"), "entry", "エントリーポイントらしきファイルを検出してマーク"))
-        .arg(flag('O', Some("outline"), "outline", "関数・クラスの簡易アウトラインを表示（対応言語限定）"))
-        .arg(flag('M', Some("imports"), "imports", "ローカルなimport/依存関係を解析して表示（外部パッケージは対象外）。循環依存も併せて検出"))
-        .arg(flag('A', Some("api"), "api", "公開API（exportされたシンボル）のみに絞り込む（-O を自動的に有効化）"))
-        .arg(flag('F', Some("config"), "config", "設定ファイル（.env, tsconfig.json等）を検出してマーク"))
+        .arg(flag('T', Some("tokens"), "tokens", h("show per-file token counts (BPE)", "ファイルごとの推定トークン数を表示（概算）")))
+        .arg(flag('H', Some("git"), "git", h("show last commit info (requires git; scans last 2000 commits)", "最終コミット情報を表示（要git、直近2000コミットまで走査）")))
+        .arg(flag('K', Some("todo"), "todo", h("extract TODO/FIXME/HACK/XXX comments", "TODO/FIXME/HACK/XXXコメントを抽出")))
+        .arg(flag('V', Some("missing-tests"), "tests", h("show source files without a matching test file", "対応するテストファイルが見つからないソースファイルを表示")))
+        .arg(flag('N', Some("entry"), "entry", h("detect and mark likely entry points", "エントリーポイントらしきファイルを検出してマーク")))
+        .arg(flag('O', Some("outline"), "outline", h("show function/class outline (AST-based)", "関数・クラスの簡易アウトラインを表示（対応言語限定）")))
+        .arg(flag('M', Some("imports"), "imports", h("analyze local import/dependency graph (detects cycles)", "ローカルなimport/依存関係を解析して表示（外部パッケージは対象外）。循環依存も併せて検出")))
+        .arg(flag('A', Some("api"), "api", h("public API symbols only (implies -O)", "公開API（exportされたシンボル）のみに絞り込む（-O を自動的に有効化）")))
+        .arg(flag('F', Some("config"), "config", h("detect config files (.env, tsconfig.json, ...)", "設定ファイル（.env, tsconfig.json等）を検出してマーク")))
         // ── dirlens独自オプション ─────────────────────────────
-        .arg(Arg::new("path").default_value(".").help("対象ディレクトリ（省略時はカレント）"))
+        .arg(Arg::new("path").default_value(".").help(h("target directory (default: current)", "対象ディレクトリ（省略時はカレント）")))
         .arg(
             Arg::new("depth")
                 .long("depth")
                 .value_name("N")
                 .allow_negative_numbers(true)
                 .value_parser(clap::value_parser!(i64))
-                .help("表示する最大の深さ（-L と同じ）"),
+                .help(h("max display depth (same as -L)", "表示する最大の深さ（-L と同じ）")),
         )
-        .arg(Arg::new("date").long("date").action(ArgAction::SetTrue).help("最終更新日時を相対表示"))
-        .arg(flag('m', Some("markdown"), "markdown", "Markdown コードブロック形式で出力"))
-        .arg(Arg::new("no_color").long("no-color").action(ArgAction::SetTrue).help("カラー表示を無効化"))
-        .arg(Arg::new("bar").long("bar").action(ArgAction::SetTrue).help("ディスク占有率バーを表示"))
-        .arg(Arg::new("min_size").long("min-size").value_name("SIZE").help("指定サイズ以上のファイルのみ表示（例: 1M, 500K）"))
-        .arg(Arg::new("max_size").long("max-size").value_name("SIZE").help("指定サイズ以下のファイルのみ表示"))
+        .arg(Arg::new("date").long("date").action(ArgAction::SetTrue).help(h("show relative last-modified time", "最終更新日時を相対表示")))
+        .arg(flag('m', Some("markdown"), "markdown", h("output as a Markdown code block", "Markdown コードブロック形式で出力")))
+        .arg(Arg::new("no_color").long("no-color").action(ArgAction::SetTrue).help(h("disable colors", "カラー表示を無効化")))
+        .arg(Arg::new("bar").long("bar").action(ArgAction::SetTrue).help(h("show disk-usage bars", "ディスク占有率バーを表示")))
+        .arg(Arg::new("min_size").long("min-size").value_name("SIZE").help(h("only files at least this size (e.g. 1M, 500K)", "指定サイズ以上のファイルのみ表示（例: 1M, 500K）")))
+        .arg(Arg::new("max_size").long("max-size").value_name("SIZE").help(h("only files at most this size", "指定サイズ以下のファイルのみ表示")))
         .arg(
             Arg::new("exclude")
                 .long("exclude")
                 .value_name("PATTERN")
                 .action(ArgAction::Append)
-                .help("除外パターン（複数指定可）"),
+                .help(h("exclude pattern (repeatable)", "除外パターン（複数指定可）")),
         )
         .arg(
             Arg::new("include")
                 .long("include")
                 .value_name("PATTERN")
                 .action(ArgAction::Append)
-                .help("このパターンのみ表示（複数指定可）"),
+                .help(h("include-only pattern (repeatable)", "このパターンのみ表示（複数指定可）")),
         )
-        .arg(Arg::new("emoji").long("emoji").action(ArgAction::SetTrue).help("拡張子に応じた絵文字アイコンを表示"))
-        .arg(Arg::new("json").long("json").action(ArgAction::SetTrue).help("JSON形式で出力"))
+        .arg(Arg::new("emoji").long("emoji").action(ArgAction::SetTrue).help(h("show emoji icons by extension", "拡張子に応じた絵文字アイコンを表示")))
+        .arg(Arg::new("json").long("json").action(ArgAction::SetTrue).help(h("JSON output", "JSON形式で出力")))
         .arg(
             Arg::new("html")
                 .long("html")
                 .value_name("FILE")
                 .num_args(0..=1)
                 .default_missing_value("dirlens.html")
-                .help("HTMLレポートを生成（デフォルト: dirlens.html）"),
+                .help(h("generate an HTML report (default: dirlens.html)", "HTMLレポートを生成（デフォルト: dirlens.html）")),
         )
-        .arg(Arg::new("prune").long("prune").action(ArgAction::SetTrue).help("フィルタ後に空になるディレクトリを非表示"))
-        .arg(Arg::new("filesfirst").long("filesfirst").action(ArgAction::SetTrue).help("ファイルをディレクトリより先に表示"))
+        .arg(Arg::new("prune").long("prune").action(ArgAction::SetTrue).help(h("hide directories that become empty after filtering", "フィルタ後に空になるディレクトリを非表示")))
+        .arg(Arg::new("filesfirst").long("filesfirst").action(ArgAction::SetTrue).help(h("list files before directories", "ファイルをディレクトリより先に表示")))
+        // ── 表示モード・注釈（v1.2 拡張） ──────────────────────
+        .arg(
+            Arg::new("interactive")
+                .short('i')
+                .long("interactive")
+                .action(ArgAction::SetTrue)
+                .help(h("interactive TUI browser (tree + details pane)", "インタラクティブなツリーブラウザ（TUI・詳細ペイン付き）")),
+        )
+        .arg(
+            Arg::new("top")
+                .long("top")
+                .value_name("N")
+                .value_parser(clap::value_parser!(usize))
+                .help(h("flat list of the N largest files and directories (no tree)", "大きいファイル/ディレクトリ上位Nをフラット表示（ツリーなし）")),
+        )
+        .arg(Arg::new("dupes").long("dupes").action(ArgAction::SetTrue).help(h("find duplicate files by content (size + hash)", "内容が同一の重複ファイルを検出（サイズ+ハッシュ）")))
+        .arg(
+            Arg::new("compare")
+                .long("compare")
+                .value_name("DIR")
+                .help(h("compare the target tree against DIR (added/removed/changed)", "対象ツリーと DIR を比較（追加/削除/変更）")),
+        )
+        .arg(Arg::new("status").long("status").action(ArgAction::SetTrue).help(h("overlay git status marks ([M]/[??]/[A]) on the tree", "git status のマーク（[M]/[??]/[A]）をツリーに重ねて表示")))
+        .arg(
+            Arg::new("heat")
+                .long("heat")
+                .value_name("MODE")
+                .value_parser(["age", "size", "churn"])
+                .help(h("color file names by age / size / git churn", "ファイル名を age / size / churn でグラデーション着色")),
+        )
+        .arg(
+            Arg::new("since")
+                .long("since")
+                .value_name("REF")
+                .help(h("show only files changed since the git ref (plus untracked)", "指定 git ref 以降に変更されたファイルのみ表示（未追跡含む）")),
+        )
+        .arg(
+            Arg::new("focus")
+                .long("focus")
+                .value_name("FILE")
+                .help(h("impact analysis: what imports FILE and what it imports (implies -M)", "影響範囲: FILE の依存元/依存先を推移的に表示（-M を暗黙有効化）")),
+        )
+        .arg(Arg::new("stdin").long("stdin").action(ArgAction::SetTrue).help(h("analyze only the files listed on stdin (one per line)", "stdin のファイルリスト（1行1ファイル）だけを解析")))
+        .arg(
+            Arg::new("budget")
+                .long("budget")
+                .value_name("TOKENS")
+                .value_parser(clap::value_parser!(i64))
+                .help(h("fit text output within a token budget (reduces depth/detail)", "テキスト出力を指定トークン数以内に自動調整（深さ・詳細を削減）")),
+        )
+        .arg(
+            Arg::new("estimate")
+                .long("estimate")
+                .action(ArgAction::SetTrue)
+                .help(h("estimate output token cost per depth level (for choosing --budget)", "階層別の出力トークンコストを見積もる（--budget の値決めに）")),
+        )
+        .arg(
+            Arg::new("api_diff")
+                .long("api-diff")
+                .value_name("REF")
+                .help(h("diff public API symbols against a git ref", "公開APIシンボルを指定 git ref と比較")),
+        )
+        .arg(
+            Arg::new("pack")
+                .long("pack")
+                .value_name("FILE")
+                .action(ArgAction::Append)
+                .help(h("bundle files (tree context + contents + token count) for pasting", "指定ファイルの中身+文脈+トークン数を貼り付け用に整形（複数可）")),
+        )
+        .arg(Arg::new("mermaid").long("mermaid").action(ArgAction::SetTrue).help(h("output the import graph as a Mermaid diagram (implies -M)", "importグラフを Mermaid 形式で出力（-M を暗黙有効化）")))
+        .arg(Arg::new("dot").long("dot").action(ArgAction::SetTrue).help(h("output the import graph as Graphviz DOT (implies -M)", "importグラフを Graphviz DOT 形式で出力（-M を暗黙有効化）")))
+        .arg(Arg::new("csv").long("csv").action(ArgAction::SetTrue).help(h("output file metadata as CSV", "ファイルメタデータを CSV 形式で出力")))
+        .arg(
+            Arg::new("lang")
+                .long("lang")
+                .value_name("LANG")
+                .value_parser(["en", "ja"])
+                .help(h("output language (en/ja; default: en, or DIRLENS_LANG / config file)", "出力言語（en/ja。既定: en。DIRLENS_LANG や設定ファイルでも指定可）")),
+        )
+        .arg(
+            Arg::new("preset")
+                .long("preset")
+                .value_name("NAME")
+                .help(h("apply a named preset from the config file ([presets] table)", "設定ファイルの [presets] で定義した名前付きプリセットを適用")),
+        )
+        .arg(
+            Arg::new("no_config")
+                .long("no-config")
+                .action(ArgAction::SetTrue)
+                .help(h("ignore all config files (also: DIRLENS_CONFIG=off)", "設定ファイルを一切読まない（DIRLENS_CONFIG=off も同じ）")),
+        )
+        .arg(
+            Arg::new("no_cache")
+                .long("no-cache")
+                .action(ArgAction::SetTrue)
+                .help(h("disable the persistent token-count cache (also: DIRLENS_CACHE=off)", "トークン計数の永続キャッシュを使わない（DIRLENS_CACHE=off も同じ）")),
+        )
+        .arg(
+            Arg::new("completions")
+                .long("completions")
+                .value_name("SHELL")
+                .value_parser(["bash", "zsh", "fish", "powershell", "elvish"])
+                .help(h("print shell completions to stdout and exit", "シェル補完スクリプトを標準出力に出して終了")),
+        )
+        .arg(
+            Arg::new("man")
+                .long("man")
+                .action(ArgAction::SetTrue)
+                .help(h("print the man page (roff) to stdout and exit", "man ページ（roff）を標準出力に出して終了")),
+        )
+        .arg(
+            Arg::new("mcp")
+                .long("mcp")
+                .action(ArgAction::SetTrue)
+                .help(h(
+                    "run as an MCP server over stdio (see --mcp-setup for registration)",
+                    "MCP サーバーとして stdio で起動（登録手順は --mcp-setup を参照）",
+                )),
+        )
+        .arg(
+            Arg::new("mcp_setup")
+                .long("mcp-setup")
+                .value_name("HOST")
+                .num_args(0..=1)
+                .default_missing_value("all")
+                .value_parser(["all", "claude-code", "claude-desktop", "cursor"])
+                .help(h(
+                    "print MCP registration steps with this binary's absolute path (HOST: claude-code / claude-desktop / cursor)",
+                    "MCP の登録手順をこのバイナリの絶対パス入りで表示（HOST: claude-code / claude-desktop / cursor）",
+                )),
+        )
         .arg(
             Arg::new("ai")
                 .long("ai")
                 .action(ArgAction::SetTrue)
-                .help("-G --date -m -C のショートカット（人間がAIチャットに貼り付ける用）"),
+                .help(h("shortcut for -G --date -m -C --status (for pasting into AI chats)", "-G --date -m -C --status のショートカット（人間がAIチャットに貼り付ける用）")),
         )
         .arg(
             Arg::new("agent")
                 .long("agent")
                 .action(ArgAction::SetTrue)
-                .help("-G -T -H -K -V -N -O -M -F --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）"),
+                .help(h("shortcut for -G -T -H -K -V -N -O -M -F --status --no-color (agent-oriented analysis; no clipboard)", "-G -T -H -K -V -N -O -M -F --status --no-color のショートカット（エージェント向け解析、カラーなし・クリップボードは使わない）")),
         )
         .arg(
             Arg::new("check")
                 .long("check")
                 .action(ArgAction::SetTrue)
-                .help("能力レポートを表示（gitignore層・言語別解析方式・git/クリップボード可否）。縮退があると終了コード 1。--json 併用可"),
+                .help(h("capability report (gitignore tier, per-language analysis, git/clipboard). exit code 1 if degraded; supports --json", "能力レポートを表示（gitignore層・言語別解析方式・git/クリップボード可否）。縮退があると終了コード 1。--json 併用可")),
         )
         .arg(
             Arg::new("version")
                 .long("version")
                 .action(ArgAction::Version)
-                .help("バージョンを表示"),
+                .help(h("print version", "バージョンを表示")),
         )
 }
 
@@ -187,7 +369,82 @@ fn enable_color() -> bool {
 }
 
 fn main() {
-    let m = build_command().get_matches();
+    let mut lang = detect_lang();
+    let mut m = build_command(lang).get_matches();
+
+    // ── 補完スクリプト / man ページ（生成して即終了） ───────────
+    if let Some(shell) = m.get_one::<String>("completions") {
+        use std::str::FromStr;
+        if let Ok(sh) = clap_complete::Shell::from_str(shell) {
+            clap_complete::generate(sh, &mut build_command(lang), "dirlens", &mut std::io::stdout());
+        }
+        return;
+    }
+    if m.get_flag("man") {
+        let mut buf = Vec::new();
+        if clap_mangen::Man::new(build_command(lang)).render(&mut buf).is_ok() {
+            let _ = std::io::stdout().write_all(&buf);
+        }
+        return;
+    }
+    if m.get_flag("mcp") {
+        mcp::serve();
+        return;
+    }
+    if let Some(host) = m.get_one::<String>("mcp_setup") {
+        mcp::print_setup(host, lang == Lang::Ja);
+        return;
+    }
+
+    // ── 設定ファイル（グローバル + プロジェクト） ───────────────
+    let argv: Vec<String> = std::env::args().collect();
+    let use_config = !config::config_disabled(&argv) && !m.get_flag("no_config");
+    let (file_cfg, cfg_warnings) = if use_config {
+        let target = m
+            .get_one::<String>("path")
+            .cloned()
+            .unwrap_or_else(|| ".".into());
+        config::load(std::path::Path::new(&target))
+    } else {
+        (Default::default(), Vec::new())
+    };
+    for w in &cfg_warnings {
+        eprintln!("{}", w);
+    }
+
+    // --preset: 設定ファイルのプリセット引数を argv の先頭（プログラム名の直後）に
+    // 差し込んで再パースする（CLI で明示した引数が常に勝つ）。
+    if let Some(name) = m.get_one::<String>("preset").cloned() {
+        match file_cfg.presets.get(&name) {
+            Some(extra) => {
+                let mut new_argv: Vec<String> = Vec::with_capacity(argv.len() + extra.len());
+                new_argv.push(argv[0].clone());
+                new_argv.extend(extra.iter().cloned());
+                new_argv.extend(argv[1..].iter().cloned());
+                m = build_command(lang).get_matches_from(new_argv);
+            }
+            None => {
+                let known: Vec<&String> = file_cfg.presets.keys().collect();
+                eprintln!(
+                    "dirlens: unknown preset '{}' (defined: {:?})",
+                    name, known
+                );
+                std::process::exit(2);
+            }
+        }
+    }
+
+    // 言語の最終解決: --lang > 設定ファイル > DIRLENS_LANG > en
+    // （detect_lang は --lang / 環境変数 / compat を反映済み。設定ファイルは
+    //   フラグ・環境変数どちらも無い場合のみ効く）
+    if m.value_source("lang") != Some(clap::parser::ValueSource::CommandLine)
+        && std::env::var("DIRLENS_LANG").is_err()
+        && std::env::var("DIRLENS_COMPAT").as_deref() != Ok("python")
+    {
+        if let Some(l) = file_cfg.lang.as_deref().and_then(Lang::parse) {
+            lang = l;
+        }
+    }
 
     let getb = |id: &str| m.get_flag(id);
     let mut args = Args {
@@ -238,6 +495,40 @@ fn main() {
         api: getb("api"),
         config: getb("config"),
         check: getb("check"),
+        top: m.get_one::<usize>("top").copied(),
+        dupes: getb("dupes"),
+        compare: m.get_one::<String>("compare").cloned(),
+        status: getb("status"),
+        heat: m.get_one::<String>("heat").cloned(),
+        since: m.get_one::<String>("since").cloned(),
+        focus: m.get_one::<String>("focus").cloned(),
+        stdin_files: if getb("stdin") {
+            let mut buf = String::new();
+            let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf);
+            Some(
+                buf.lines()
+                    .map(|l| l.trim())
+                    .filter(|l| !l.is_empty())
+                    .map(|l| l.to_string())
+                    .collect(),
+            )
+        } else {
+            None
+        },
+        budget: m.get_one::<i64>("budget").copied(),
+        estimate: getb("estimate"),
+        api_diff: m.get_one::<String>("api_diff").cloned(),
+        pack: m
+            .get_many::<String>("pack")
+            .map(|v| v.cloned().collect())
+            .unwrap_or_default(),
+        mermaid: getb("mermaid"),
+        dot: getb("dot"),
+        csv: getb("csv"),
+        lang: Some(match lang {
+            Lang::En => "en".to_string(),
+            Lang::Ja => "ja".to_string(),
+        }),
     };
 
     // ── エイリアスのマージ（argparse 相当） ────────────────────
@@ -259,7 +550,37 @@ fn main() {
     if getb("json_tree") {
         args.json = true;
     }
+
+    // ── 設定ファイルのデフォルト適用（CLI で指定が無い項目のみ） ──
+    if use_config {
+        macro_rules! def_true {
+            ($($f:ident),*) => { $( if file_cfg.$f == Some(true) { args.$f = true; } )* };
+        }
+        def_true!(gitignore, all, date, emoji, markdown, no_color, bar, prune,
+                  filesfirst, follow, full_path);
+        if args.depth.is_none() {
+            args.depth = file_cfg.depth;
+        }
+        if args.min_size.is_none() {
+            args.min_size = file_cfg.min_size.clone();
+        }
+        if args.max_size.is_none() {
+            args.max_size = file_cfg.max_size.clone();
+        }
+        args.exclude.extend(file_cfg.exclude.iter().cloned());
+        args.include.extend(file_cfg.include.iter().cloned());
+    }
+
     args.merge_aliases();
+
+    // ── インタラクティブ TUI ────────────────────────────────
+    if getb("interactive") {
+        if let Err(e) = tui::run_tui(args) {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let fs = StdFs;
     let git = StdGit;
@@ -294,12 +615,26 @@ fn main() {
     if compat_python || std::env::var("DIRLENS_TOKENS").as_deref() == Ok("heuristic") {
         cfg.tokens_bpe = false;
     }
-    // 互換モードでは精度注記・schema_version・capabilities も出さない
+    // 互換モードでは精度注記・schema_version・capabilities も出さない。
+    // --agent/--ai バンドルに含まれる --status も Python 版に無いため無効化する
     if compat_python {
         cfg.suppress_notes = true;
+        cfg.show_status = false;
     }
 
     let mut sess = Session::new(&fs);
+
+    // ── 永続キャッシュ（トークン計数） ──────────────────────────
+    let cache_enabled = !m.get_flag("no_cache")
+        && std::env::var("DIRLENS_CACHE").as_deref() != Ok("off")
+        && !compat_python;
+    let file_cache = cache::StdCache::new(&cfg.root);
+    if cache_enabled {
+        sess.cache = Some(&file_cache);
+    }
+
+    // ── 進捗スピナー（stderr が端末のときのみ・400ms 以降に出現） ──
+    let spin = spinner::Spinner::start();
 
     // ── トップレベル dir サイズの並列プリフェッチ ──────────────
     #[cfg(feature = "parallel")]
@@ -329,10 +664,17 @@ fn main() {
     }
 
     let res = execute(&mut sess, &mut cfg, &git, &clip);
+    spin.stop();
+    if cache_enabled {
+        file_cache.flush();
+    }
 
     if let Some((path, content)) = &res.html_file {
         if let Err(e) = std::fs::write(path, content) {
-            eprintln!("エラー: '{}' に書き込めません: {}", path, e);
+            eprintln!(
+                "{}",
+                dirlens_core::i18n::write_failed(lang, path, &e.to_string())
+            );
             std::process::exit(1);
         }
     }

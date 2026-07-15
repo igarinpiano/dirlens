@@ -7,8 +7,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use crate::analysis::extras::{file_extras, reading_order_candidates};
-use crate::cfg::Cfg;
-use crate::colors::{c, BLUE, BOLD, CYAN, DIM, GREEN, MAGENTA, RED};
+use crate::cfg::{Cfg, Heat};
+use crate::colors::{c, fg256, BLUE, BOLD, CYAN, DIM, GREEN, MAGENTA, RED, YELLOW};
 use crate::emoji::get_emoji;
 use crate::filter::{count_entries, filter_entries, has_content, sort_entries};
 use crate::fmt::{
@@ -16,6 +16,7 @@ use crate::fmt::{
     sanitize_ctrl, splitext,
 };
 use crate::gitignore::{extend_pats, relpath_slash};
+use crate::i18n;
 use crate::provider::{Entry, FsProvider};
 use crate::session::Session;
 
@@ -32,6 +33,81 @@ pub struct TextStats {
     pub tokens: i64,
     pub todo_total: u64,
     pub todo_samples: Vec<(String, usize, String, String)>,
+    /// 機密の可能性があるファイル（--ai / -C の警告用）
+    pub sensitive: Vec<String>,
+    /// 拡張子 → (ファイル数, 行数, トークン数)。-T 時のみ集計。
+    pub lang_stats: IndexMap<String, (u64, i64, i64)>,
+    /// 長大関数の候補（行数, "rel:name"）。-O 時のみ集計。
+    pub long_funcs: Vec<(u32, String)>,
+}
+
+/// AI チャットへ貼り付ける際に警告すべき「機密の可能性が高い」ファイル名か。
+pub fn is_sensitive_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    if lower == ".env" || (lower.starts_with(".env.") && !lower.contains("example") && !lower.contains("sample")) {
+        return true;
+    }
+    let (_, ext) = splitext(&lower);
+    if matches!(ext, ".pem" | ".key" | ".p12" | ".pfx" | ".keystore" | ".jks") {
+        return true;
+    }
+    if lower.starts_with("id_rsa") || lower.starts_with("id_ed25519") || lower.starts_with("id_ecdsa") {
+        return true;
+    }
+    matches!(
+        lower.as_str(),
+        "credentials.json" | "service-account.json" | ".npmrc" | ".pypirc" | ".netrc" | ".htpasswd"
+    ) || lower.contains("secret")
+}
+
+/// --heat のグラデーション色（256色コード）。熱いほど赤い。
+fn heat_color(cfg: &Cfg, now: f64, mtime: f64, size: u64, rel: &str) -> Option<String> {
+    let heat = cfg.heat?;
+    if !cfg.use_color {
+        return None;
+    }
+    let code: u8 = match heat {
+        Heat::Age => {
+            let age = (now - mtime).max(0.0);
+            if age < 3600.0 { 196 }
+            else if age < 86_400.0 { 202 }
+            else if age < 604_800.0 { 208 }
+            else if age < 2_592_000.0 { 214 }
+            else if age < 15_552_000.0 { 220 }
+            else { 245 }
+        }
+        Heat::Size => {
+            if size >= 100 * 1024 * 1024 { 196 }
+            else if size >= 10 * 1024 * 1024 { 202 }
+            else if size >= 1024 * 1024 { 208 }
+            else if size >= 100 * 1024 { 214 }
+            else if size >= 10 * 1024 { 220 }
+            else { 245 }
+        }
+        Heat::Churn => {
+            let n = cfg.git_change_counts.get(rel).copied().unwrap_or(0);
+            if n >= 20 { 196 }
+            else if n >= 10 { 202 }
+            else if n >= 5 { 208 }
+            else if n >= 3 { 214 }
+            else if n >= 2 { 220 }
+            else { 245 }
+        }
+    };
+    Some(fg256(code))
+}
+
+/// --status マークの色（porcelain XY コード別）。
+fn status_color(xy: &str) -> &'static str {
+    if xy == "??" {
+        RED
+    } else if xy.starts_with('A') || xy.ends_with('A') {
+        GREEN
+    } else if xy.starts_with('R') || xy.starts_with('C') {
+        MAGENTA
+    } else {
+        YELLOW
+    }
 }
 
 fn fmt_size_i(n: i64) -> String {
@@ -111,7 +187,7 @@ fn render_node<F: FsProvider>(
                 "{}{}{}\n",
                 prefix,
                 LAST,
-                c("[循環リンク]", &[DIM], cfg.use_color)
+                c(cfg.lang.t().cyclic_link, &[DIM], cfg.use_color)
             ));
             return;
         }
@@ -128,7 +204,7 @@ fn render_node<F: FsProvider>(
                 "{}{}{}\n",
                 prefix,
                 LAST,
-                c("[アクセス拒否]", &[BOLD, RED], cfg.use_color)
+                c(cfg.lang.t().access_denied, &[BOLD, RED], cfg.use_color)
             ));
             return;
         }
@@ -187,7 +263,7 @@ fn render_node<F: FsProvider>(
             let mut parts = vec![fmt_count(nd, nf, denied), fmt_size(sz, sz_err)];
             if cfg.show_date {
                 if let Some(st) = sess.fs.stat(&entry.path, false) {
-                    parts.push(fmt_date(sess.fs.now(), st.mtime));
+                    parts.push(fmt_date(sess.fs.now(), st.mtime, cfg.lang));
                 }
             }
             let bar = if cfg.show_bar && cur_dir_size != 0 {
@@ -228,7 +304,7 @@ fn render_node<F: FsProvider>(
             } else {
                 ext
             };
-            *stats.extensions.entry(ext_key).or_insert(0) += 1;
+            *stats.extensions.entry(ext_key.clone()).or_insert(0) += 1;
 
             let rel = relpath_slash(&entry.path, &cfg.root);
             let extras = if cfg.has_extras {
@@ -236,6 +312,10 @@ fn render_node<F: FsProvider>(
             } else {
                 Default::default()
             };
+
+            if is_sensitive_name(&entry.name) && stats.sensitive.len() < 20 {
+                stats.sensitive.push(rel.clone());
+            }
 
             let entry_mark = if extras.is_entry {
                 if cfg.show_emoji {
@@ -258,7 +338,7 @@ fn render_node<F: FsProvider>(
             if cfg.show_date {
                 let mt = emtime(sess, entry);
                 if mt != 0.0 {
-                    parts.push(fmt_date(sess.fs.now(), mt));
+                    parts.push(fmt_date(sess.fs.now(), mt, cfg.lang));
                 }
             }
 
@@ -269,6 +349,13 @@ fn render_node<F: FsProvider>(
                     if let Some(lines) = extras.lines {
                         parts.push(format!("{} lines", lines));
                     }
+                    let agg = stats
+                        .lang_stats
+                        .entry(ext_key.clone())
+                        .or_insert((0, 0, 0));
+                    agg.0 += 1;
+                    agg.1 += extras.lines.unwrap_or(0);
+                    agg.2 += tok;
                 }
             }
 
@@ -292,7 +379,7 @@ fn render_node<F: FsProvider>(
             }
 
             if cfg.show_tests && extras.no_test {
-                parts.push("テスト無し".to_string());
+                parts.push(cfg.lang.t().no_test.to_string());
             }
 
             if cfg.show_config && extras.is_config {
@@ -304,6 +391,18 @@ fn render_node<F: FsProvider>(
                     if !outline.is_empty() {
                         if let Some(ostr) = fmt_outline(outline, 5) {
                             parts.push(ostr);
+                        }
+                        // 長大関数の収集（--agent サマリ / JSON 用）
+                        for it in outline {
+                            if let Some((a, b)) = it.span {
+                                if it.kind != "class" && it.kind != "struct" && b > a {
+                                    stats.long_funcs.push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                }
+                            }
+                        }
+                        if stats.long_funcs.len() > 512 {
+                            stats.long_funcs.sort_by(|x, y| y.0.cmp(&x.0));
+                            stats.long_funcs.truncate(16);
                         }
                     }
                 }
@@ -326,9 +425,47 @@ fn render_node<F: FsProvider>(
                 String::new()
             };
 
+            // --status / --since のマーク（[M] / [??] / [A] 等）
+            let mut vcs_mark = String::new();
+            if cfg.show_status {
+                if let Some(xy) = cfg.status_map.get(&rel) {
+                    let xy_disp = xy.trim();
+                    vcs_mark = format!(
+                        "{} ",
+                        c(&format!("[{}]", xy_disp), &[BOLD, status_color(xy)], cfg.use_color)
+                    );
+                }
+            } else if cfg.since.is_some() {
+                if let Some(ch) = cfg.since_status.get(&rel) {
+                    let col = match ch {
+                        'A' => GREEN,
+                        'R' => MAGENTA,
+                        _ => YELLOW,
+                    };
+                    vcs_mark = format!(
+                        "{} ",
+                        c(&format!("[{}]", ch), &[BOLD, col], cfg.use_color)
+                    );
+                }
+            }
+
+            // --heat: ファイル名の色をグラデーションで上書き
+            let heat_code =
+                heat_color(cfg, sess.fs.now(), emtime(sess, entry), sz, &rel);
+            let name_color: &str = match &heat_code {
+                Some(code) => code.as_str(),
+                None => {
+                    if entry.is_symlink {
+                        MAGENTA
+                    } else {
+                        GREEN
+                    }
+                }
+            };
+
             let name = c(
                 &format!("{}{}{}{}", entry_mark, config_mark, display, sym_target),
-                &[if entry.is_symlink { MAGENTA } else { GREEN }],
+                &[name_color],
                 cfg.use_color,
             );
             let meta = c(
@@ -336,7 +473,10 @@ fn render_node<F: FsProvider>(
                 &[DIM],
                 cfg.use_color,
             );
-            out.push_str(&format!("{}{}{}{} {}\n", prefix, branch, perm_prefix, name, meta));
+            out.push_str(&format!(
+                "{}{}{}{}{} {}\n",
+                prefix, branch, perm_prefix, vcs_mark, name, meta
+            ));
         }
     }
 }
@@ -347,6 +487,15 @@ pub fn render_text<F: FsProvider>(
     cfg: &Cfg,
     active_pats: &Arc<Vec<String>>,
 ) -> String {
+    render_text_with_stats(sess, cfg, active_pats).0
+}
+
+/// render_text の本体。統計（機密ファイル検出など）も返す。
+pub fn render_text_with_stats<F: FsProvider>(
+    sess: &Session<F>,
+    cfg: &Cfg,
+    active_pats: &Arc<Vec<String>>,
+) -> (String, TextStats) {
     let mut out = String::new();
     let color = cfg.use_color;
 
@@ -363,7 +512,7 @@ pub fn render_text<F: FsProvider>(
     ];
     if cfg.show_date {
         if let Some(st) = sess.fs.stat(&cfg.root, true) {
-            root_parts.push(fmt_date(sess.fs.now(), st.mtime));
+            root_parts.push(fmt_date(sess.fs.now(), st.mtime, cfg.lang));
         }
     }
 
@@ -386,37 +535,39 @@ pub fn render_text<F: FsProvider>(
     render_node(sess, &cfg.root, "", 0, cfg, &mut stats, active_pats, None, &mut out);
 
     out.push('\n');
-    let mut summary = format!("  合計  {} ディレクトリ", stats.dirs);
+    let lang = cfg.lang;
+    let t = lang.t();
+    let mut summary = i18n::summary_total_dirs(lang, stats.dirs);
     if !cfg.dirs_only {
-        summary += &format!(",  {} ファイル", stats.files);
+        summary += &i18n::summary_files(lang, stats.files);
     }
     if cfg.use_gitignore {
-        summary += "  (.gitignore 適用済み)";
+        summary += &format!("  {}", t.gitignore_applied);
     }
     if let Some(te) = &cfg.type_ext {
-        summary += &format!("  (フィルタ: {})", te);
+        summary += &i18n::filter_note(lang, te);
     }
     if !cfg.excludes.is_empty() {
-        summary += &format!("  (除外: {})", cfg.excludes.join(", "));
+        summary += &i18n::exclude_note(lang, &cfg.excludes.join(", "));
     }
     if !cfg.includes.is_empty() {
-        summary += &format!("  (抽出: {})", cfg.includes.join(", "));
+        summary += &i18n::include_note(lang, &cfg.includes.join(", "));
     }
     if let Some(ms) = cfg.min_size {
         if ms != 0 {
-            summary += &format!("  (最小: {})", fmt_size_i(ms));
+            summary += &i18n::min_note(lang, &fmt_size_i(ms));
         }
     }
     if let Some(ms) = cfg.max_size {
         if ms != 0 {
-            summary += &format!("  (最大: {})", fmt_size_i(ms));
+            summary += &i18n::max_note(lang, &fmt_size_i(ms));
         }
     }
     if cfg.prune {
-        summary += "  (剪定済み)";
+        summary += &format!("  {}", t.pruned);
     }
     if cfg.dirs_only {
-        summary += "  (ディレクトリのみ)";
+        summary += &format!("  {}", t.dirs_only);
     }
     out.push_str(&format!("{}\n", c(&summary, &[DIM], color)));
 
@@ -436,22 +587,94 @@ pub fn render_text<F: FsProvider>(
         out.push_str(&format!(
             "{}\n",
             c(
-                &format!("  推定トークン数: {}", fmt_tokens(stats.tokens)),
+                &i18n::estimated_tokens(lang, &fmt_tokens(stats.tokens)),
                 &[DIM],
                 color
             )
         ));
+        // 言語別統計（compat モードでは出さない・Python 版に無い機能）
+        if !cfg.suppress_notes && stats.lang_stats.len() > 1 {
+            let mut items: Vec<(&String, &(u64, i64, i64))> =
+                stats.lang_stats.iter().collect();
+            items.sort_by(|a, b| b.1 .2.cmp(&a.1 .2));
+            out.push_str(&format!(
+                "{}\n",
+                c(
+                    i18n::tr(lang, "  Tokens by file type:", "  拡張子別トークン:"),
+                    &[DIM],
+                    color
+                )
+            ));
+            for (ext, (files, lines, tokens)) in items.into_iter().take(6) {
+                out.push_str(&format!(
+                    "{}\n",
+                    c(
+                        &format!(
+                            "    {} ×{}  {}  {} lines",
+                            sanitize_ctrl(ext),
+                            files,
+                            fmt_tokens(*tokens),
+                            lines
+                        ),
+                        &[DIM],
+                        color
+                    )
+                ));
+            }
+        }
+    }
+
+    // --since: 削除されたファイル（ツリーには現れないため一覧で出す）
+    if let Some(since_ref) = &cfg.since {
+        out.push_str(&format!(
+            "{}\n",
+            c(
+                &match lang {
+                    i18n::Lang::Ja => format!("  {} 以降の変更のみ表示", since_ref),
+                    i18n::Lang::En => format!("  showing only changes since {}", since_ref),
+                },
+                &[DIM],
+                color
+            )
+        ));
+        if !cfg.since_deleted.is_empty() {
+            out.push_str(&format!(
+                "{}\n",
+                c(
+                    &match lang {
+                        i18n::Lang::Ja =>
+                            format!("  削除されたファイル: {} 件", cfg.since_deleted.len()),
+                        i18n::Lang::En =>
+                            format!("  deleted files: {}", cfg.since_deleted.len()),
+                    },
+                    &[DIM],
+                    color
+                )
+            ));
+            for d in cfg.since_deleted.iter().take(10) {
+                out.push_str(&format!(
+                    "{}\n",
+                    c(&format!("    - {}", sanitize_ctrl(d)), &[DIM], color)
+                ));
+            }
+            if cfg.since_deleted.len() > 10 {
+                out.push_str(&format!(
+                    "{}\n",
+                    c(
+                        &i18n::more_items(lang, (cfg.since_deleted.len() - 10) as u64),
+                        &[DIM],
+                        color
+                    )
+                ));
+            }
+        }
     }
 
     if cfg.show_todo {
         if stats.todo_total > 0 {
             out.push_str(&format!(
                 "{}\n",
-                c(
-                    &format!("  TODO/FIXME等: {}件", stats.todo_total),
-                    &[DIM],
-                    color
-                )
+                c(&i18n::todo_count(lang, stats.todo_total), &[DIM], color)
             ));
             for (rel, ln, kind, snippet) in stats.todo_samples.iter().take(8) {
                 out.push_str(&format!(
@@ -474,11 +697,14 @@ pub fn render_text<F: FsProvider>(
                 let rest = stats.todo_total - shown;
                 out.push_str(&format!(
                     "{}\n",
-                    c(&format!("    …他 {} 件", rest), &[DIM], color)
+                    c(&i18n::more_items(lang, rest), &[DIM], color)
                 ));
             }
         } else {
-            out.push_str(&format!("{}\n", c("  TODO/FIXME等: 0件", &[DIM], color)));
+            out.push_str(&format!(
+                "{}\n",
+                c(&i18n::todo_count(lang, 0), &[DIM], color)
+            ));
         }
     }
 
@@ -486,7 +712,7 @@ pub fn render_text<F: FsProvider>(
         out.push_str(&format!(
             "{}\n",
             c(
-                &format!("  テスト未整備: {} ファイル", cfg.untested_set.len()),
+                &i18n::missing_tests(lang, cfg.untested_set.len()),
                 &[DIM],
                 color
             )
@@ -496,22 +722,14 @@ pub fn render_text<F: FsProvider>(
     if cfg.show_entry {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  エントリーポイント候補: {} 件検出", cfg.entry_set.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::entry_points(lang, cfg.entry_set.len()), &[DIM], color)
         ));
     }
 
     if cfg.show_config {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  設定ファイル: {} 件検出", cfg.config_set.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::config_files(lang, cfg.config_set.len()), &[DIM], color)
         ));
     }
 
@@ -522,14 +740,7 @@ pub fn render_text<F: FsProvider>(
             .map(|(k, v)| (k, v.len()))
             .collect();
         items.sort_by(|a, b| b.1.cmp(&a.1));
-        out.push_str(&format!(
-            "{}\n",
-            c(
-                "  依存度が高いファイル（多くのファイルから参照されている）:",
-                &[DIM],
-                color
-            )
-        ));
+        out.push_str(&format!("{}\n", c(t.most_depended, &[DIM], color)));
         for (relpath, n) in items.into_iter().take(5) {
             out.push_str(&format!(
                 "{}\n",
@@ -545,11 +756,7 @@ pub fn render_text<F: FsProvider>(
     if cfg.show_imports && !cfg.cycles.is_empty() {
         out.push_str(&format!(
             "{}\n",
-            c(
-                &format!("  循環依存: {} 件検出", cfg.cycles.len()),
-                &[DIM],
-                color
-            )
+            c(&i18n::cycles_found(lang, cfg.cycles.len()), &[DIM], color)
         ));
         for cycle in cfg.cycles.iter().take(5) {
             out.push_str(&format!(
@@ -565,7 +772,7 @@ pub fn render_text<F: FsProvider>(
             out.push_str(&format!(
                 "{}\n",
                 c(
-                    &format!("    …他 {} 件", cfg.cycles.len() - 5),
+                    &i18n::more_items(lang, (cfg.cycles.len() - 5) as u64),
                     &[DIM],
                     color
                 )
@@ -582,15 +789,16 @@ pub fn render_text<F: FsProvider>(
         items.sort_by(|a, b| b.1.cmp(&a.1));
         let top_hot: Vec<_> = items.into_iter().take(5).collect();
         if !top_hot.is_empty() && top_hot[0].1 > 1 {
-            out.push_str(&format!(
-                "{}\n",
-                c("  変更頻度が高いファイル（直近の履歴内）:", &[DIM], color)
-            ));
+            out.push_str(&format!("{}\n", c(t.hotspots, &[DIM], color)));
             for (relpath, n) in top_hot {
                 out.push_str(&format!(
                     "{}\n",
                     c(
-                        &format!("    {}  ({} 回変更)", sanitize_ctrl(relpath), n),
+                        &format!(
+                            "    {}  {}",
+                            sanitize_ctrl(relpath),
+                            i18n::change_count(lang, n)
+                        ),
                         &[DIM],
                         color
                     )
@@ -605,14 +813,7 @@ pub fn render_text<F: FsProvider>(
     {
         let candidates = reading_order_candidates(cfg, 3, 5);
         if !candidates.is_empty() {
-            out.push_str(&format!(
-                "{}\n",
-                c(
-                    "  読み始めの候補（エントリーポイント→依存度の高い順）:",
-                    &[DIM],
-                    color
-                )
-            ));
+            out.push_str(&format!("{}\n", c(t.reading_order, &[DIM], color)));
             for (i, p) in candidates.iter().enumerate() {
                 out.push_str(&format!(
                     "{}\n",
@@ -626,15 +827,35 @@ pub fn render_text<F: FsProvider>(
         }
     }
 
+    // 長大関数トップ5（compat モードでは出さない・Python 版に無い機能）
+    if cfg.show_outline && !cfg.suppress_notes && !stats.long_funcs.is_empty() {
+        let mut lf = stats.long_funcs.clone();
+        lf.sort_by(|x, y| y.0.cmp(&x.0).then_with(|| x.1.cmp(&y.1)));
+        let top: Vec<&(u32, String)> = lf.iter().take(5).filter(|(n, _)| *n >= 50).collect();
+        if !top.is_empty() {
+            out.push_str(&format!(
+                "{}\n",
+                c(
+                    i18n::tr(lang, "  Longest functions (50+ lines):", "  長大な関数（50行以上）:"),
+                    &[DIM],
+                    color
+                )
+            ));
+            for (n, name) in top {
+                out.push_str(&format!(
+                    "{}\n",
+                    c(
+                        &format!("    {} lines  {}", n, sanitize_ctrl(name)),
+                        &[DIM],
+                        color
+                    )
+                ));
+            }
+        }
+    }
+
     if cfg.show_git && cfg.git_map.is_empty() {
-        out.push_str(&format!(
-            "{}\n",
-            c(
-                "  (gitリポジトリではないか、git未インストールのためコミット情報は取得できませんでした)",
-                &[DIM],
-                color
-            )
-        ));
+        out.push_str(&format!("{}\n", c(t.no_git_info, &[DIM], color)));
     }
 
     // --agent の末尾に短い精度注記（spec 機能5）。互換モードでは出さない。
@@ -649,5 +870,5 @@ pub fn render_text<F: FsProvider>(
         out.push_str("```\n");
     }
 
-    out
+    (out, stats)
 }

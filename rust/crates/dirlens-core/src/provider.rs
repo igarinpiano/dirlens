@@ -75,6 +75,23 @@ pub trait GitProvider {
     fn is_work_tree(&self, _root: &Path) -> bool {
         false
     }
+
+    /// `git -C root status --porcelain -z` の stdout（--status / --since 用）。
+    /// git 不在・非リポジトリなら None。
+    fn status_output(&self, _root: &Path) -> Option<String> {
+        None
+    }
+
+    /// `git -C root diff --name-status -z <ref>` の stdout（--since 用）。
+    fn diff_names(&self, _root: &Path, _ref: &str) -> Option<String> {
+        None
+    }
+
+    /// `git -C root show <ref>:<rel>` の stdout（--api-diff 用）。
+    /// ref 時点にファイルが無い場合も None。
+    fn show_file(&self, _root: &Path, _ref: &str, _rel: &str) -> Option<String> {
+        None
+    }
 }
 
 pub trait ClipboardProvider {
@@ -85,6 +102,13 @@ pub trait ClipboardProvider {
     fn available(&self) -> bool {
         false
     }
+}
+
+/// 解析結果の永続キャッシュ（トークン数など）。native CLI がファイル実装を供給し、
+/// wasm では未使用。key はサイズ・mtime を含むため、無効化はキーの不一致で自然に起きる。
+pub trait CacheProvider: Sync {
+    fn get(&self, key: &str) -> Option<String>;
+    fn put(&self, key: &str, value: String);
 }
 
 /// GitProvider が存在しない環境（wasm 等）向けのダミー。

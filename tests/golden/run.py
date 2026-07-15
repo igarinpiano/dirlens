@@ -94,6 +94,10 @@ def build_env():
         # 遡らないようにする。これが無いと fixture の git 情報が外側リポジトリの
         # 履歴で汚染され、ゴールデンが dirlens のコミットのたびに変わってしまう。
         "GIT_CEILING_DIRECTORIES": WORK,
+        # 設定ファイル（.dirlens.toml は上方探索するため外側リポジトリの影響を受けうる）
+        # と永続キャッシュを無効化して決定論性を保つ（どちらも Rust 版 v1.2+ の機能）
+        "DIRLENS_CONFIG": "off",
+        "DIRLENS_CACHE": "off",
     }
 
 

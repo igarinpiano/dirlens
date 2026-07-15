@@ -10,6 +10,11 @@ pub const MAGENTA: &str = "\x1b[35m";
 pub const RED: &str = "\x1b[31m";
 pub const YELLOW: &str = "\x1b[33m";
 
+/// 256色 ANSI 前景色コード（--heat のグラデーション用）。
+pub fn fg256(n: u8) -> String {
+    format!("\x1b[38;5;{}m", n)
+}
+
 /// Python の `c(text, *codes)` 相当。
 pub fn c(text: &str, codes: &[&str], use_color: bool) -> String {
     if use_color {

@@ -17,6 +17,8 @@ pub struct Session<'a, F: FsProvider> {
     /// Tier1（git check-ignore）で得た無視パス集合（rel path, "/" 区切り）。
     /// None なら Tier3（内蔵マッチャ）に縮退する。
     pub git_ignored: Option<std::collections::HashSet<String>>,
+    /// 永続キャッシュ（native CLI が供給。無ければ None）。
+    pub cache: Option<&'a dyn crate::provider::CacheProvider>,
 }
 
 impl<'a, F: FsProvider> Session<'a, F> {
@@ -26,6 +28,7 @@ impl<'a, F: FsProvider> Session<'a, F> {
             sz_cache: Mutex::new(HashMap::new()),
             gi_cache: Mutex::new(HashMap::new()),
             git_ignored: None,
+            cache: None,
         }
     }
 

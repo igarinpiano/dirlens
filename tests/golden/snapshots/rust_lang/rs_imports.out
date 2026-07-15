@@ -7,9 +7,9 @@ rust_lang/ (1 dir, 1 file, 526 bytes)
 │   └── util.rs (201 bytes, used-by×2)
 └── Cargo.toml (42 bytes)
 
-  合計  2 ディレクトリ,  5 ファイル
+  Total  2 directories,  5 files
   .rs ×4  .toml ×1
-  依存度が高いファイル（多くのファイルから参照されている）:
+  Most depended-on files (imported by many):
     src/util.rs  (used by 2)
     src/nested/mod.rs  (used by 1)
     src/nested/inner.rs  (used by 1)

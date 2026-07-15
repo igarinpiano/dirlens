@@ -317,6 +317,56 @@ impl GitProvider for StdGit {
         )
     }
 
+    fn status_output(&self, root: &Path) -> Option<String> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C", &root.to_string_lossy(), "status", "--porcelain", "-z"]);
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, None)?;
+        if !status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&out).into_owned())
+    }
+
+    fn diff_names(&self, root: &Path, ref_: &str) -> Option<String> {
+        // ref はユーザー入力。オプション扱いされないよう "--" は使えない
+        // （diff の ref 位置は "--" の前）ため、先頭 "-" を拒否する。
+        if ref_.starts_with('-') {
+            return None;
+        }
+        let mut cmd = Command::new("git");
+        cmd.args([
+            "-C",
+            &root.to_string_lossy(),
+            "diff",
+            "--name-status",
+            "-z",
+            ref_,
+        ]);
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, None)?;
+        if !status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&out).into_owned())
+    }
+
+    fn show_file(&self, root: &Path, ref_: &str, rel: &str) -> Option<String> {
+        if ref_.starts_with('-') {
+            return None;
+        }
+        let mut cmd = Command::new("git");
+        cmd.args([
+            "-C",
+            &root.to_string_lossy(),
+            "show",
+            &format!("{}:{}", ref_, rel),
+        ]);
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, None)?;
+        if !status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&out).into_owned())
+    }
+
     fn available(&self) -> bool {
         has_cmd("git")
     }

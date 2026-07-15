@@ -31,6 +31,13 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB)
 ├── pyproject.toml (42 bytes, ~17 tok, 3 lines)
 └── tsconfig.json (50 bytes, ~16 tok, 5 lines)
 
-  合計  8 ディレクトリ,  23 ファイル
+  Total  8 directories,  23 files
   .py ×7  .ts ×4  .js ×3  .go ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1
-  推定トークン数: ~908 tok
+  Estimated tokens: ~908 tok
+  Tokens by file type:
+    .py ×7  ~259 tok  53 lines
+    .md ×1  ~245 tok  15 lines
+    .ts ×4  ~124 tok  26 lines
+    .js ×3  ~99 tok  21 lines
+    .go ×2  ~78 tok  31 lines
+    .json ×2  ~58 tok  11 lines

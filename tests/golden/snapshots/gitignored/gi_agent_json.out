@@ -44,6 +44,7 @@
               "path": "nested/sub/other.txt",
               "tokens": 2,
               "lines": 1,
+              "git_status": null,
               "git": null,
               "todos": [],
               "has_test": true,
@@ -65,6 +66,7 @@
           "path": "nested/kept.txt",
           "tokens": 2,
           "lines": 1,
+          "git_status": null,
           "git": {
             "hash": "<HASH>",
             "date": "<GITDATE>",
@@ -103,6 +105,7 @@
           "path": "src/main.py",
           "tokens": 8,
           "lines": 2,
+          "git_status": null,
           "git": {
             "hash": "<HASH>",
             "date": "<GITDATE>",
@@ -117,7 +120,11 @@
             {
               "kind": "def",
               "name": "main",
-              "public": true
+              "public": true,
+              "lines": [
+                1,
+                2
+              ]
             }
           ],
           "imports": [],
@@ -135,6 +142,7 @@
       "path": "important.log",
       "tokens": 6,
       "lines": 1,
+      "git_status": null,
       "git": {
         "hash": "<HASH>",
         "date": "<GITDATE>",
@@ -159,6 +167,7 @@
       "path": "README.md",
       "tokens": 7,
       "lines": 1,
+      "git_status": null,
       "git": {
         "hash": "<HASH>",
         "date": "<GITDATE>",
@@ -210,6 +219,39 @@
       "src/main.py"
     ]
   },
+  "language_breakdown": [
+    {
+      "ext": ".py",
+      "files": 1,
+      "lines": 2,
+      "tokens": 8
+    },
+    {
+      "ext": ".md",
+      "files": 1,
+      "lines": 1,
+      "tokens": 7
+    },
+    {
+      "ext": ".log",
+      "files": 1,
+      "lines": 1,
+      "tokens": 6
+    },
+    {
+      "ext": ".txt",
+      "files": 2,
+      "lines": 2,
+      "tokens": 4
+    }
+  ],
+  "longest_functions": [
+    {
+      "lines": 2,
+      "symbol": "src/main.py:main"
+    }
+  ],
+  "errors": [],
   "capabilities": {
     "gitignore_tier": "git",
     "outline": {
@@ -218,6 +260,12 @@
       "rust": "ast",
       "go": "ast",
       "c": "ast",
+      "java": "ast",
+      "ruby": "ast",
+      "php": "ast",
+      "csharp": "ast",
+      "kotlin": "ast",
+      "swift": "ast",
       "fallback": "regex"
     },
     "imports_resolution": [

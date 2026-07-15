@@ -81,12 +81,20 @@
                     {
                       "kind": "func",
                       "name": "Public",
-                      "public": true
+                      "public": true,
+                      "lines": [
+                        6,
+                        8
+                      ]
                     },
                     {
                       "kind": "func",
                       "name": "private",
-                      "public": false
+                      "public": false,
+                      "lines": [
+                        10,
+                        10
+                      ]
                     }
                   ]
                 }
@@ -114,22 +122,38 @@
             {
               "kind": "struct",
               "name": "Config",
-              "public": true
+              "public": true,
+              "lines": [
+                9,
+                11
+              ]
             },
             {
               "kind": "interface",
               "name": "Runner",
-              "public": true
+              "public": true,
+              "lines": [
+                13,
+                15
+              ]
             },
             {
               "kind": "func",
               "name": "main",
-              "public": false
+              "public": false,
+              "lines": [
+                17,
+                19
+              ]
             },
             {
               "kind": "func",
               "name": "helperLocal",
-              "public": false
+              "public": false,
+              "lines": [
+                21,
+                21
+              ]
             }
           ]
         }
@@ -167,7 +191,11 @@
             {
               "kind": "def",
               "name": "alpha",
-              "public": true
+              "public": true,
+              "lines": [
+                3,
+                4
+              ]
             }
           ]
         },
@@ -182,7 +210,11 @@
             {
               "kind": "def",
               "name": "beta",
-              "public": true
+              "public": true,
+              "lines": [
+                3,
+                4
+              ]
             }
           ]
         },
@@ -197,27 +229,47 @@
             {
               "kind": "def",
               "name": "public_fn",
-              "public": true
+              "public": true,
+              "lines": [
+                3,
+                5
+              ]
             },
             {
               "kind": "def",
               "name": "_private_fn",
-              "public": false
+              "public": false,
+              "lines": [
+                7,
+                8
+              ]
             },
             {
               "kind": "class",
               "name": "Helper",
-              "public": true
+              "public": true,
+              "lines": [
+                10,
+                12
+              ]
             },
             {
               "kind": "def",
               "name": "fetch",
-              "public": true
+              "public": true,
+              "lines": [
+                11,
+                12
+              ]
             },
             {
               "kind": "class",
               "name": "_HiddenHelper",
-              "public": false
+              "public": false,
+              "lines": [
+                14,
+                15
+              ]
             }
           ]
         },
@@ -232,7 +284,11 @@
             {
               "kind": "def",
               "name": "util_fn",
-              "public": true
+              "public": true,
+              "lines": [
+                5,
+                6
+              ]
             }
           ]
         }
@@ -282,7 +338,11 @@
                 {
                   "kind": "class",
                   "name": "Kind",
-                  "public": true
+                  "public": true,
+                  "lines": [
+                    1,
+                    3
+                  ]
                 }
               ]
             },
@@ -297,22 +357,38 @@
                 {
                   "kind": "func",
                   "name": "helper",
-                  "public": true
+                  "public": true,
+                  "lines": [
+                    4,
+                    6
+                  ]
                 },
                 {
                   "kind": "func",
                   "name": "internalOnly",
-                  "public": false
+                  "public": false,
+                  "lines": [
+                    8,
+                    8
+                  ]
                 },
                 {
                   "kind": "func",
                   "name": "arrowExported",
-                  "public": true
+                  "public": true,
+                  "lines": [
+                    10,
+                    10
+                  ]
                 },
                 {
                   "kind": "func",
                   "name": "arrowLocal",
-                  "public": false
+                  "public": false,
+                  "lines": [
+                    11,
+                    11
+                  ]
                 }
               ]
             }
@@ -338,7 +414,11 @@
             {
               "kind": "func",
               "name": "appMain",
-              "public": true
+              "public": true,
+              "lines": [
+                3,
+                5
+              ]
             }
           ]
         },
@@ -353,7 +433,11 @@
             {
               "kind": "func",
               "name": "run",
-              "public": false
+              "public": false,
+              "lines": [
+                5,
+                7
+              ]
             }
           ]
         },
@@ -368,12 +452,20 @@
             {
               "kind": "class",
               "name": "App",
-              "public": true
+              "public": true,
+              "lines": [
+                5,
+                7
+              ]
             },
             {
               "kind": "func",
               "name": "bootstrap",
-              "public": true
+              "public": true,
+              "lines": [
+                9,
+                12
+              ]
             }
           ]
         }
@@ -402,7 +494,11 @@
             {
               "kind": "def",
               "name": "test_util_fn",
-              "public": true
+              "public": true,
+              "lines": [
+                3,
+                4
+              ]
             }
           ]
         }
@@ -428,22 +524,38 @@
         {
           "kind": "def",
           "name": "main",
-          "public": true
+          "public": true,
+          "lines": [
+            8,
+            9
+          ]
         },
         {
           "kind": "def",
           "name": "_internal",
-          "public": false
+          "public": false,
+          "lines": [
+            11,
+            12
+          ]
         },
         {
           "kind": "class",
           "name": "AppRunner",
-          "public": true
+          "public": true,
+          "lines": [
+            14,
+            16
+          ]
         },
         {
           "kind": "def",
           "name": "run",
-          "public": true
+          "public": true,
+          "lines": [
+            15,
+            16
+          ]
         }
       ]
     },
@@ -495,5 +607,48 @@
     "hotspots": null,
     "circular_dependencies": null,
     "reading_order_candidates": null
-  }
+  },
+  "longest_functions": [
+    {
+      "lines": 4,
+      "symbol": "src/index.js:bootstrap"
+    },
+    {
+      "lines": 3,
+      "symbol": "go/internal/util/util.go:Public"
+    },
+    {
+      "lines": 3,
+      "symbol": "go/main.go:Runner"
+    },
+    {
+      "lines": 3,
+      "symbol": "go/main.go:main"
+    },
+    {
+      "lines": 3,
+      "symbol": "pkg/helpers.py:public_fn"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/app.ts:appMain"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/cli.js:run"
+    },
+    {
+      "lines": 3,
+      "symbol": "src/lib/util.ts:helper"
+    },
+    {
+      "lines": 2,
+      "symbol": "main.py:_internal"
+    },
+    {
+      "lines": 2,
+      "symbol": "main.py:main"
+    }
+  ],
+  "errors": []
 }

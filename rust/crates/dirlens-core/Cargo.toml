@@ -15,6 +15,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # AST 第1段（言語別最良パーサ・すべて任意依存）
 rustpython-parser = { version = "0.4", optional = true }
 syn = { version = "2", features = ["full"], optional = true }
+# syn の span から行番号を取るために必要（--outline の行スパン・長大関数検出）
+proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 oxc_parser = { version = "0.138", optional = true }
 oxc_ast = { version = "0.138", optional = true }
 oxc_allocator = { version = "0.138", optional = true }
@@ -22,6 +24,12 @@ oxc_span = { version = "0.138", optional = true }
 tree-sitter = { version = "0.25", optional = true }
 tree-sitter-go = { version = "0.25", optional = true }
 tree-sitter-c = { version = "0.24", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-ruby = { version = "0.23", optional = true }
+tree-sitter-php = { version = "0.24", optional = true }
+tree-sitter-c-sharp = { version = "0.23", optional = true }
+tree-sitter-kotlin-ng = { version = "1.1", optional = true }
+tree-sitter-swift = { version = "0.7", optional = true }
 
 # トークン数の正確値（BPE・o200k_base）。データはバイナリに同梱される
 # （ユーザから見た外部依存はゼロのまま。+数MB）
@@ -32,9 +40,17 @@ default = []
 # 純 Rust パーサ（wasm でも動く）
 ast-python = ["dep:rustpython-parser"]
 ast-js = ["dep:oxc_parser", "dep:oxc_ast", "dep:oxc_allocator", "dep:oxc_span"]
-ast-rust = ["dep:syn"]
+ast-rust = ["dep:syn", "dep:proc-macro2"]
 # C 文法（tree-sitter）— wasm ビルドでは無効にする
 lang-go = ["dep:tree-sitter", "dep:tree-sitter-go"]
 lang-c = ["dep:tree-sitter", "dep:tree-sitter-c"]
+lang-java = ["dep:tree-sitter", "dep:tree-sitter-java"]
+lang-ruby = ["dep:tree-sitter", "dep:tree-sitter-ruby"]
+lang-php = ["dep:tree-sitter", "dep:tree-sitter-php"]
+lang-csharp = ["dep:tree-sitter", "dep:tree-sitter-c-sharp"]
+lang-kotlin = ["dep:tree-sitter", "dep:tree-sitter-kotlin-ng"]
+lang-swift = ["dep:tree-sitter", "dep:tree-sitter-swift"]
+# 追加6言語をまとめて有効化
+lang-extra = ["lang-java", "lang-ruby", "lang-php", "lang-csharp", "lang-kotlin", "lang-swift"]
 # BPE トークン計数（Tier1）。無効ビルドは文字数ヒューリスティック（Tier2）のみ
 tokens-bpe = ["dep:tiktoken-rs"]

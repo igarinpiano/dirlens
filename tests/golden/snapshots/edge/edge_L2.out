@@ -2,7 +2,7 @@ edge/ (2 dirs, 13 files, 5.73+ MB)
 ├── chain/ (1 dir, 0 files, 11 bytes)
 │   └── a/ (1 dir, 0 files, 11 bytes)
 ├── denied/ (0+ dirs, 0+ files, 0+ bytes)
-│   └── [アクセス拒否]
+│   └── [access denied]
 ├── 'quote'.txt (7 bytes)
 ├── [bracket].txt (17 bytes)
 ├── a&b<c>.html (17 bytes)
@@ -17,5 +17,5 @@ edge/ (2 dirs, 13 files, 5.73+ MB)
 ├── todo_many.py (398 bytes)
 └── 日本語ファイル.md (15 bytes)
 
-  合計  3 ディレクトリ,  13 ファイル
+  Total  3 directories,  13 files
   .txt ×8  .md ×2  .html ×1  .png ×1  .py ×1

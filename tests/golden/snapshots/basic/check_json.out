@@ -8,6 +8,12 @@
       "rust": "ast",
       "go": "ast",
       "c": "ast",
+      "java": "ast",
+      "ruby": "ast",
+      "php": "ast",
+      "csharp": "ast",
+      "kotlin": "ast",
+      "swift": "ast",
       "fallback": "regex"
     },
     "imports_resolution": [
@@ -22,8 +28,8 @@
     "tokens": "bpe-o200k_base"
   },
   "degraded": [
-    "対象が git work tree ではない（gitignore は内蔵マッチャ）",
-    "クリップボードツールが見つからない（-C 不可）"
+    "target is not a git work tree (gitignore uses builtin matcher)",
+    "no clipboard tool found (-C unavailable)"
   ],
   "best": false
 }
