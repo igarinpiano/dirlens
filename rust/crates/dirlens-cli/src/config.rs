@@ -5,6 +5,9 @@
 //!   2. プロジェクト: 対象ディレクトリから上方向に探索した最初の `.dirlens.toml`
 //!
 //! 優先順: CLI フラグ > プロジェクト設定 > グローバル設定 > 既定値。
+//! ただし `[presets]` は**グローバル設定からのみ**読み込む。プロジェクト設定は
+//! スキャン対象ツリー内に置かれ信用できないため、`--preset` 経由で副作用フラグを
+//! 注入できる preset をプロジェクト設定から受け付けると危険（詳細は `overlay`）。
 //! ブールは「設定で true → 有効化」のみ（CLI に無効化フラグが無いため）。
 //! `DIRLENS_CONFIG=off` または `--no-config` で全設定ファイルを無視する
 //! （ゴールデンテスト・CI 等の決定論性が必要な場面用）。
@@ -55,7 +58,15 @@ pub struct FileConfig {
 
 impl FileConfig {
     /// other（優先側）を self に上書きマージする。
-    fn overlay(&mut self, other: FileConfig) {
+    ///
+    /// `trust_presets` が false の場合、other の `[presets]` は取り込まない。
+    /// プロジェクト設定（`.dirlens.toml`）はスキャン対象ツリー内に置かれ、
+    /// クローンした第三者リポジトリが同梱しうる信用できない入力である。
+    /// preset は `--preset` 実行時に任意の CLI フラグ（`--pack <絶対パス> -C` による
+    /// ローカルファイルのクリップボードコピーや `--html <絶対パス>` による任意パス書き込み等、
+    /// 副作用を伴うもの）を argv に注入できるため、preset はユーザーのホーム配下にある
+    /// グローバル設定（信用できる）からのみ受け付ける。通常の設定キーは副作用が無いため従来通り。
+    fn overlay(&mut self, other: FileConfig, trust_presets: bool) {
         macro_rules! ov {
             ($($f:ident),*) => { $( if other.$f.is_some() { self.$f = other.$f; } )* };
         }
@@ -64,8 +75,10 @@ impl FileConfig {
         // 配列は「優先側で置き換え」ではなく連結（グローバル + プロジェクト両方効く）
         self.exclude.extend(other.exclude);
         self.include.extend(other.include);
-        for (k, v) in other.presets {
-            self.presets.insert(k, v);
+        if trust_presets {
+            for (k, v) in other.presets {
+                self.presets.insert(k, v);
+            }
         }
     }
 }
@@ -121,14 +134,26 @@ pub fn load(target: &Path) -> (FileConfig, Vec<String>) {
     if let Some(p) = global_config_path() {
         if p.is_file() {
             match parse_file(&p) {
-                Ok(c) => cfg.overlay(c),
+                // グローバル設定は信用できる（ユーザーのホーム配下）ので preset も取り込む。
+                Ok(c) => cfg.overlay(c, true),
                 Err(e) => warnings.push(format!("dirlens: config ignored ({})", e)),
             }
         }
     }
     if let Some(p) = project_config_path(target) {
         match parse_file(&p) {
-            Ok(c) => cfg.overlay(c),
+            Ok(c) => {
+                // プロジェクト設定はスキャン対象ツリー内にあり信用できない。preset は
+                // 副作用フラグを注入しうるため取り込まず、定義されていれば警告する。
+                if !c.presets.is_empty() {
+                    warnings.push(format!(
+                        "dirlens: ignoring [presets] from project config {} \
+                         (presets are only honored from the global config)",
+                        p.display()
+                    ));
+                }
+                cfg.overlay(c, false)
+            }
             Err(e) => warnings.push(format!("dirlens: config ignored ({})", e)),
         }
     }
@@ -161,12 +186,41 @@ mod tests {
             "#,
         )
         .unwrap();
-        base.overlay(over);
+        base.overlay(over, true);
         assert_eq!(base.lang.as_deref(), Some("ja"));
         assert_eq!(base.gitignore, Some(true));
         assert_eq!(base.emoji, Some(true));
         assert_eq!(base.exclude, vec!["dist", "*.log"]);
         assert_eq!(base.presets.len(), 2);
+    }
+
+    #[test]
+    fn untrusted_overlay_drops_presets() {
+        // グローバル（信用できる）で定義した preset を、プロジェクト設定（信用できない）が
+        // 上書き・追加できないことを保証する。
+        let mut global: FileConfig = toml::from_str(
+            r#"
+            [presets]
+            quick = ["-L", "2", "-G"]
+            "#,
+        )
+        .unwrap();
+        let project: FileConfig = toml::from_str(
+            r#"
+            [presets]
+            quick = ["--pack", "/home/victim/.ssh/id_ed25519", "-C"]
+            evil = ["--html", "/home/victim/.zshrc"]
+            "#,
+        )
+        .unwrap();
+        global.overlay(project, false);
+        // quick はグローバルの定義のまま、evil は取り込まれない。
+        assert_eq!(global.presets.len(), 1);
+        assert_eq!(
+            global.presets.get("quick"),
+            Some(&vec!["-L".to_string(), "2".to_string(), "-G".to_string()])
+        );
+        assert!(global.presets.get("evil").is_none());
     }
 
     #[test]
