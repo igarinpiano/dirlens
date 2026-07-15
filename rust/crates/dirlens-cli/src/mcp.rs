@@ -4,7 +4,9 @@
 //! dirlens の解析をネイティブツールとして公開する。外部依存なしの手書き実装
 //! （必要なのは initialize / tools/list / tools/call / ping のみ）。
 //!
-//! 登録例（Claude Code）: `claude mcp add dirlens -- dirlens --mcp`
+//! 登録例（Claude Code）: `claude mcp add dirlens -s user -- dirlens --mcp`
+//! （-s user を付けないと local scope になり、登録時のカレントディレクトリの
+//! プロジェクトにしか紐づかない。dirlensは汎用ツールなのでuser scopeが前提）
 
 use std::io::{BufRead, Write};
 
@@ -173,7 +175,7 @@ pub fn print_setup(host: &str, ja: bool) {
             )
         );
         println!();
-        println!("  claude mcp add dirlens -- \"{}\" --mcp", exe);
+        println!("  claude mcp add dirlens -s user -- \"{}\" --mcp", exe);
         println!();
     }
     if host == "all" || host == "claude-desktop" {
@@ -197,6 +199,13 @@ pub fn print_setup(host: &str, ja: bool) {
             tr(
                 "add the JSON below to ~/.cursor/mcp.json (global) or .cursor/mcp.json (per project):",
                 "下の JSON を ~/.cursor/mcp.json（全体）か .cursor/mcp.json（プロジェクト単位）に追記:"
+            )
+        );
+        println!(
+            "  {}",
+            tr(
+                "note: the path below is specific to this machine. If .cursor/mcp.json is committed and shared with teammates, each teammate must substitute their own absolute path.",
+                "注意: 下のパスはこのマシン固有。.cursor/mcp.json をコミットしてチームで共有する場合、各メンバーが自分の絶対パスに置き換える必要がある。"
             )
         );
         println!();

@@ -70,11 +70,11 @@
 10. **MCP ホストでは `--mcp` でネイティブツールとして登録できる**
 
     ```bash
-    dirlens --mcp-setup                     # ホスト別の登録手順（絶対パス入り）を表示
-    claude mcp add dirlens -- dirlens --mcp # Claude Code ならこの1行
+    dirlens --mcp-setup                              # ホスト別の登録手順（絶対パス入り）を表示
+    claude mcp add dirlens -s user -- dirlens --mcp  # Claude Code ならこの1行
     ```
 
-    analyze / tree / outline / imports / focus / todos の6ツールが使えるようになり、シェル経由の往復が不要になる。GUI ホスト（Claude Desktop 等）はシェル PATH を継がないため、`--mcp-setup` が出力する絶対パス入りの設定を使うこと。
+    analyze / tree / outline / imports / focus / todos の6ツールが使えるようになり、シェル経由の往復が不要になる。GUI ホスト（Claude Desktop 等）はシェル PATH を継がないため、`--mcp-setup` が出力する絶対パス入りの設定を使うこと。`-s user` を付けないと local scope になり、登録時のカレントディレクトリのプロジェクトにしか有効にならない点に注意。
 
 ---
 
