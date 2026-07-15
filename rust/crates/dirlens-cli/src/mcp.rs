@@ -25,6 +25,7 @@ fn tool_defs() -> Value {
     };
     let path_prop = json!({"type": "string", "description": "target directory (default: current directory)"});
     let depth_prop = json!({"type": "integer", "description": "how many directory levels deep to show (default: unlimited, i.e. the full tree). Project-wide counts and summaries (TODO count, hotspots, etc.) always cover the whole project regardless of this value — only the tree/listing gets shallower. If you don't know how big the project is yet, don't omit this on the first call: pass a small value like 1 or 2, or use `estimate`/`budget` where available instead of guessing"});
+    let unlimited_depth_prop = json!({"type": "boolean", "description": "set true to force the full, unlimited-depth tree even though this tool normally defaults `depth` to a small number when it's omitted. Ignored if `depth` is also set (an explicit `depth` always wins)"});
     json!([
         {
             "name": "analyze",
@@ -48,11 +49,12 @@ fn tool_defs() -> Value {
         },
         {
             "name": "outline",
-            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (raise it if you need deeper coverage, or pass `files` explicitly once you know which ones you need).",
+            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small. Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
             "inputSchema": obj(json!({
                 "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline"},
                 "path": path_prop,
-                "depth": depth_prop
+                "depth": depth_prop,
+                "unlimited_depth": unlimited_depth_prop
             }), vec![])
         },
         {
@@ -83,8 +85,8 @@ fn tool_defs() -> Value {
         },
         {
             "name": "history",
-            "description": "Recent git activity as compact text: tree annotated with each file's last commit, plus frequently-changed hotspot files. `depth` defaults to 1 here (unlike other tools) to stay small automatically — the hotspot list itself always covers the whole project regardless, so you rarely need to raise it.",
-            "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop}), vec![])
+            "description": "Recent git activity as compact text: tree annotated with each file's last commit, plus frequently-changed hotspot files. `depth` defaults to 1 here (unlike other tools) to stay small automatically — the hotspot list itself always covers the whole project regardless, so you rarely need to raise it. Pass `depth` explicitly, or `unlimited_depth: true`, to see every file's last-commit line instead of just the top level.",
+            "inputSchema": obj(json!({"path": path_prop, "depth": depth_prop, "unlimited_depth": unlimited_depth_prop}), vec![])
         },
         {
             "name": "api_diff",
@@ -105,6 +107,12 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         .unwrap_or(".")
         .to_string();
     let depth = args_val.get("depth").and_then(|v| v.as_i64());
+    // depth 未指定時に既定値を入れるツール（outline の -A 相当 / history）向けの
+    // オプトアウト。true なら既定値を入れず None（無制限）のままにする
+    let unlimited_depth = args_val
+        .get("unlimited_depth")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     let mut a = Args {
         path,
@@ -154,7 +162,7 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
                 a.api = true;
                 a.gitignore = true;
                 a.json = true;
-                if a.depth.is_none() {
+                if a.depth.is_none() && !unlimited_depth {
                     a.depth = Some(2);
                 }
             } else {
@@ -221,8 +229,9 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
             a.git = true;
             a.gitignore = true;
             // ファイル毎の git 注釈で JSON は肥大化するためテキスト固定。
-            // 深さも既定 1 に抑える（ホットスポット一覧は深さに依らず全体を反映）
-            if a.depth.is_none() {
+            // 深さも既定 1 に抑える（ホットスポット一覧は深さに依らず全体を反映）。
+            // unlimited_depth:true が明示されれば無制限（None）のまま通す
+            if a.depth.is_none() && !unlimited_depth {
                 a.depth = Some(1);
             }
         }
