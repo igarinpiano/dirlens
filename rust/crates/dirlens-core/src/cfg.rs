@@ -107,6 +107,10 @@ pub struct Cfg {
     pub stdin_files: Option<Vec<String>>,
     pub budget: Option<i64>,
     pub estimate: bool,
+    /// --estimate の見積もり表で「この値を超える階層は呼び出し自体が失敗する」
+    /// と警告する上限トークン数。MCP 層がホストの応答上限
+    /// （MAX_MCP_OUTPUT_TOKENS または Claude Code 既定 25000）を注入する。
+    pub estimate_cap: Option<i64>,
     pub api_diff: Option<String>,
     pub pack: Vec<String>,
     pub export_mermaid: bool,
@@ -222,6 +226,7 @@ impl Cfg {
             stdin_files: args.stdin_files.clone(),
             budget: args.budget,
             estimate: args.estimate,
+            estimate_cap: args.estimate_cap,
             api_diff: args.api_diff.clone(),
             pack: args.pack.clone(),
             export_mermaid: args.mermaid,

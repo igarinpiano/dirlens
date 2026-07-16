@@ -147,7 +147,7 @@ AIチャットやコーディングエージェントがプロジェクト構造
 - **公開API差分** — `--api-diff REF` で公開シンボルの追加/削除を git ref と比較（破壊的変更の検出）
 - **グラフのエクスポート** — `--mermaid` / `--dot` で import グラフを図のソースとして出力、`--csv` でファイルメタデータ表を出力
 - **--pack** — `--pack FILE...` で指定ファイルの中身＋トークン数を貼り付け用 Markdown に整形
-- **MCP サーバー** — `--mcp` で MCP サーバーとして起動し、analyze / tree / outline / imports / focus / todos / since / history / api_diff の9ツールをエージェントがネイティブに呼べる（analyze/tree はトークン予算 `budget`・コスト見積もり `estimate`・上位表示 `top`、imports/todos は該当なしファイルを含まないフラットな一覧＋件数上限 `limit`（imports はさらに `format: mermaid/dot`）、outline は複数ファイル一括と `files` 省略時の公開API出力に対応）。多くの MCP ホストは 1 応答に上限がある（Claude Code 既定 25,000 トークン）ため、`estimate` の結果が上限を超える場合は上限未満の `budget` を指定する（v1.2.5+ は `estimate` の出力末尾にもこの注意が付く）。**設定は `dirlens --mcp-setup` が案内**（バイナリの絶対パス入りで Claude Code のワンライナー・Claude Desktop / Cursor の設定 JSON を出力するので、コピペで完了）
+- **MCP サーバー** — `--mcp` で MCP サーバーとして起動し、analyze / tree / outline / imports / focus / todos / since / history / api_diff の9ツールをエージェントがネイティブに呼べる（analyze/tree はトークン予算 `budget`・コスト見積もり `estimate`・上位表示 `top`、imports/todos は該当なしファイルを含まないフラットな一覧＋件数上限 `limit`（imports はさらに `format: mermaid/dot`）、outline は複数ファイル一括と `files` 省略時の公開API出力に対応）。多くの MCP ホストは 1 応答に上限がある（Claude Code 既定 25,000 トークン）ため、`estimate` の結果が上限を超える場合は上限未満の `budget` を指定する（v1.2.6+ は見積もり表の該当行に `⚠ exceeds host cap` マークと上限値・推奨 `budget` が表示される。上限は `MAX_MCP_OUTPUT_TOKENS` があればその値、無ければ Claude Code 既定の 25000 を仮定）。**設定は `dirlens --mcp-setup` が案内**（バイナリの絶対パス入りで Claude Code のワンライナー・Claude Desktop / Cursor の設定 JSON を出力するので、コピペで完了）
 - **設定ファイル検出** — `-F` で `.env`・`tsconfig.json`・`Makefile` 等の設定ファイルを検出して一覧表示
 - **構造化エラー** — `--json` は部分的な解析失敗があっても常に valid な JSON を返し、`errors` 配列で機械可読に報告
 

@@ -68,6 +68,7 @@ pub struct Args {
     pub stdin_files: Option<Vec<String>>, // --stdin（CLI が読み取ったファイルリスト）
     pub budget: Option<i64>,        // --budget N（出力トークン予算）
     pub estimate: bool,             // --estimate（階層別の出力コスト見積もり）
+    pub estimate_cap: Option<i64>,  // 見積もり表で超過を警告する上限（MCP 層が注入）
     pub api_diff: Option<String>,   // --api-diff REF（公開APIの差分）
     pub pack: Vec<String>,          // --pack FILE...（貼り付け用ブロック整形）
     pub mermaid: bool,              // --mermaid（import グラフを Mermaid で出力）

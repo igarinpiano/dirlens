@@ -323,10 +323,19 @@ pub fn execute<F: FsProvider>(
         }
         let label_w = rows.iter().map(|(l, _)| l.chars().count()).max().unwrap_or(0);
         for (label, toks) in &rows {
+            // ホスト上限（MCP 層が注入）を超える階層はその行で警告する。
+            // 見積もり値が正確でも、上限超過なら呼び出し自体が失敗するため
+            let cap_mark = match cfg.estimate_cap {
+                Some(cap) if *toks > cap => {
+                    i18n::tr(cfg.lang, "  ⚠ exceeds host cap", "  ⚠ ホスト上限超過")
+                }
+                _ => "",
+            };
             out.push_str(&format!(
-                "  {:<w$}  {}\n",
+                "  {:<w$}  {}{}\n",
                 label,
                 crate::fmt::fmt_tokens(*toks),
+                cap_mark,
                 w = label_w
             ));
         }
@@ -335,6 +344,32 @@ pub fn execute<F: FsProvider>(
             "Use --budget N to fit the output automatically.\n",
             "--budget N を付けると出力を自動で予算内に調整できます。\n",
         ));
+        if let Some(cap) = cfg.estimate_cap {
+            let any_over = rows.iter().any(|(_, t)| *t > cap);
+            let line = if any_over {
+                match cfg.lang {
+                    Lang::Ja => format!(
+                        "ホスト応答上限: ~{} トークン。⚠ の付いた階層は無指定で実行すると失敗します — 上限未満の --budget（例: {}）を指定してください。",
+                        cap,
+                        (cap - 5000).max(cap * 4 / 5)
+                    ),
+                    Lang::En => format!(
+                        "Host response cap: ~{} tokens. Levels marked ⚠ will fail if run uncapped — pass a budget below the cap (e.g. {}).",
+                        cap,
+                        (cap - 5000).max(cap * 4 / 5)
+                    ),
+                }
+            } else {
+                match cfg.lang {
+                    Lang::Ja => format!("ホスト応答上限: ~{} トークン — 全階層が上限内です。", cap),
+                    Lang::En => format!(
+                        "Host response cap: ~{} tokens — all levels fit within the cap.",
+                        cap
+                    ),
+                }
+            };
+            out.push_str(&format!("{}\n", line));
+        }
         return RunResult {
             stdout: out,
             ..Default::default()

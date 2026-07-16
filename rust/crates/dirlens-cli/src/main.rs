@@ -517,6 +517,8 @@ fn main() {
         },
         budget: m.get_one::<i64>("budget").copied(),
         estimate: getb("estimate"),
+        // CLI 直接実行ではホスト応答上限の概念が無い（MCP 層のみ注入する）
+        estimate_cap: None,
         api_diff: m.get_one::<String>("api_diff").cloned(),
         pack: m
             .get_many::<String>("pack")
