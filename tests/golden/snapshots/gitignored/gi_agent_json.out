@@ -47,7 +47,7 @@
               "git_status": null,
               "git": null,
               "todos": [],
-              "has_test": true,
+              "has_test": null,
               "is_entry": false,
               "is_config": false,
               "outline": null,
@@ -74,7 +74,7 @@
             "subject": "feat: initial import of project skeleton and configs"
           },
           "todos": [],
-          "has_test": true,
+          "has_test": null,
           "is_entry": false,
           "is_config": false,
           "outline": null,
@@ -150,7 +150,7 @@
         "subject": "feat: initial import of project skeleton and configs"
       },
       "todos": [],
-      "has_test": true,
+      "has_test": null,
       "is_entry": false,
       "is_config": false,
       "outline": null,
@@ -175,7 +175,7 @@
         "subject": "日本語のコミットメッセージで切り詰め動作を確認する"
       },
       "todos": [],
-      "has_test": true,
+      "has_test": null,
       "is_entry": false,
       "is_config": false,
       "outline": null,
@@ -266,6 +266,7 @@
       "csharp": "ast",
       "kotlin": "ast",
       "swift": "ast",
+      "html": "ast (embedded js)",
       "fallback": "regex"
     },
     "imports_resolution": [
@@ -283,6 +284,7 @@
     "gitignore_tier": "git",
     "outline": "ast+regex-fallback",
     "imports": "ast+manifest",
-    "tokens": "bpe-o200k_base"
+    "tokens": "bpe-o200k_base",
+    "dir_sizes": "raw-disk (gitignore not applied)"
   }
 }

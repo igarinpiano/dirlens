@@ -75,7 +75,29 @@ pub fn prepare<F: FsProvider>(
     match st {
         None => return Err(early_exit(&i18n::err_not_found(lang, &args.path))),
         Some(st) if st.mode & 0o170000 != 0o040000 => {
-            return Err(early_exit(&i18n::err_not_dir(lang, &args.path)))
+            // 位置引数が通常ファイルなら単一ファイルレポート（--stdin と同じ経路）。
+            // `dirlens -O src/main.py` のような使い方をエラーにしない
+            if st.mode & 0o170000 == 0o100000 && args.stdin_files.is_none() {
+                let parent = target
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| target.clone());
+                let root_label = parent
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| parent.to_string_lossy().into_owned());
+                let mut cfg = Cfg::from_args(args, parent, root_label, use_color)
+                    .map_err(|msg| early_exit(&i18n::err_prefix(lang, &msg)))?;
+                cfg.stdin_files = Some(vec![args.path.clone()]);
+                // --stdin と同じ暗黙フラグ（トークン・アウトライン・TODO）
+                cfg.show_tokens = true;
+                cfg.show_outline = true;
+                cfg.show_todo = true;
+                cfg.has_extras = true;
+                return Ok(cfg);
+            }
+            return Err(early_exit(&i18n::err_not_dir(lang, &args.path)));
         }
         _ => {}
     }

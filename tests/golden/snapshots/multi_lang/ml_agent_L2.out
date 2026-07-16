@@ -28,15 +28,16 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB, 3 months ago)
 
   Total  7 directories,  19 files  (.gitignore applied)
   .py ×7  .ts ×2  .js ×2  (no ext) ×2  .json ×2  .md ×1  .mod ×1  .go ×1
-  Estimated tokens: ~784 tok
+  Estimated tokens: ~908 tok
   Tokens by file type:
     .py ×7  ~259 tok  53 lines
     .md ×1  ~245 tok  15 lines
-    .js ×2  ~91 tok  20 lines
+    .ts ×4  ~124 tok  26 lines
+    .js ×3  ~99 tok  21 lines
+    .go ×2  ~78 tok  31 lines
     .json ×2  ~58 tok  11 lines
-    .go ×1  ~49 tok  21 lines
-    .ts ×2  ~37 tok  8 lines
-  TODO/FIXME items: 5
+  TODO/FIXME items: 6
+    go/internal/util/util.go:5 [TODO] // TODO: add caching
     pkg/helpers.py:4 [FIXME] # FIXME: エラーハンドリングが未実装
     pkg/utils.py:6 [HACK] return public_fn() + x  # HACK: 暫定実装。この行はとても長いコメントで八十文字の切り詰め動作を検証するためのものです
     src/cli.js:4 [XXX] // XXX: exit code handling
@@ -60,4 +61,4 @@ multi_lang/ (5 dirs, 6 files, 3.38 KB, 3 months ago)
     4. main.py
     5. src/app.ts
   (no commit info: not a git repository, or git is not installed)
-  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k)
+  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,html(embedded js),rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k) / dir sizes=raw disk (gitignore not applied)

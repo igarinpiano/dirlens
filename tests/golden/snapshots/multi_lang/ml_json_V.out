@@ -30,7 +30,7 @@
           "size_human": "955 bytes",
           "ext": ".md",
           "path": "docs/日本語メモ.md",
-          "has_test": true
+          "has_test": null
         }
       ]
     },
@@ -90,7 +90,7 @@
           "size_human": "33 bytes",
           "ext": ".mod",
           "path": "go/go.mod",
-          "has_test": true
+          "has_test": null
         },
         {
           "name": "main.go",
@@ -283,7 +283,7 @@
       "size_human": "29 bytes",
       "ext": "",
       "path": "Dockerfile",
-      "has_test": true
+      "has_test": null
     },
     {
       "name": "main.py",
@@ -301,7 +301,7 @@
       "size_human": "17 bytes",
       "ext": "",
       "path": "Makefile",
-      "has_test": true
+      "has_test": null
     },
     {
       "name": "package.json",
@@ -310,7 +310,7 @@
       "size_human": "102 bytes",
       "ext": ".json",
       "path": "package.json",
-      "has_test": true
+      "has_test": null
     },
     {
       "name": "pyproject.toml",
@@ -319,7 +319,7 @@
       "size_human": "42 bytes",
       "ext": ".toml",
       "path": "pyproject.toml",
-      "has_test": true
+      "has_test": null
     },
     {
       "name": "tsconfig.json",
@@ -328,7 +328,7 @@
       "size_human": "50 bytes",
       "ext": ".json",
       "path": "tsconfig.json",
-      "has_test": true
+      "has_test": null
     }
   ],
   "project_summary": {

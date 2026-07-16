@@ -41,6 +41,101 @@ pub struct TextStats {
     pub long_funcs: Vec<(u32, String)>,
 }
 
+/// -L で表示を切り詰めても解析集計（トークン・TODO・長大関数）を
+/// プロジェクト全体で出すべきか。compat モード（DIRLENS_COMPAT=python）は
+/// Python 版と同じ「表示された分だけの集計」に留める。
+pub(crate) fn deep_stats_wanted(cfg: &Cfg) -> bool {
+    !cfg.suppress_notes
+        && cfg.max_depth.is_some()
+        && (cfg.show_tokens || cfg.show_todo || cfg.show_outline)
+}
+
+/// 全階層を出力せずに歩き、解析集計（tokens / lang_stats / todo / long_funcs）
+/// だけを埋める。表示フィルタ・並び順は render_node と同一なので、集計値と
+/// TODO サンプルの順序は「-L なしで全階層を表示した場合」と一致する。
+/// prune は意図的に評価しない: prune が隠すのは表示可能なファイルを含まない
+/// ディレクトリであり、ファイル単位の集計には寄与しないため結果が変わらない。
+pub(crate) fn collect_deep_stats<F: FsProvider>(
+    sess: &Session<F>,
+    path: &Path,
+    cfg: &Cfg,
+    stats: &mut TextStats,
+    active_pats: &Arc<Vec<String>>,
+    seen: Option<&HashSet<PathBuf>>,
+) {
+    let mut seen_owned: Option<HashSet<PathBuf>> = None;
+    if cfg.follow_syms {
+        let mut s = seen.cloned().unwrap_or_default();
+        let real = sess.fs.real_path(path);
+        if s.contains(&real) {
+            return;
+        }
+        s.insert(real);
+        seen_owned = Some(s);
+    }
+    let seen_ref = seen_owned.as_ref();
+
+    let cur_pats = extend_pats(sess, active_pats, path, cfg);
+    let Some((mut dirs, mut files)) = filter_entries(sess, path, cfg, &cur_pats) else {
+        return;
+    };
+    sort_entries(sess, &mut dirs, &mut files, cfg);
+    let combined: Vec<Entry> = if cfg.files_first {
+        files.into_iter().chain(dirs).collect()
+    } else {
+        dirs.into_iter().chain(files).collect()
+    };
+    for entry in combined {
+        let is_dir_entry = entry.is_dir_nofollow
+            || (cfg.follow_syms && entry.is_symlink && entry.is_dir_follow);
+        if is_dir_entry {
+            collect_deep_stats(sess, &entry.path, cfg, stats, &cur_pats, seen_ref);
+            continue;
+        }
+        let rel = relpath_slash(&entry.path, &cfg.root);
+        let extras = file_extras(sess, &entry, &rel, cfg);
+        if cfg.show_tokens {
+            if let Some(tok) = extras.tokens {
+                stats.tokens += tok;
+                let (_, ext_raw) = splitext(&entry.name);
+                let ext = ext_raw.to_lowercase();
+                let key = if ext.is_empty() { "(no ext)".to_string() } else { ext };
+                let agg = stats.lang_stats.entry(key).or_insert((0, 0, 0));
+                agg.0 += 1;
+                agg.1 += extras.lines.unwrap_or(0);
+                agg.2 += tok;
+            }
+        }
+        if cfg.show_todo && !extras.todos.is_empty() {
+            stats.todo_total += extras.todos.len() as u64;
+            for item in extras.todos.iter().take(3) {
+                if stats.todo_samples.len() < 20 {
+                    stats
+                        .todo_samples
+                        .push((rel.clone(), item.0, item.1.clone(), item.2.clone()));
+                }
+            }
+        }
+        if cfg.show_outline {
+            if let Some(items) = &extras.outline {
+                for it in items {
+                    if let Some((a, b)) = it.span {
+                        if it.kind != "class" && it.kind != "struct" && b > a {
+                            stats
+                                .long_funcs
+                                .push((b - a + 1, format!("{}:{}", rel, it.name)));
+                        }
+                    }
+                }
+                if stats.long_funcs.len() > 512 {
+                    stats.long_funcs.sort_by(|x, y| y.0.cmp(&x.0));
+                    stats.long_funcs.truncate(16);
+                }
+            }
+        }
+    }
+}
+
 /// AI チャットへ貼り付ける際に警告すべき「機密の可能性が高い」ファイル名か。
 pub fn is_sensitive_name(name: &str) -> bool {
     let lower = name.to_lowercase();
@@ -533,6 +628,20 @@ pub fn render_text_with_stats<F: FsProvider>(
 
     let mut stats = TextStats::default();
     render_node(sess, &cfg.root, "", 0, cfg, &mut stats, active_pats, None, &mut out);
+
+    // -L で表示を切っても解析集計はプロジェクト全体を反映する（ドキュメント上の
+    // 公開仕様）。表示分の集計を全階層スキャンの値で置き換える。
+    // ツリー由来の集計（dirs/files/extensions/sensitive）は「表示されたもの」の
+    // 集計として意味を持つため据え置く。
+    if deep_stats_wanted(cfg) {
+        let mut full = TextStats::default();
+        collect_deep_stats(sess, &cfg.root, cfg, &mut full, active_pats, None);
+        stats.tokens = full.tokens;
+        stats.lang_stats = full.lang_stats;
+        stats.todo_total = full.todo_total;
+        stats.todo_samples = full.todo_samples;
+        stats.long_funcs = full.long_funcs;
+    }
 
     out.push('\n');
     let lang = cfg.lang;

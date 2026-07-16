@@ -60,6 +60,10 @@ pub fn ast_outline(text: &str, ext: &str) -> Option<Vec<OutlineItem>> {
         ".py" => python::outline(text),
         #[cfg(feature = "ast-js")]
         ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => js::outline(text, ext),
+        // HTML はインライン <script> の JS を抽出してアウトラインする
+        // （正規表現層に HTML の縮退先は無いため、AST 層のみの対応）
+        #[cfg(feature = "ast-js")]
+        ".html" | ".htm" => js::html_outline(text),
         #[cfg(feature = "ast-rust")]
         ".rs" => rustlang::outline(text),
         #[cfg(feature = "lang-go")]

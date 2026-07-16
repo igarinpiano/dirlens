@@ -255,7 +255,7 @@
       "git_status": null,
       "git": null,
       "todos": [],
-      "has_test": true,
+      "has_test": null,
       "is_entry": false,
       "is_config": true,
       "outline": null,
@@ -354,6 +354,7 @@
       "csharp": "ast",
       "kotlin": "ast",
       "swift": "ast",
+      "html": "ast (embedded js)",
       "fallback": "regex"
     },
     "imports_resolution": [
@@ -371,6 +372,7 @@
     "gitignore_tier": "builtin",
     "outline": "ast+regex-fallback",
     "imports": "ast+manifest",
-    "tokens": "bpe-o200k_base"
+    "tokens": "bpe-o200k_base",
+    "dir_sizes": "raw-disk (gitignore not applied)"
   }
 }

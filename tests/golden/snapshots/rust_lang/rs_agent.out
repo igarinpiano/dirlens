@@ -28,4 +28,4 @@ rust_lang/ (1 dir, 1 file, 526 bytes, 3 months ago)
     3. src/nested/mod.rs
     4. src/nested/inner.rs
   (no commit info: not a git repository, or git is not installed)
-  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k)
+  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,html(embedded js),rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k) / dir sizes=raw disk (gitignore not applied)

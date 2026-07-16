@@ -29,12 +29,12 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "analyze",
-            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand an unfamiliar project. Guidance for the FIRST call on a project you know nothing about: call with `estimate: true` (returns a few lines, negligible cost) to see the token cost per depth level, THEN decide — either set `depth` to a small number (1-2) for a quick look, or set `budget` to a token ceiling and let it auto-fit. Calling this with no `depth`/`budget`/`estimate` on a large project can return tens of thousands of tokens and get truncated by the host.",
+            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand an unfamiliar project. Guidance for the FIRST call on a project you know nothing about: call with `estimate: true` (returns a few lines, negligible cost) to see the token cost per depth level, THEN decide — either set `depth` to a small number (1-2) for a quick look, or set `budget` to a token ceiling and let it auto-fit. Calling this with no `depth`/`budget`/`estimate` on a large project can return tens of thousands of tokens and get rejected or truncated by the host: most MCP hosts cap a single tool response (Claude Code's default cap is 25000 tokens), so if the estimate for the level you want exceeds your host's cap, use `budget` below the cap (e.g. 20000) instead of running uncapped.",
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "depth": depth_prop,
                 "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then annotations, then tree rows. When set, returns compact annotated TEXT instead of JSON — use this instead of guessing a `depth`"},
-                "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget`. Overrides `budget` if both are set"}
+                "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget` — and compare the numbers against your host's tool-response cap (Claude Code default: 25000 tokens): any level whose estimate exceeds the cap will fail if run uncapped, so use `budget` below the cap instead. Overrides `budget` if both are set"}
             }), vec![])
         },
         {
@@ -129,6 +129,8 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         lang: Some("en".to_string()),
         ..Default::default()
     };
+    // estimate 結果にはホスト応答上限の注記を後置する（下の run 後で使用）
+    let mut append_host_cap_note = false;
     match name {
         "analyze" => {
             a.agent = true;
@@ -140,6 +142,7 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
                 .unwrap_or(false)
             {
                 a.estimate = true;
+                append_host_cap_note = true;
                 // analyze の既定出力は JSON（このブロックの else 節）なので、
                 // 見積もりも JSON 経路の実サイズで測る。ここを立てないと
                 // テキスト経路で測ってしまい、JSON は装飾が多い分実際より
@@ -289,7 +292,18 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
             Err(_) => (res.stdout, false),
         }
     } else {
-        (res.stdout, false)
+        let mut text = res.stdout;
+        if append_host_cap_note {
+            // 見積もり値が正確でも、ホスト側の応答上限を超えると呼び出し自体が
+            // 失敗する。その判断材料をここで必ず添える（Claude Code 既定 25000）
+            text.push_str(
+                "note: most MCP hosts cap a single tool response (Claude Code default: \
+                 25000 tokens). If the level you need exceeds your host's cap, call \
+                 analyze with `budget` below the cap (e.g. 20000) instead of running \
+                 uncapped.\n",
+            );
+        }
+        (text, false)
     }
 }
 

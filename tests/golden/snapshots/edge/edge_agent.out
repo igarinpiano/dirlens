@@ -40,4 +40,4 @@ edge/ (2 dirs, 13 files, 5.73+ MB, 3 months ago)
   Entry point candidates: 0 found
   Config files: 0 found
   (no commit info: not a git repository, or git is not installed)
-  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k)
+  Analysis methods: gitignore=builtin matcher (fnmatch approx) / outline=AST:py,js/ts,html(embedded js),rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k) / dir sizes=raw disk (gitignore not applied)

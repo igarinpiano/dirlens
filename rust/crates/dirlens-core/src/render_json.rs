@@ -135,7 +135,21 @@ fn build_json_tree<F: FsProvider>(
                     obj.insert("todos".into(), Value::Array(todos));
                 }
                 if cfg.show_tests {
-                    obj.insert("has_test".into(), json!(!extras.no_test));
+                    // テスト検知の対象外（.html / .md 等）は true/false どちらも
+                    // 誤解を招くため null（判定対象外）を返す。compat モードは
+                    // Python 版と同じ常時 bool。
+                    let applies = crate::analysis::index::test_detection_applies(
+                        &entry.name,
+                        cfg.enhanced_analysis,
+                    );
+                    obj.insert(
+                        "has_test".into(),
+                        if !cfg.suppress_notes && !applies {
+                            Value::Null
+                        } else {
+                            json!(!extras.no_test)
+                        },
+                    );
                 }
                 if cfg.show_entry {
                     obj.insert("is_entry".into(), json!(extras.is_entry));
@@ -235,6 +249,18 @@ pub fn render_json<F: FsProvider>(
 ) -> String {
     let mut stats = JsonStats::default();
     let mut tree = build_json_tree(sess, &cfg.root, 0, cfg, active_pats, &mut stats);
+
+    // -L 指定時も project_summary / language_breakdown / longest_functions は
+    // プロジェクト全体を反映する（テキストレンダラと同じ全階層スキャン）。
+    if crate::render_text::deep_stats_wanted(cfg) {
+        let mut full = crate::render_text::TextStats::default();
+        crate::render_text::collect_deep_stats(sess, &cfg.root, cfg, &mut full, active_pats, None);
+        stats.tokens = full.tokens;
+        stats.lang_stats = full.lang_stats;
+        stats.todo_total = full.todo_total;
+        stats.todo_samples = full.todo_samples;
+        stats.long_funcs = full.long_funcs;
+    }
 
     if cfg.has_extras {
         let most_depended: Value = if cfg.show_imports && !cfg.imported_by_map.is_empty() {
@@ -419,6 +445,12 @@ pub fn render_json<F: FsProvider>(
                     }),
                 );
                 analysis.insert("tokens".into(), json!(crate::check::tokens_mode(cfg)));
+                // ディレクトリの size/size_human は常にディスク上の生サイズで、
+                // -G（gitignore 除外）の影響を受けない（du 相当・旧版から一貫）
+                analysis.insert(
+                    "dir_sizes".into(),
+                    json!("raw-disk (gitignore not applied)"),
+                );
                 wrapped.insert("analysis".into(), Value::Object(analysis));
             }
             Value::Object(wrapped)

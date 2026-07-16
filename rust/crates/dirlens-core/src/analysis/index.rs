@@ -45,6 +45,17 @@ const CONFIG_NAMES_LOWER: &[&str] = &[
     "makefile", "cmakelists.txt",
 ];
 
+/// テスト欠落検知（-V）の判定対象となるファイルか。
+/// 対象は命名規則で追える言語（SOURCE_EXTS_FOR_TESTS）と、enhanced 時の
+/// .rs（インラインテスト＋テストからの import 追跡）。対象外のファイルに
+/// has_test の真偽値を返すと「テスト有り」に見えてしまうため、JSON では
+/// これが false のとき null を出す。
+pub fn test_detection_applies(name: &str, enhanced: bool) -> bool {
+    let lower = name.to_lowercase();
+    let (_, ext) = splitext(&lower);
+    SOURCE_EXTS_FOR_TESTS.contains(&ext) || (enhanced && ext == ".rs")
+}
+
 pub fn is_test_file(name: &str) -> bool {
     let lower = name.to_lowercase();
     let (stem, _ext) = splitext(&lower);

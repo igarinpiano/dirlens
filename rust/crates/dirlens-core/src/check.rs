@@ -38,6 +38,15 @@ pub fn capabilities_json(cfg: &Cfg, probe: &EnvProbe) -> Value {
     outline.insert("csharp".into(), ast_or_unsupported(CAPABILITIES.csharp));
     outline.insert("kotlin".into(), ast_or_unsupported(CAPABILITIES.kotlin));
     outline.insert("swift".into(), ast_or_unsupported(CAPABILITIES.swift));
+    // HTML はインライン <script> の JS を抽出する（正規表現の縮退先なし）
+    outline.insert(
+        "html".into(),
+        if CAPABILITIES.js_ts && e {
+            json!("ast (embedded js)")
+        } else {
+            json!("unsupported")
+        },
+    );
     outline.insert("fallback".into(), json!("regex"));
 
     let mut resolution = vec!["relative"];
@@ -90,6 +99,7 @@ pub fn agent_note(cfg: &Cfg) -> String {
         }
         if CAPABILITIES.js_ts {
             ast_langs.push("js/ts");
+            ast_langs.push("html(embedded js)");
         }
         if CAPABILITIES.rust {
             ast_langs.push("rs");
@@ -135,11 +145,11 @@ pub fn agent_note(cfg: &Cfg) -> String {
     };
     match cfg.lang {
         crate::i18n::Lang::Ja => format!(
-            "  解析方式: gitignore={} / outline={} / imports={} / tokens={}",
+            "  解析方式: gitignore={} / outline={} / imports={} / tokens={} / ディレクトリsize=ディスク生値（gitignore非適用）",
             gitignore, outline, imports, tokens
         ),
         crate::i18n::Lang::En => format!(
-            "  Analysis methods: gitignore={} / outline={} / imports={} / tokens={}",
+            "  Analysis methods: gitignore={} / outline={} / imports={} / tokens={} / dir sizes=raw disk (gitignore not applied)",
             gitignore, outline, imports, tokens
         ),
     }

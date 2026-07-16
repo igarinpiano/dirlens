@@ -28,4 +28,4 @@ gitignored/ (2 dirs, 2 files, 3.8 KB, 3 months ago)
     nested/kept.txt  (changed 1 times)
   Suggested reading order (entry points → most depended-on):
     1. src/main.py
-  Analysis methods: gitignore=git check-ignore (exact) / outline=AST:py,js/ts,rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k)
+  Analysis methods: gitignore=git check-ignore (exact) / outline=AST:py,js/ts,html(embedded js),rs,go,c,java,rb,php,cs,kt,swift (regex otherwise) / imports=AST+manifest resolution / tokens=BPE(o200k) / dir sizes=raw disk (gitignore not applied)
