@@ -36,6 +36,21 @@ fn early_exit(msg: &str) -> RunResult {
     }
 }
 
+/// `--estimate` 用のレンダリング。cfg.json が立っていれば実際の呼び出しと同じ
+/// JSON 経路で測る（テキスト経路は JSON より大幅に軽く、見積もりが乖離するため）。
+fn render_for_estimate<F: FsProvider>(
+    sess: &Session<F>,
+    cfg: &Cfg,
+    active_pats: &Arc<Vec<String>>,
+    probe: &crate::check::EnvProbe,
+) -> String {
+    if cfg.json {
+        render_json(sess, cfg, active_pats, probe)
+    } else {
+        render_text_with_stats(sess, cfg, active_pats).0
+    }
+}
+
 /// パス解決と Cfg 構築（dirlens.py main() の引数検証部分）。
 pub fn prepare<F: FsProvider>(
     args: &Args,
@@ -232,7 +247,7 @@ pub fn execute<F: FsProvider>(
             cfg.show_status = false;
             cfg.has_extras = false;
             cfg.max_depth = Some(1);
-            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            let t = render_for_estimate(sess, cfg, &active_pats, &probe);
             rows.push((
                 i18n::tr(cfg.lang, "-L 1, tree only", "-L 1・ツリーのみ").to_string(),
                 measure(&t),
@@ -257,11 +272,11 @@ pub fn execute<F: FsProvider>(
                 }
             }
             cfg.max_depth = Some(d);
-            let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+            let t = render_for_estimate(sess, cfg, &active_pats, &probe);
             rows.push((format!("-L {}", d), measure(&t)));
         }
         cfg.max_depth = orig_depth;
-        let (t, _) = render_text_with_stats(sess, cfg, &active_pats);
+        let t = render_for_estimate(sess, cfg, &active_pats, &probe);
         rows.push((
             match orig_depth {
                 Some(d) => format!("-L {} ({})", d, i18n::tr(cfg.lang, "current", "現在")),
@@ -271,11 +286,19 @@ pub fn execute<F: FsProvider>(
         ));
 
         let mut out = String::new();
-        out.push_str(i18n::tr(
-            cfg.lang,
-            "Estimated output tokens for the current flags (BPE o200k):\n",
-            "現在のフラグでの出力トークン見積もり（BPE o200k）:\n",
-        ));
+        if cfg.json {
+            out.push_str(i18n::tr(
+                cfg.lang,
+                "Estimated output tokens for the current flags, measured as JSON output (BPE o200k):\n",
+                "現在のフラグでの出力トークン見積もり（JSON出力として測定・BPE o200k）:\n",
+            ));
+        } else {
+            out.push_str(i18n::tr(
+                cfg.lang,
+                "Estimated output tokens for the current flags, measured as text output (BPE o200k):\n",
+                "現在のフラグでの出力トークン見積もり（テキスト出力として測定・BPE o200k）:\n",
+            ));
+        }
         let label_w = rows.iter().map(|(l, _)| l.chars().count()).max().unwrap_or(0);
         for (label, toks) in &rows {
             out.push_str(&format!(

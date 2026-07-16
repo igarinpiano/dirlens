@@ -80,12 +80,12 @@
 
     CLI との対応と MCP 固有の注意点:
 
-    - `analyze` = `--agent --json`。大きなプロジェクトでは JSON が巨大化してホスト側の出力上限に当たるため、`estimate: true` でコスト見積もり → `budget: N` で予算内に収める（`budget` 指定時は JSON ではなく注釈付きテキストが返る）。`tree` にも `budget` と `top`（大きいファイルのフラット表示）がある
+    - `analyze` = `--agent --json`。大きなプロジェクトでは JSON が巨大化してホスト側の出力上限に当たるため、`estimate: true` でコスト見積もり → `budget: N` で予算内に収める（`budget` 指定時は JSON ではなく注釈付きテキストが返る）。`estimate` は実際に使われる出力フォーマット（`budget` 未指定なら JSON、指定時はテキスト）を実測して見積もる（v1.2.4+。それ以前は常にテキストで測っていたため、JSON 出力時に見積もりが実サイズより大幅に小さく出る既知の問題があった）。`tree` にも `budget` と `top`（大きいファイルのフラット表示）がある
     - `outline` は **複数ファイルを配列で一括処理できる**（CLI の `-O` は単一ファイルのみ）。`files` を省略するとプロジェクト全体の公開 API（`-A` 相当）になる。相対パスは `path` 基準で解決される
     - `outline`（`files` 省略時）と `history` は、呼び出し側が `depth` を省略すると自動的に小さい既定値（それぞれ 2 / 1）に制限される（全ツリー走査で応答が肥大化するのを防ぐため）。全階層が必要な場合は `depth` を明示するか `unlimited_depth: true` を渡す（`depth` を指定した場合はそちらが常に優先され、`unlimited_depth` は無視される）
     - `history` = `-H`（既定で深さ1のコンパクトなテキスト。ホットスポット一覧は深さに依らず全体を反映）
     - `api_diff` = `--api-diff <ref>`（破壊的変更の検出）
-    - `imports` は `format: "mermaid"` / `"dot"` で図の出力も可
+    - `imports` と `todos` は CLI の `-M`/`-K` と異なり、**該当なしファイルを含まないフラットな一覧**を返す（v1.2.4+。それ以前は全ファイルに空配列を注釈した全ツリーを返しており、大きいプロジェクトで最もトークンを消費するツールだった）。`imports` は `{path, imports, imported_by, external_imports}` の配列＋`most_depended_on`/`circular_dependencies`、`todos` は `{path, line, kind, text}` の配列＋`todo_count`。どちらも `limit` で件数上限を指定できる。`imports` はさらに `format: "mermaid"` / `"dot"` で図の出力も可（この場合は全体のグラフをそのまま返すため `limit` は無視される）
     - MCP サーバーは実装レベルでクリップボード無効（`NoClipboard` 固定）のため、`capabilities.clipboard: false` は異常ではない
     - MCP に**無い**もの: `--pack` / `--compare` / `--dupes` / `--heat` / `--csv` / stdin パイプ。必要ならシェルで CLI を直接使う
 

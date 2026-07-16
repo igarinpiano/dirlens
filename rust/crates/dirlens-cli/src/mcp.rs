@@ -59,10 +59,11 @@ fn tool_defs() -> Value {
         },
         {
             "name": "imports",
-            "description": "Local import/dependency graph with most-depended-on files and circular dependencies. JSON by default; set `format` to get a Mermaid or Graphviz DOT diagram.",
+            "description": "Local import/dependency graph: most-depended-on files, circular dependencies, and a flat JSON list of files that actually import something or are imported (files with no import relationships at all are omitted, unlike `analyze`/`tree` annotations — cheap on any project size, no `depth`/`budget` needed). Set `format` to get a Mermaid or Graphviz DOT diagram of the whole graph instead (unfiltered, since diagrams need the full graph).",
             "inputSchema": obj(json!({
                 "path": path_prop,
-                "format": {"type": "string", "enum": ["json", "mermaid", "dot"], "description": "output format (default: json)"}
+                "format": {"type": "string", "enum": ["json", "mermaid", "dot"], "description": "output format (default: json, flat and filtered as described above). mermaid/dot return the full unfiltered graph as a diagram"},
+                "limit": {"type": "integer", "description": "cap the number of files in the flat JSON list (default: unlimited). Ignored for mermaid/dot format"}
             }), vec![])
         },
         {
@@ -72,8 +73,11 @@ fn tool_defs() -> Value {
         },
         {
             "name": "todos",
-            "description": "TODO/FIXME/HACK/XXX comments across the project with file/line, as JSON.",
-            "inputSchema": obj(json!({"path": path_prop}), vec![])
+            "description": "TODO/FIXME/HACK/XXX comments across the project, as a flat JSON list of {path, line, kind, text} — only files that actually have one are included (files with none are omitted, unlike `analyze`/`tree` annotations — cheap on any project size, no `depth`/`budget` needed).",
+            "inputSchema": obj(json!({
+                "path": path_prop,
+                "limit": {"type": "integer", "description": "cap the number of TODO items returned (default: unlimited)"}
+            }), vec![])
         },
         {
             "name": "since",
@@ -113,6 +117,11 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         .get("unlimited_depth")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    // todos / imports のフラット出力用（該当なしファイルの空配列を除いた後の件数上限）
+    let limit = args_val
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
 
     let mut a = Args {
         path,
@@ -123,14 +132,19 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
     match name {
         "analyze" => {
             a.agent = true;
-            // --budget / --estimate はコアがテキスト経路でのみ処理するため、
-            // 指定時は JSON ではなく予算調整済みテキスト / 見積もりテキストを返す
+            // --budget はコアがテキスト経路でのみ処理するため、指定時は JSON では
+            // なく予算調整済みテキストを返す
             if args_val
                 .get("estimate")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false)
             {
                 a.estimate = true;
+                // analyze の既定出力は JSON（このブロックの else 節）なので、
+                // 見積もりも JSON 経路の実サイズで測る。ここを立てないと
+                // テキスト経路で測ってしまい、JSON は装飾が多い分実際より
+                // 大幅に軽く出て --budget の判断材料として役に立たない
+                a.json = true;
             } else if let Some(b) = args_val.get("budget").and_then(|v| v.as_i64()) {
                 a.budget = Some(b);
             } else {
@@ -245,15 +259,155 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         _ => return (format!("error: unknown tool '{}'", name), true),
     }
 
+    // todos は常に、imports は json フォーマット時のみフラット化する
+    // （mermaid/dot は図として全体のグラフが要るので素通し）
+    let flatten = match name {
+        "todos" => true,
+        "imports" => a.json,
+        _ => false,
+    };
+
     let res = run(a, &StdFs, &StdGit, &NoClipboard, false);
     if res.exit_code != 0 {
         (
             if res.stderr.is_empty() { res.stdout } else { res.stderr },
             true,
         )
+    } else if flatten {
+        match serde_json::from_str::<Value>(&res.stdout) {
+            Ok(root) => {
+                let flat = if name == "todos" {
+                    flatten_todos_json(&root, limit)
+                } else {
+                    flatten_imports_json(&root, limit)
+                };
+                let mut s = serde_json::to_string_pretty(&flat).unwrap_or(res.stdout);
+                s.push('\n');
+                (s, false)
+            }
+            // 予期しない解析失敗時は元の出力をそのまま返す（フォールバック）
+            Err(_) => (res.stdout, false),
+        }
     } else {
         (res.stdout, false)
     }
+}
+
+/// build_json_tree が出す再帰ツリーから "type": "file" のノードだけを集める。
+fn walk_files<'a>(node: &'a Value, out: &mut Vec<&'a Map<String, Value>>) {
+    let Some(obj) = node.as_object() else { return };
+    if obj.get("type").and_then(|v| v.as_str()) == Some("file") {
+        out.push(obj);
+        return;
+    }
+    if let Some(children) = obj.get("children").and_then(|v| v.as_array()) {
+        for c in children {
+            walk_files(c, out);
+        }
+    }
+}
+
+/// `todos` ツール向け: 全ツリーの `"todos": []` 注釈を、該当ファイルだけの
+/// フラットな配列に潰す（TODO が無いファイル分の空配列を送らない）。
+fn flatten_todos_json(root: &Value, limit: Option<usize>) -> Value {
+    let mut files = Vec::new();
+    walk_files(root, &mut files);
+
+    let mut items: Vec<Value> = Vec::new();
+    for f in files {
+        let Some(todos) = f.get("todos").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        let path = f.get("path").cloned().unwrap_or_else(|| json!(""));
+        for t in todos {
+            let mut m = Map::new();
+            m.insert("path".into(), path.clone());
+            if let Some(tobj) = t.as_object() {
+                for (k, v) in tobj {
+                    m.insert(k.clone(), v.clone());
+                }
+            }
+            items.push(Value::Object(m));
+        }
+    }
+    let total = items.len();
+    if let Some(n) = limit {
+        items.truncate(n);
+    }
+
+    let todo_count = root
+        .get("project_summary")
+        .and_then(|p| p.get("todo_count"))
+        .cloned()
+        .unwrap_or_else(|| json!(total));
+    let errors = root.get("errors").cloned().unwrap_or_else(|| json!([]));
+
+    let mut out = Map::new();
+    out.insert(
+        "schema_version".into(),
+        root.get("schema_version").cloned().unwrap_or(json!(1)),
+    );
+    out.insert("todo_count".into(), todo_count);
+    out.insert("todos".into(), Value::Array(items));
+    out.insert("errors".into(), errors);
+    Value::Object(out)
+}
+
+/// `imports` ツール向け（json フォーマット時）: 全ツリーの
+/// `imports`/`imported_by`/`external_imports` 注釈を、いずれか非空のファイルだけの
+/// フラットな配列に潰す（import 関係が一切無いファイル分の空配列を送らない）。
+fn flatten_imports_json(root: &Value, limit: Option<usize>) -> Value {
+    let mut files = Vec::new();
+    walk_files(root, &mut files);
+
+    let has_content =
+        |v: Option<&Value>| v.and_then(|x| x.as_array()).map(|a| !a.is_empty()).unwrap_or(false);
+
+    let mut items: Vec<Value> = Vec::new();
+    for f in files {
+        let imports = f.get("imports");
+        let imported_by = f.get("imported_by");
+        let external = f.get("external_imports");
+        if has_content(imports) || has_content(imported_by) || has_content(external) {
+            let mut m = Map::new();
+            m.insert("path".into(), f.get("path").cloned().unwrap_or_else(|| json!("")));
+            m.insert("imports".into(), imports.cloned().unwrap_or_else(|| json!([])));
+            m.insert(
+                "imported_by".into(),
+                imported_by.cloned().unwrap_or_else(|| json!([])),
+            );
+            m.insert(
+                "external_imports".into(),
+                external.cloned().unwrap_or_else(|| json!([])),
+            );
+            items.push(Value::Object(m));
+        }
+    }
+    if let Some(n) = limit {
+        items.truncate(n);
+    }
+
+    let summary = root.get("project_summary");
+    let most_depended = summary
+        .and_then(|s| s.get("most_depended_on"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let cycles = summary
+        .and_then(|s| s.get("circular_dependencies"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let errors = root.get("errors").cloned().unwrap_or_else(|| json!([]));
+
+    let mut out = Map::new();
+    out.insert(
+        "schema_version".into(),
+        root.get("schema_version").cloned().unwrap_or(json!(1)),
+    );
+    out.insert("most_depended_on".into(), most_depended);
+    out.insert("circular_dependencies".into(), cycles);
+    out.insert("files".into(), Value::Array(items));
+    out.insert("errors".into(), errors);
+    Value::Object(out)
 }
 
 fn respond(out: &mut impl Write, id: Value, result: Value) {
