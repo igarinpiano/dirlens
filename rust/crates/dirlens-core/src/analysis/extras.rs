@@ -14,6 +14,8 @@ use crate::session::Session;
 #[derive(Debug, Default)]
 pub struct FileExtras {
     pub tokens: Option<i64>, // None = バイナリ/読めない（表示しない）
+    /// tokens が 5MB 打ち切りの比例概算か（BPE 正確値ではない）。JSON 出力用
+    pub tokens_estimated: bool,
     pub lines: Option<i64>,
     pub git: Option<GitInfo>,
     pub todos: Vec<(usize, String, String)>,
@@ -64,6 +66,9 @@ pub fn file_extras<F: FsProvider>(
             ex.tokens = None;
             ex.lines = None;
         } else {
+            // 5MB 打ち切り時は比例概算（キャッシュヒットでも読み込みは
+            // 行われるため truncated はこの時点で確定している）
+            ex.tokens_estimated = truncated;
             let st = sess.fs.stat(&entry.path, true);
             let sz = st.map(|s| s.size);
             // 永続キャッシュ: BPE 計数はコストが高いため (rel, size, mtime, 方式) を

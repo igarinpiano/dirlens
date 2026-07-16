@@ -173,6 +173,7 @@ fn clone_entry(e: &Entry) -> Entry {
 fn clone_extras(e: &FileExtras) -> FileExtras {
     FileExtras {
         tokens: e.tokens,
+        tokens_estimated: e.tokens_estimated,
         lines: e.lines,
         git: e.git.clone(),
         todos: e.todos.clone(),

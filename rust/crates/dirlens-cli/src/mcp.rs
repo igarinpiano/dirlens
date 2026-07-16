@@ -29,12 +29,12 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "analyze",
-            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand an unfamiliar project. Guidance for the FIRST call on a project you know nothing about: call with `estimate: true` (returns a few lines, negligible cost) to see the token cost per depth level, THEN decide — either set `depth` to a small number (1-2) for a quick look, or set `budget` to a token ceiling and let it auto-fit. Calling this with no `depth`/`budget`/`estimate` on a large project can return tens of thousands of tokens and get rejected or truncated by the host: most MCP hosts cap a single tool response (Claude Code's default cap is 25000 tokens), so if the estimate for the level you want exceeds your host's cap, use `budget` below the cap (e.g. 20000) instead of running uncapped.",
+            "description": "Full project analysis (tree + tokens + git + TODOs + missing tests + entry points + outline + import graph + config files) as JSON. Equivalent to `dirlens --agent --json`. Best first call to understand an unfamiliar project. Guidance for the FIRST call on a project you know nothing about: call with `estimate: true` (returns a few lines, negligible cost) to see the token cost per depth level, THEN decide — either set `depth` to a small number (1-2) for a quick look, or set `budget` to a token ceiling and let it auto-fit. Calling this with no `depth`/`budget`/`estimate` on a large project can return tens of thousands of tokens and get rejected or truncated by the host: most MCP hosts cap a single tool response (Claude Code's default cap is 25000 tokens), so if the estimate for the level you want exceeds your host's cap, use `budget` below the cap (e.g. 20000) instead of running uncapped. Note: if `path` points to a FILE instead of a directory, the response is a single-file report ({files: [{path, tokens, outline, todos, ...}]}, the same shape as `outline` with `files`) rather than the project analysis, and `depth` is ignored.",
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "depth": depth_prop,
                 "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then annotations, then tree rows. When set, returns compact annotated TEXT instead of JSON — use this instead of guessing a `depth`"},
-                "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget`. Levels that exceed the host's tool-response cap (MAX_MCP_OUTPUT_TOKENS if set, else Claude Code's default 25000) are marked with ⚠ in the table — those will fail if run uncapped, so use `budget` below the cap instead. Overrides `budget` if both are set"}
+                "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget`. Levels that exceed the host's tool-response cap (MAX_MCP_OUTPUT_TOKENS if set, else Claude Code's default 25000) are marked with ⚠ in the table — those will fail if run uncapped, so use `budget` below the cap instead. The table also shows the full tree measured as budget-style TEXT, which is usually several times cheaper than the JSON — if that row fits your cap, prefer `budget` over shrinking `depth`. Overrides `budget` if both are set"}
             }), vec![])
         },
         {
@@ -44,14 +44,14 @@ fn tool_defs() -> Value {
                 "path": path_prop,
                 "depth": depth_prop,
                 "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then tree rows"},
-                "top": {"type": "integer", "description": "return a flat list of the N largest files and directories instead of a tree — cheap and safe on any project size, no depth guessing needed"}
+                "top": {"type": "integer", "description": "return a flat list of the N largest files and directories instead of a tree — cheap and safe on any project size, no depth guessing needed. Caveat: directory sizes are raw disk usage (du-like), so gitignored contents (node_modules/, target/, ...) still count toward them even though they are excluded from the listing itself"}
             }), vec![])
         },
         {
             "name": "outline",
-            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small. Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
+            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. Every requested path is accounted for: unreadable ones (missing file, directory) are reported in the `errors` array instead of being silently dropped, and duplicate paths are processed once. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (directories cut off by `depth` carry `truncated: true`). Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
             "inputSchema": obj(json!({
-                "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline"},
+                "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline. An empty array returns an empty result — it does NOT trigger the project-wide mode; only omitting the key does"},
                 "path": path_prop,
                 "depth": depth_prop,
                 "unlimited_depth": unlimited_depth_prop
@@ -63,7 +63,7 @@ fn tool_defs() -> Value {
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "format": {"type": "string", "enum": ["json", "mermaid", "dot"], "description": "output format (default: json, flat and filtered as described above). mermaid/dot return the full unfiltered graph as a diagram"},
-                "limit": {"type": "integer", "description": "cap the number of files in the flat JSON list (default: unlimited). Ignored for mermaid/dot format"}
+                "limit": {"type": "integer", "description": "cap the number of files in the flat JSON list (default: unlimited). The response always carries `total_files` and `truncated` so a cut list is detectable; note `imported_by`/`most_depended_on` may name files that fell outside the returned list. Ignored for mermaid/dot format"}
             }), vec![])
         },
         {
@@ -76,7 +76,7 @@ fn tool_defs() -> Value {
             "description": "TODO/FIXME/HACK/XXX comments across the project, as a flat JSON list of {path, line, kind, text} — only files that actually have one are included (files with none are omitted, unlike `analyze`/`tree` annotations — cheap on any project size, no `depth`/`budget` needed).",
             "inputSchema": obj(json!({
                 "path": path_prop,
-                "limit": {"type": "integer", "description": "cap the number of TODO items returned (default: unlimited)"}
+                "limit": {"type": "integer", "description": "cap the number of TODO items returned (default: unlimited). The response carries `truncated: true` when the list was cut; `todo_count` is always the project-wide total"}
             }), vec![])
         },
         {
@@ -169,9 +169,21 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
             }
         }
         "outline" => {
-            let files: Vec<String> = args_val
-                .get("files")
-                .and_then(|v| v.as_array())
+            let files_arg = args_val.get("files").and_then(|v| v.as_array());
+            // `files: []`（キーはあるが空）は「0ファイルのアウトライン」= 空の
+            // 結果を返す。プロジェクト全体の公開 API はキー自体の省略でのみ
+            // 発動する（空配列で意図せず全体スキャンが走るのを防ぐ）
+            if files_arg.map(|arr| arr.is_empty()).unwrap_or(false) {
+                let empty = json!({
+                    "schema_version": dirlens_core::render_json::SCHEMA_VERSION,
+                    "files": [],
+                    "errors": [],
+                });
+                let mut s = serde_json::to_string_pretty(&empty).unwrap_or_default();
+                s.push('\n');
+                return (s, false);
+            }
+            let files: Vec<String> = files_arg
                 .map(|arr| {
                     arr.iter()
                         .filter_map(|x| x.as_str().map(|s| s.to_string()))
@@ -344,6 +356,7 @@ fn flatten_todos_json(root: &Value, limit: Option<usize>) -> Value {
     if let Some(n) = limit {
         items.truncate(n);
     }
+    let truncated = items.len() < total;
 
     let todo_count = root
         .get("project_summary")
@@ -358,6 +371,8 @@ fn flatten_todos_json(root: &Value, limit: Option<usize>) -> Value {
         root.get("schema_version").cloned().unwrap_or(json!(1)),
     );
     out.insert("todo_count".into(), todo_count);
+    // limit で切り詰めた場合に「全件ではない」ことが応答単体で分かるように
+    out.insert("truncated".into(), json!(truncated));
     out.insert("todos".into(), Value::Array(items));
     out.insert("errors".into(), errors);
     Value::Object(out)
@@ -393,9 +408,11 @@ fn flatten_imports_json(root: &Value, limit: Option<usize>) -> Value {
             items.push(Value::Object(m));
         }
     }
+    let total = items.len();
     if let Some(n) = limit {
         items.truncate(n);
     }
+    let truncated = items.len() < total;
 
     let summary = root.get("project_summary");
     let most_depended = summary
@@ -415,6 +432,10 @@ fn flatten_imports_json(root: &Value, limit: Option<usize>) -> Value {
     );
     out.insert("most_depended_on".into(), most_depended);
     out.insert("circular_dependencies".into(), cycles);
+    // limit で切り詰めた場合に「全 N 件中いくつか」が応答単体で分かるように
+    // （imported_by には files 一覧に載らないファイル名も現れうる）
+    out.insert("total_files".into(), json!(total));
+    out.insert("truncated".into(), json!(truncated));
     out.insert("files".into(), Value::Array(items));
     out.insert("errors".into(), errors);
     Value::Object(out)

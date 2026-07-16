@@ -67,6 +67,16 @@ pub fn render_top<F: FsProvider>(
     if dirs.is_empty() {
         out.push_str(tr(lang, "  (no directories)\n", "  (ディレクトリなし)\n"));
     }
+    // ディレクトリサイズは du 相当の生ディスクサイズで -G の影響を受けない。
+    // 「大きいものを探す」目的で使うモードなので、gitignore 適用時は
+    // target/ 等の除外済みディレクトリが数字を支配しうる旨を明示する
+    if cfg.use_gitignore && !cfg.suppress_notes && !dirs.is_empty() {
+        out.push_str(tr(
+            lang,
+            "\nnote: directory sizes are raw disk usage — gitignored contents (node_modules/, target/, ...) still count toward them\n",
+            "\n注: ディレクトリサイズはディスク上の生サイズです — gitignore 済みの中身（node_modules/ や target/ 等）も含まれます\n",
+        ));
+    }
     out
 }
 

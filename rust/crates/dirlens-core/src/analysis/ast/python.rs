@@ -44,17 +44,41 @@ fn docstring_head(body: &[Stmt]) -> Option<String> {
     None
 }
 
+/// 公開判定用のスコープ文脈。
+/// - Module: モジュール直下（if / try 等の制御ブロック内も含む）
+/// - Class(bool): クラス本体（bool = そのクラス自身が公開 API か）
+/// - Function: 関数本体（この中の def / class はローカル定義であり公開 API ではない）
+#[derive(Clone, Copy, PartialEq)]
+enum Scope {
+    Module,
+    Class(bool),
+    Function,
+}
+
+/// 文脈を踏まえた公開判定。名前の `_` 始まりに加えて、
+/// 関数内のローカル定義は常に非公開、非公開クラスのメンバも非公開とする
+/// （モジュール外から `module.name` で到達できるものだけを公開 API と数える）。
+fn is_public(name: &str, scope: Scope) -> bool {
+    match scope {
+        Scope::Function => false,
+        Scope::Class(class_public) => class_public && !name.starts_with('_'),
+        Scope::Module => !name.starts_with('_'),
+    }
+}
+
 /// ソース順（再帰）で class / def を抽出する。
-/// 公開判定は正規表現版と同じ「名前が _ 始まりでない」。
+/// 公開判定はスコープ文脈つき（関数内ローカル定義・非公開クラスのメンバは
+/// 非公開）。v1.2.8 以前は正規表現版と同じ「名前が _ 始まりでない」だけで
+/// 判定しており、関数内の def まで公開 API として過剰報告されていた。
 pub fn outline(text: &str) -> Option<Vec<OutlineItem>> {
     let body = parse_module(text)?;
     let starts = line_starts(text);
     let mut out = Vec::new();
-    collect_outline(&body, &starts, &mut out);
+    collect_outline(&body, &starts, Scope::Module, &mut out);
     Some(out)
 }
 
-fn collect_outline(stmts: &[Stmt], starts: &[usize], out: &mut Vec<OutlineItem>) {
+fn collect_outline(stmts: &[Stmt], starts: &[usize], scope: Scope, out: &mut Vec<OutlineItem>) {
     for stmt in stmts {
         let span = {
             let r = stmt.range();
@@ -66,34 +90,42 @@ fn collect_outline(stmts: &[Stmt], starts: &[usize], out: &mut Vec<OutlineItem>)
         match stmt {
             Stmt::ClassDef(c) => {
                 let name = c.name.to_string();
-                let public = !name.starts_with('_');
+                let public = is_public(&name, scope);
                 let mut item = OutlineItem::new("class", name, public);
                 item.doc = docstring_head(&c.body);
                 item.span = span;
                 out.push(item);
-                collect_outline(&c.body, starts, out);
+                // 関数内のクラスはローカル定義のままメンバも非公開
+                let inner = if scope == Scope::Function {
+                    Scope::Function
+                } else {
+                    Scope::Class(public)
+                };
+                collect_outline(&c.body, starts, inner, out);
             }
             Stmt::FunctionDef(f) => {
                 let name = f.name.to_string();
-                let public = !name.starts_with('_');
+                let public = is_public(&name, scope);
                 let mut item = OutlineItem::new("def", name, public);
                 item.doc = docstring_head(&f.body);
                 item.span = span;
                 out.push(item);
-                collect_outline(&f.body, starts, out);
+                collect_outline(&f.body, starts, Scope::Function, out);
             }
             Stmt::AsyncFunctionDef(f) => {
                 let name = f.name.to_string();
-                let public = !name.starts_with('_');
+                let public = is_public(&name, scope);
                 let mut item = OutlineItem::new("def", name, public);
                 item.doc = docstring_head(&f.body);
                 item.span = span;
                 out.push(item);
-                collect_outline(&f.body, starts, out);
+                collect_outline(&f.body, starts, Scope::Function, out);
             }
             _ => {
+                // if / try / with 等の制御ブロックはスコープを変えない
+                // （`if TYPE_CHECKING:` 直下の def はモジュールレベル扱い）
                 for child in child_bodies(stmt) {
-                    collect_outline(child, starts, out);
+                    collect_outline(child, starts, scope, out);
                 }
             }
         }
@@ -169,5 +201,63 @@ fn child_bodies(stmt: &Stmt) -> Vec<&[Stmt]> {
         }
         Stmt::Match(s) => s.cases.iter().map(|c| c.body.as_slice()).collect(),
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn publics(text: &str) -> Vec<(String, bool)> {
+        outline(text)
+            .unwrap()
+            .into_iter()
+            .map(|it| (it.name, it.public))
+            .collect()
+    }
+
+    #[test]
+    fn local_defs_are_not_public() {
+        let src = "def run_cycle():\n    def trial():\n        pass\n    class Inner:\n        def m(self):\n            pass\n    return trial\n";
+        let got = publics(src);
+        assert_eq!(
+            got,
+            vec![
+                ("run_cycle".to_string(), true),
+                ("trial".to_string(), false),
+                ("Inner".to_string(), false),
+                ("m".to_string(), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn methods_follow_class_visibility() {
+        let src = "class Server:\n    def rpc(self):\n        pass\n    def _hidden(self):\n        pass\n\nclass _Private:\n    def load(self):\n        pass\n";
+        let got = publics(src);
+        assert_eq!(
+            got,
+            vec![
+                ("Server".to_string(), true),
+                ("rpc".to_string(), true),
+                ("_hidden".to_string(), false),
+                ("_Private".to_string(), false),
+                ("load".to_string(), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn control_blocks_keep_module_scope() {
+        // if / try 直下の def はモジュールレベル（公開判定は名前のみ）
+        let src = "if True:\n    def conditional():\n        pass\ntry:\n    def fallback():\n        pass\nexcept ImportError:\n    pass\n";
+        let got = publics(src);
+        assert_eq!(
+            got,
+            vec![
+                ("conditional".to_string(), true),
+                ("fallback".to_string(), true),
+            ]
+        );
     }
 }

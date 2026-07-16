@@ -77,6 +77,11 @@ fn build_json_tree<F: FsProvider>(
 
                 if cfg.show_tokens {
                     obj.insert("tokens".into(), json!(extras.tokens));
+                    // 5MB 打ち切りの比例概算（BPE 正確値ではない）ことを明示する。
+                    // Python 版に無いフィールドのため compat モードでは出さない
+                    if extras.tokens_estimated && !cfg.suppress_notes {
+                        obj.insert("tokens_estimated".into(), json!(true));
+                    }
                     obj.insert("lines".into(), json!(extras.lines));
                     if let Some(t) = extras.tokens {
                         stats.tokens += t;
@@ -232,6 +237,12 @@ fn build_json_tree<F: FsProvider>(
     ic.insert("files".into(), json!(n_files));
     ic.insert("permission_denied".into(), json!(denied));
     obj.insert("item_count".into(), Value::Object(ic));
+    // -L の深さ打ち切りで children を省略したディレクトリには明示マーカーを
+    // 付ける（item_count と children の食い違いを照合しなくても分かるように）。
+    // Python 版に無いフィールドのため compat モードでは出さない
+    if !within_depth && n_dirs + n_files > 0 && !cfg.suppress_notes {
+        obj.insert("truncated".into(), json!(true));
+    }
     obj.insert("children".into(), Value::Array(children));
     Value::Object(obj)
 }

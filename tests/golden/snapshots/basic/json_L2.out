@@ -93,6 +93,7 @@
             "files": 2,
             "permission_denied": false
           },
+          "truncated": true,
           "children": []
         }
       ]
@@ -120,6 +121,7 @@
             "files": 1,
             "permission_denied": false
           },
+          "truncated": true,
           "children": []
         },
         {

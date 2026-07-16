@@ -170,6 +170,7 @@
       "ext": ".txt",
       "path": "big6mb.txt",
       "tokens": 1938468,
+      "tokens_estimated": true,
       "lines": 92309
     },
     {

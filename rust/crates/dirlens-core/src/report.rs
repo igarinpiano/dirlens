@@ -78,22 +78,53 @@ pub fn render_stdin_report<F: FsProvider>(
     let lang = cfg.lang;
     let mut out = String::new();
     let mut json_files: Vec<Value> = Vec::new();
+    // 解決できなかった入力は黙って落とさず errors に記録する
+    // （エージェントが「typo したパス」と「シンボルなし」を区別できるように）
+    let mut json_errors: Vec<Value> = Vec::new();
     let mut total_tokens: i64 = 0;
+    let mut seen: std::collections::HashSet<std::path::PathBuf> =
+        std::collections::HashSet::new();
 
     for given in files {
+        let mut err = |msg_text: String, reason: &str| {
+            out.push_str(&format!("{}\n", msg_text));
+            json_errors.push(json!({"path": given, "error": reason}));
+        };
         let Some(resolved) = sess.fs.resolve(given) else {
-            out.push_str(&format!(
-                "{}\n",
-                crate::i18n::err_not_found(lang, given)
-            ));
+            err(crate::i18n::err_not_found(lang, given), "not found");
             continue;
         };
-        let Some(entry) = entry_for_path(sess.fs, &resolved) else {
-            out.push_str(&format!(
-                "{}\n",
-                crate::i18n::err_not_found(lang, given)
-            ));
+        // 同じファイルを複数回渡されても1回だけ処理する
+        if !seen.insert(resolved.clone()) {
             continue;
+        }
+        let entry = match sess.fs.stat(&resolved, true) {
+            None => {
+                err(crate::i18n::err_not_found(lang, given), "not found");
+                continue;
+            }
+            Some(st) if st.mode & 0o170000 == 0o040000 => {
+                let msg = match lang {
+                    Lang::Ja => format!(
+                        "エラー: {} はディレクトリです（ファイルのパスを渡してください）",
+                        given
+                    ),
+                    Lang::En => format!("error: {} is a directory (pass file paths)", given),
+                };
+                err(msg, "is a directory");
+                continue;
+            }
+            Some(_) => Entry {
+                name: resolved
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                path: resolved.to_path_buf(),
+                is_dir_nofollow: false,
+                is_file_nofollow: true,
+                is_symlink: false,
+                is_dir_follow: false,
+            },
         };
         let rel = normalize_rel(cfg, &resolved, given);
         let ex = file_extras(sess, &entry, &rel, cfg);
@@ -104,6 +135,10 @@ pub fn render_stdin_report<F: FsProvider>(
             o.insert("path".into(), json!(rel));
             o.insert("size".into(), json!(sz));
             o.insert("tokens".into(), json!(ex.tokens));
+            // 5MB 打ち切りの比例概算（BPE 正確値ではない）ことを明示する
+            if ex.tokens_estimated && !cfg.suppress_notes {
+                o.insert("tokens_estimated".into(), json!(true));
+            }
             o.insert("lines".into(), json!(ex.lines));
             o.insert(
                 "outline".into(),
@@ -200,6 +235,7 @@ pub fn render_stdin_report<F: FsProvider>(
         let v = json!({
             "schema_version": crate::render_json::SCHEMA_VERSION,
             "files": json_files,
+            "errors": json_errors,
         });
         (String::new(), Some(v))
     } else {

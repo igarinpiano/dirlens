@@ -323,6 +323,27 @@ pub fn execute<F: FsProvider>(
             measure(&t),
         ));
 
+        // JSON 経路の見積もり時は、budget 指定時に返るテキスト形式の全階層
+        // コストも併記する（テキストは JSON より大幅に軽いため、JSON の
+        // 見積もりだけを見て不必要に depth を絞る判断を防ぐ）
+        let mut text_full: Option<i64> = None;
+        if cfg.json {
+            cfg.json = false;
+            let t = render_for_estimate(sess, cfg, &active_pats, &probe);
+            cfg.json = true;
+            let toks = measure(&t);
+            text_full = Some(toks);
+            rows.push((
+                i18n::tr(
+                    cfg.lang,
+                    "full depth as text (what budget returns)",
+                    "全階層・テキスト（budget 指定時の形式）",
+                )
+                .to_string(),
+                toks,
+            ));
+        }
+
         let mut out = String::new();
         if cfg.json {
             out.push_str(i18n::tr(
@@ -385,6 +406,24 @@ pub fn execute<F: FsProvider>(
                 }
             };
             out.push_str(&format!("{}\n", line));
+            // JSON では上限超過でも、テキスト（budget 指定時の形式）なら
+            // 全階層が収まる場合はその旨を示す — depth を絞るより情報が多い
+            if let Some(tf) = text_full.filter(|tf| any_over && *tf <= cap) {
+                let tf_h = crate::fmt::fmt_tokens(tf);
+                out.push_str(&format!(
+                    "{}\n",
+                    match cfg.lang {
+                        Lang::Ja => format!(
+                            "ヒント: budget を指定すれば全階層が注釈付きテキスト（{}）で収まります — depth を絞る必要はありません。",
+                            tf_h
+                        ),
+                        Lang::En => format!(
+                            "Tip: with a budget set, the full annotated tree fits as text ({}) — no need to reduce depth.",
+                            tf_h
+                        ),
+                    }
+                ));
+            }
         }
         return RunResult {
             stdout: out,
