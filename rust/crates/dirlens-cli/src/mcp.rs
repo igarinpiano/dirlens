@@ -68,7 +68,7 @@ fn tool_defs() -> Value {
         },
         {
             "name": "focus",
-            "description": "Impact analysis for one file: what it imports and what imports it (direct + transitive), as JSON. Use before refactoring to see the blast radius.",
+            "description": "Impact analysis for one file: what it imports and what imports it (direct + transitive), as JSON. Use before refactoring to see the blast radius. Nested Rust crates (Cargo.toml in a subdirectory) are resolved automatically, so calling from the repo root is fine for Rust. For JS/TS/Go files inside a nested sub-project (its own tsconfig.json/package.json/go.mod), alias resolution is rooted at `path` — the result carries a `note` field when this might make it incomplete; in that case re-run with `path` set to that subdirectory.",
             "inputSchema": obj(json!({"path": path_prop, "file": {"type": "string", "description": "project-relative source file"}}), vec!["file"])
         },
         {

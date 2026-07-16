@@ -415,6 +415,9 @@ pub struct ProjectIndex {
 struct WalkState {
     all_names: HashSet<String>,
     all_relpaths: BTreeSet<String>,
+    /// Cargo.toml のあるディレクトリ（"" = スキャンルート）。
+    /// Rust の crate:: 解決をクレート単位に分けるために使う
+    cargo_dirs: BTreeSet<String>,
     source_files: Vec<(String, String, String)>, // (relpath, stem(原文), ext(小文字))
     entry_set: BTreeSet<String>,
     pkg_entry_candidates: BTreeSet<String>,
@@ -427,34 +430,35 @@ struct WalkState {
     pkg_imports: Vec<(String, String)>,
 }
 
-/// Rust のモジュールツリー（module path → relpath）を src/ 配下から構築する。
-/// src/lib.rs / src/main.rs = クレートルート、foo.rs / foo/mod.rs = crate::foo。
-fn build_rs_module_map(all_relpaths: &BTreeSet<String>) -> HashMap<Vec<String>, String> {
-    let mut map: HashMap<Vec<String>, String> = HashMap::new();
-    for r in all_relpaths {
-        let Some(rest) = r.strip_prefix("src/") else { continue };
-        let Some(stem) = rest.strip_suffix(".rs") else { continue };
-        let mut parts: Vec<String> = stem.split('/').map(|s| s.to_string()).collect();
-        let key: Vec<String> = if parts == ["main"] || parts == ["lib"] {
-            Vec::new()
-        } else if parts.last().map(|s| s == "mod").unwrap_or(false) {
-            parts.pop();
-            parts
-        } else {
-            parts
-        };
-        // クレートルートは lib.rs を優先する
-        if key.is_empty() && map.contains_key(&key) && r.ends_with("main.rs") {
-            continue;
+/// ファイルの属するクレートルート（Cargo.toml のあるディレクトリの最長一致）。
+/// Cargo.toml がどこにも無い、またはどのクレートにも属さない場合はスキャン
+/// ルート（""）を返す（v1.2.6 以前の「ルートの src/ 前提」と同じ挙動）。
+/// これによりモノレポ/ワークスペースのサブクレートでも crate:: 解決が働く。
+pub fn rs_crate_of(relpath: &str, cargo_dirs: &BTreeSet<String>) -> String {
+    let mut best = "";
+    for d in cargo_dirs {
+        if !d.is_empty()
+            && d.len() > best.len()
+            && relpath.starts_with(d.as_str())
+            && relpath.as_bytes().get(d.len()) == Some(&b'/')
+        {
+            best = d;
         }
-        map.insert(key, r.clone());
     }
-    map
+    best.to_string()
 }
 
-/// ファイルの属するモジュールパス（self:: / super:: 解決の基準）。
-fn rs_module_of(relpath: &str) -> Option<Vec<String>> {
-    let rest = relpath.strip_prefix("src/")?;
+/// クレートルート基準のモジュールパス（src/lib.rs / src/main.rs = ルート、
+/// foo.rs / foo/mod.rs = crate::foo）。src/ 配下でなければ None。
+fn rs_mod_key(relpath: &str, crate_root: &str) -> Option<Vec<String>> {
+    let local = if crate_root.is_empty() {
+        relpath
+    } else {
+        relpath
+            .strip_prefix(crate_root)
+            .and_then(|s| s.strip_prefix('/'))?
+    };
+    let rest = local.strip_prefix("src/")?;
     let stem = rest.strip_suffix(".rs")?;
     let mut parts: Vec<String> = stem.split('/').map(|s| s.to_string()).collect();
     if parts == ["main"] || parts == ["lib"] {
@@ -466,11 +470,37 @@ fn rs_module_of(relpath: &str) -> Option<Vec<String>> {
     Some(parts)
 }
 
+/// Rust のモジュールツリー（(クレートルート, module path) → relpath）を構築する。
+fn build_rs_module_map(
+    all_relpaths: &BTreeSet<String>,
+    cargo_dirs: &BTreeSet<String>,
+) -> HashMap<(String, Vec<String>), String> {
+    let mut map: HashMap<(String, Vec<String>), String> = HashMap::new();
+    for r in all_relpaths {
+        if !r.ends_with(".rs") {
+            continue;
+        }
+        let crate_root = rs_crate_of(r, cargo_dirs);
+        let Some(key) = rs_mod_key(r, &crate_root) else { continue };
+        // クレートルートは lib.rs を優先する（BTreeSet 順で lib.rs が先に来る）
+        if key.is_empty()
+            && map.contains_key(&(crate_root.clone(), key.clone()))
+            && r.ends_with("main.rs")
+        {
+            continue;
+        }
+        map.insert((crate_root, key), r.clone());
+    }
+    map
+}
+
 /// use パスをモジュールツリーで解決する（crate:: / self:: / super:: 対応）。
+/// 解決は同一クレート内に限る（外部クレート・path 依存は対象外）。
 fn resolve_rs_module(
     use_path: &str,
+    crate_root: &str,
     cur_mod: &[String],
-    map: &HashMap<Vec<String>, String>,
+    map: &HashMap<(String, Vec<String>), String>,
     self_relpath: &str,
 ) -> Option<String> {
     let segs: Vec<&str> = use_path.split("::").filter(|s| !s.is_empty()).collect();
@@ -506,7 +536,7 @@ fn resolve_rs_module(
         if cut < 0 {
             continue;
         }
-        if let Some(r) = map.get(&base[..cut as usize]) {
+        if let Some(r) = map.get(&(crate_root.to_string(), base[..cut as usize].to_vec())) {
             if r != self_relpath {
                 return Some(r.clone());
             }
@@ -581,6 +611,7 @@ pub fn build_project_index<F: FsProvider>(
     let mut st = WalkState {
         all_names: HashSet::new(),
         all_relpaths: BTreeSet::new(),
+        cargo_dirs: BTreeSet::new(),
         source_files: Vec::new(),
         entry_set: BTreeSet::new(),
         pkg_entry_candidates: BTreeSet::new(),
@@ -621,6 +652,9 @@ pub fn build_project_index<F: FsProvider>(
     // -M が無くても import 解決を回す。Rust のインラインテストもここで検出する。
     let compute_imports = cfg.show_imports || (cfg.show_tests && cfg.enhanced_analysis);
     let mut rs_self_tested: HashSet<String> = HashSet::new();
+    // Rust の `mod x;` 宣言「のみ」で結ばれたエッジ（use で参照されていないもの）。
+    // モジュールツリー構造そのものなので、循環依存のシグナルからは除外する
+    let mut rs_decl_edges: HashSet<(String, String)> = HashSet::new();
 
     if compute_imports {
         // Go のローカル import 解決用の前計算
@@ -634,9 +668,10 @@ pub fn build_project_index<F: FsProvider>(
             }
         }
 
-        // Rust モジュールツリー（crate::/self::/super:: の解決改善用）
+        // Rust モジュールツリー（crate::/self::/super:: の解決改善用）。
+        // Cargo.toml を境界にクレート単位で構築する（モノレポ/ワークスペース対応）
         let rs_module_map = if cfg.enhanced_analysis {
-            build_rs_module_map(&st.all_relpaths)
+            build_rs_module_map(&st.all_relpaths, &st.cargo_dirs)
         } else {
             HashMap::new()
         };
@@ -907,6 +942,9 @@ pub fn build_project_index<F: FsProvider>(
                         };
                         for cand in cands {
                             if st.all_relpaths.contains(&cand) {
+                                // `mod x;` 宣言によるエッジを記録する（下の use で
+                                // 同じ相手を参照していれば「宣言のみ」ではなくなる）
+                                rs_decl_edges.insert((relpath.clone(), cand.clone()));
                                 local_targets.insert(cand);
                             }
                         }
@@ -916,9 +954,15 @@ pub fn build_project_index<F: FsProvider>(
                         // 失敗時は従来の src/ ヒューリスティックへ
                         let mut resolved: Option<String> = None;
                         if cfg.enhanced_analysis {
-                            if let Some(cur) = rs_module_of(relpath) {
-                                resolved =
-                                    resolve_rs_module(&u, &cur, &rs_module_map, relpath);
+                            let crate_root = rs_crate_of(relpath, &st.cargo_dirs);
+                            if let Some(cur) = rs_mod_key(relpath, &crate_root) {
+                                resolved = resolve_rs_module(
+                                    &u,
+                                    &crate_root,
+                                    &cur,
+                                    &rs_module_map,
+                                    relpath,
+                                );
                             }
                         }
                         if resolved.is_none() {
@@ -927,6 +971,7 @@ pub fn build_project_index<F: FsProvider>(
                         }
                         match resolved {
                             Some(r) => {
+                                rs_decl_edges.remove(&(relpath.clone(), r.clone()));
                                 local_targets.insert(r);
                             }
                             None => external_raw.push(u),
@@ -964,7 +1009,21 @@ pub fn build_project_index<F: FsProvider>(
         .map(|(k, v)| (k, v.into_iter().collect()))
         .collect();
     let cycles = if cfg.show_imports {
-        detect_cycles(&imports_map)
+        if cfg.enhanced_analysis && !rs_decl_edges.is_empty() {
+            // `mod x;` 宣言のみのエッジは Rust のモジュールツリー構造そのもので、
+            // lib.rs/mod.rs ⇄ 子モジュールの「往復」が全て循環として報告されて
+            // しまう。循環検出だけ宣言のみのエッジを除いたグラフで行う
+            // （imports / imported_by / focus のグラフには残す）
+            let mut filtered = imports_map.clone();
+            for (from, to) in &rs_decl_edges {
+                if let Some(v) = filtered.get_mut(from) {
+                    v.retain(|t| t != to);
+                }
+            }
+            detect_cycles(&filtered)
+        } else {
+            detect_cycles(&imports_map)
+        }
     } else {
         Vec::new()
     };
@@ -1078,6 +1137,9 @@ fn walk<F: FsProvider>(
         if CONFIG_NAMES_LOWER.contains(&name_lower.as_str()) {
             st.config_set.insert(rel.clone());
         }
+        if name_lower == "cargo.toml" {
+            st.cargo_dirs.insert(dirname(&rel).to_string());
+        }
         if ext == ".py" {
             st.py_module_map.insert(py_module_key(&rel), rel.clone());
         }
@@ -1170,8 +1232,63 @@ fn walk<F: FsProvider>(
 
 #[cfg(test)]
 mod tests {
-    use super::detect_cycles;
-    use std::collections::BTreeMap;
+    use super::{build_rs_module_map, detect_cycles, rs_crate_of, rs_mod_key};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn crate_of_nested_cargo() {
+        let dirs: BTreeSet<String> =
+            ["".to_string(), "sub".to_string(), "rust/crates/core".to_string()]
+                .into_iter()
+                .collect();
+        assert_eq!(rs_crate_of("src/lib.rs", &dirs), "");
+        assert_eq!(rs_crate_of("sub/src/cli.rs", &dirs), "sub");
+        assert_eq!(rs_crate_of("rust/crates/core/src/run.rs", &dirs), "rust/crates/core");
+        // "subXtra" のような前方一致の誤マッチをしない
+        assert_eq!(rs_crate_of("subxtra/src/a.rs", &dirs), "");
+        // Cargo.toml がどこにも無ければスキャンルート扱い（従来挙動）
+        assert_eq!(rs_crate_of("src/lib.rs", &BTreeSet::new()), "");
+    }
+
+    #[test]
+    fn mod_key_is_crate_relative() {
+        assert_eq!(rs_mod_key("sub/src/lib.rs", "sub"), Some(vec![]));
+        assert_eq!(
+            rs_mod_key("sub/src/util/mod.rs", "sub"),
+            Some(vec!["util".to_string()])
+        );
+        assert_eq!(rs_mod_key("sub/src/cli.rs", "sub"), Some(vec!["cli".to_string()]));
+        // クレートの src/ 外は対象外
+        assert_eq!(rs_mod_key("sub/build.rs", "sub"), None);
+        assert_eq!(rs_mod_key("sub/src/cli.rs", ""), None);
+    }
+
+    #[test]
+    fn module_map_separates_crates() {
+        let files: BTreeSet<String> = [
+            "src/lib.rs",
+            "src/config.rs",
+            "sub/src/lib.rs",
+            "sub/src/config.rs",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let dirs: BTreeSet<String> = ["".to_string(), "sub".to_string()].into_iter().collect();
+        let map = build_rs_module_map(&files, &dirs);
+        assert_eq!(
+            map.get(&("".to_string(), vec!["config".to_string()])),
+            Some(&"src/config.rs".to_string())
+        );
+        assert_eq!(
+            map.get(&("sub".to_string(), vec!["config".to_string()])),
+            Some(&"sub/src/config.rs".to_string())
+        );
+        assert_eq!(
+            map.get(&("sub".to_string(), vec![])),
+            Some(&"sub/src/lib.rs".to_string())
+        );
+    }
 
     #[test]
     fn cycles_basic() {

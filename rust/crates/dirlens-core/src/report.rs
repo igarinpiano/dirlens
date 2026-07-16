@@ -233,6 +233,46 @@ fn transitive(graph_get: impl Fn(&str) -> Vec<String>, start: &str) -> Vec<Strin
     order
 }
 
+/// モノレポ注意: 対象ファイルの上位（スキャンルートより深い階層）に別プロジェクトの
+/// マニフェストがある場合、エイリアス/モジュール解決（tsconfig paths・
+/// package.json imports・go.mod）はスキャンルート基準のため結果が不完全になりうる。
+/// 最も近い階層のマニフェストを (dir, manifest名) で返す。
+/// Rust の Cargo.toml はクレート単位解決（v1.2.7+）で対応済みのため対象外。
+fn nested_manifest_hint<F: FsProvider>(
+    sess: &Session<F>,
+    cfg: &Cfg,
+    rel: &str,
+) -> Option<(String, &'static str)> {
+    let fname = rel.rsplit('/').next().unwrap_or(rel).to_lowercase();
+    let (_, ext_raw) = splitext(&fname);
+    let manifests: &[&'static str] = match ext_raw {
+        ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => {
+            &["tsconfig.json", "jsconfig.json", "package.json"]
+        }
+        ".go" => &["go.mod"],
+        _ => return None,
+    };
+    let mut dir = crate::analysis::index::dirname(rel);
+    while !dir.is_empty() {
+        for m in manifests {
+            let p = cfg
+                .root
+                .join(dir.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .join(m);
+            let is_file = sess
+                .fs
+                .stat(&p, true)
+                .map(|s| s.mode & 0o170000 == 0o100000)
+                .unwrap_or(false);
+            if is_file {
+                return Some((dir.to_string(), m));
+            }
+        }
+        dir = crate::analysis::index::dirname(dir);
+    }
+    None
+}
+
 pub fn render_focus<F: FsProvider>(
     sess: &Session<F>,
     cfg: &Cfg,
@@ -274,7 +314,7 @@ pub fn render_focus<F: FsProvider>(
                     Lang::En => format!("; did you mean: {}", list.join(", ")),
                 }
             };
-            let msg = match lang {
+            let mut msg = match lang {
                 Lang::Ja => format!(
                     "エラー: '{}' は import グラフに存在しません（対応言語のソースで、プロジェクト内のパスを指定してください）{}",
                     as_given, hint
@@ -284,6 +324,21 @@ pub fn render_focus<F: FsProvider>(
                     as_given, hint
                 ),
             };
+            // ネストしたサブプロジェクトのファイルは、エイリアス解決が
+            // スキャンルート基準のため import が全て external 扱いになり
+            // ここに落ちることがある。その場合は path の変更を促す
+            if let Some((dir, manifest)) = nested_manifest_hint(sess, cfg, &as_given) {
+                msg.push_str(&match lang {
+                    Lang::Ja => format!(
+                        "。注意: {}/ に独自の {} があります — path を {} にして再実行すると解決できる可能性があります",
+                        dir, manifest, dir
+                    ),
+                    Lang::En => format!(
+                        ". note: {}/ has its own {} — re-running with path set to {} may resolve it",
+                        dir, manifest, dir
+                    ),
+                });
+            }
             return (msg, None, false);
         }
     };
@@ -304,8 +359,20 @@ pub fn render_focus<F: FsProvider>(
         .filter(|c| c.contains(&rel))
         .collect();
 
+    let hint = nested_manifest_hint(sess, cfg, &rel);
+    let hint_text = hint.as_ref().map(|(dir, manifest)| match lang {
+        Lang::Ja => format!(
+            "{}/ に独自の {} があります。エイリアス/モジュール解決はスキャンルート基準のため、依存関係が不完全な可能性があります。結果が少なすぎる場合は path を {} にして再実行してください。",
+            dir, manifest, dir
+        ),
+        Lang::En => format!(
+            "{}/ has its own {}. Alias/module resolution is rooted at the scanned path, so dependencies may be incomplete here. If results look too small, re-run with path set to {}.",
+            dir, manifest, dir
+        ),
+    });
+
     if cfg.json {
-        let v = json!({
+        let mut v = json!({
             "schema_version": crate::render_json::SCHEMA_VERSION,
             "focus": rel,
             "depends_on": {"direct": deps_direct, "transitive": deps_all},
@@ -313,6 +380,9 @@ pub fn render_focus<F: FsProvider>(
             "external_imports": cfg.external_map.get(&rel).cloned().unwrap_or_default(),
             "cycles": cycles_here,
         });
+        if let (Some(note), Value::Object(map)) = (&hint_text, &mut v) {
+            map.insert("note".into(), json!(note));
+        }
         return (String::new(), Some(v), true);
     }
 
@@ -391,6 +461,9 @@ pub fn render_focus<F: FsProvider>(
         for cyc in cycles_here.iter().take(3) {
             out.push_str(&format!("  {}\n", sanitize_ctrl(&cyc.join(" → "))));
         }
+    }
+    if let Some(note) = &hint_text {
+        out.push_str(&format!("\n{}{}\n", tr(lang, "note: ", "注意: "), note));
     }
     (out, None, true)
 }
