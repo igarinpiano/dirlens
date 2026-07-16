@@ -75,6 +75,9 @@ pub struct Cfg {
     pub gitignore_prefer_git: bool,
     /// 実際に使われた gitignore 層（"git" / "builtin"）。capabilities 出力用。
     pub gitignore_tier: Option<&'static str>,
+    /// スキャンルート自体が gitignore 対象（-G で中身が全て隠れる状態）。
+    /// Tier1（git check-ignore）が使える場合のみ検出し、出力に注記する。
+    pub root_ignored: bool,
     /// AST 第1段＋マニフェスト読込による import 解決改善を使うか。
     /// false なら正規表現層のみ（DIRLENS_COMPAT=python / DIRLENS_AST=off）。
     pub enhanced_analysis: bool,
@@ -212,6 +215,7 @@ impl Cfg {
             has_extras,
             gitignore_prefer_git: true,
             gitignore_tier: None,
+            root_ignored: false,
             enhanced_analysis: true,
             tokens_bpe: true,
             suppress_notes: false,

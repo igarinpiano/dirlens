@@ -24,6 +24,7 @@ fn tool_defs() -> Value {
         json!({"type": "object", "properties": props, "required": required})
     };
     let path_prop = json!({"type": "string", "description": "target directory (default: current directory)"});
+    let include_ignored_prop = json!({"type": "boolean", "description": "set true to include gitignored entries (node_modules/, target/, ...) in the listing. Useful when the target directory is itself gitignored — the default gitignore filter would then hide ALL of its contents and return an empty tree (a note in the output says so when this happens)"});
     let depth_prop = json!({"type": "integer", "description": "how many directory levels deep to show (default: unlimited, i.e. the full tree). Project-wide counts and summaries (TODO count, hotspots, etc.) always cover the whole project regardless of this value — only the tree/listing gets shallower. If you don't know how big the project is yet, don't omit this on the first call: pass a small value like 1 or 2, or use `estimate`/`budget` where available instead of guessing"});
     let unlimited_depth_prop = json!({"type": "boolean", "description": "set true to force the full, unlimited-depth tree even though this tool normally defaults `depth` to a small number when it's omitted. Ignored if `depth` is also set (an explicit `depth` always wins)"});
     json!([
@@ -34,6 +35,7 @@ fn tool_defs() -> Value {
                 "path": path_prop,
                 "depth": depth_prop,
                 "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then annotations, then tree rows. When set, returns compact annotated TEXT instead of JSON — use this instead of guessing a `depth`"},
+                "include_ignored": include_ignored_prop.clone(),
                 "estimate": {"type": "boolean", "description": "instead of running the analysis, return a few-line table of token cost per depth level (-L 1, -L 2, -L 3, full). Use this FIRST on any project whose size you don't know, to pick a sensible `depth` or `budget`. Levels that exceed the host's tool-response cap (MAX_MCP_OUTPUT_TOKENS if set, else Claude Code's default 25000) are marked with ⚠ in the table — those will fail if run uncapped, so use `budget` below the cap instead. The table also shows the full tree measured as budget-style TEXT, which is usually several times cheaper than the JSON — if that row fits your cap, prefer `budget` over shrinking `depth`. Overrides `budget` if both are set"}
             }), vec![])
         },
@@ -44,12 +46,13 @@ fn tool_defs() -> Value {
                 "path": path_prop,
                 "depth": depth_prop,
                 "budget": {"type": "integer", "description": "cap the response to about this many tokens (o200k BPE) by auto-trimming depth, then tree rows"},
+                "include_ignored": include_ignored_prop.clone(),
                 "top": {"type": "integer", "description": "return a flat list of the N largest files and directories instead of a tree — cheap and safe on any project size, no depth guessing needed. Caveat: directory sizes are raw disk usage (du-like), so gitignored contents (node_modules/, target/, ...) still count toward them even though they are excluded from the listing itself"}
             }), vec![])
         },
         {
             "name": "outline",
-            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. Every requested path is accounted for: unreadable ones (missing file, directory) are reported in the `errors` array instead of being silently dropped, and duplicate paths are processed once. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (directories cut off by `depth` carry `truncated: true`). Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
+            "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. Every requested path is accounted for: unreadable ones (missing file, directory) are reported in the `errors` array instead of being silently dropped, and duplicate paths are processed once. Nested symbols carry a `parent` field (the class of a method, the impl type of a Rust fn, the enclosing function of a local def), so two same-named methods from different classes/impls are distinguishable. If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (directories cut off by `depth` carry `truncated: true`). Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
             "inputSchema": obj(json!({
                 "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline. An empty array returns an empty result — it does NOT trigger the project-wide mode; only omitting the key does"},
                 "path": path_prop,
@@ -111,6 +114,18 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         .unwrap_or(".")
         .to_string();
     let depth = args_val.get("depth").and_then(|v| v.as_i64());
+    // 負の depth は「ヘッダは全体・本体は空」という矛盾した出力になるため拒否する
+    // （0 は「サマリのみ」の正当な使い方なので許可）
+    if let Some(d) = depth.filter(|d| *d < 0) {
+        return (
+            format!("error: depth must be >= 0, got {} (use 0 for a summary-only view)", d),
+            true,
+        );
+    }
+    let include_ignored = args_val
+        .get("include_ignored")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     // depth 未指定時に既定値を入れるツール（outline の -A 相当 / history）向けの
     // オプトアウト。true なら既定値を入れず None（無制限）のままにする
     let unlimited_depth = args_val
@@ -132,6 +147,7 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
     match name {
         "analyze" => {
             a.agent = true;
+            a.include_ignored = include_ignored;
             // --budget はコアがテキスト経路でのみ処理するため、指定時は JSON では
             // なく予算調整済みテキストを返す
             if args_val
@@ -163,6 +179,7 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         }
         "tree" => {
             a.gitignore = true;
+            a.include_ignored = include_ignored;
             a.budget = args_val.get("budget").and_then(|v| v.as_i64());
             if let Some(n) = args_val.get("top").and_then(|v| v.as_u64()) {
                 a.top = Some(n as usize);

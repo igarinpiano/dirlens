@@ -164,6 +164,16 @@ pub fn execute<F: FsProvider>(
             }
         }
         cfg.gitignore_tier = Some(tier);
+        // スキャンルート自体が gitignore 対象だと -G で中身が全て隠れ、
+        // 「サイズは大きいのに空」という不可解な出力になる。Tier1 が使える
+        // 場合は検出して注記する（`git check-ignore .` はルートが対象のとき
+        // "." を返す）
+        if tier == "git" && !cfg.suppress_notes {
+            cfg.root_ignored = git
+                .check_ignore(&cfg.root, &[".".to_string()])
+                .map(|hits| !hits.is_empty())
+                .unwrap_or(false);
+        }
     }
 
     // ── git status / since の読み込み ────────────────────────

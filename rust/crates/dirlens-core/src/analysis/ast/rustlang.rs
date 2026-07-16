@@ -47,6 +47,15 @@ fn item(kind: &str, name: String, public: bool, doc: Option<String>, span: Optio
     it
 }
 
+/// impl の self 型名（パスの最終セグメント）。`impl Foo` / `impl Trait for Foo` の Foo。
+fn impl_type_name(ty: &syn::Type) -> Option<String> {
+    if let syn::Type::Path(tp) = ty {
+        tp.path.segments.last().map(|s| s.ident.to_string())
+    } else {
+        None
+    }
+}
+
 /// ソース順で fn / struct / enum / trait を抽出する（mod / impl / trait 内も再帰）。
 pub fn outline(text: &str) -> Option<Vec<OutlineItem>> {
     let file = syn::parse_file(text).ok()?;
@@ -91,26 +100,33 @@ fn collect_items(items: &[Item], out: &mut Vec<OutlineItem>) {
                     if let TraitItem::Fn(f) = ti {
                         // trait 内メソッド: 明示的な pub は無いので非公開扱い
                         // （正規表現版の「行に pub を含むか」と同じ結果になる）
-                        out.push(item(
+                        let mut it = item(
                             "fn",
                             f.sig.ident.to_string(),
                             false,
                             doc_head(&f.attrs),
                             span_lines(f),
-                        ));
+                        );
+                        it.parent = Some(t.ident.to_string());
+                        out.push(it);
                     }
                 }
             }
             Item::Impl(imp) => {
+                // 複数 impl の同名メソッド（例: ModelSel::label と KeyMode::label）
+                // を区別できるよう、self 型の名前を parent に入れる
+                let self_ty = impl_type_name(&imp.self_ty);
                 for ii in &imp.items {
                     if let ImplItem::Fn(f) = ii {
-                        out.push(item(
+                        let mut it = item(
                             "fn",
                             f.sig.ident.to_string(),
                             is_pub(&f.vis),
                             doc_head(&f.attrs),
                             span_lines(f),
-                        ));
+                        );
+                        it.parent = self_ty.clone();
+                        out.push(it);
                     }
                 }
             }

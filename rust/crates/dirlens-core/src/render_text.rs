@@ -123,7 +123,7 @@ pub(crate) fn collect_deep_stats<F: FsProvider>(
                         if it.kind != "class" && it.kind != "struct" && b > a {
                             stats
                                 .long_funcs
-                                .push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                .push((b - a + 1, format!("{}:{}", rel, it.qualified_name())));
                         }
                     }
                 }
@@ -491,7 +491,7 @@ fn render_node<F: FsProvider>(
                         for it in outline {
                             if let Some((a, b)) = it.span {
                                 if it.kind != "class" && it.kind != "struct" && b > a {
-                                    stats.long_funcs.push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                    stats.long_funcs.push((b - a + 1, format!("{}:{}", rel, it.qualified_name())));
                                 }
                             }
                         }
@@ -679,6 +679,22 @@ pub fn render_text_with_stats<F: FsProvider>(
         summary += &format!("  {}", t.dirs_only);
     }
     out.push_str(&format!("{}\n", c(&summary, &[DIM], color)));
+
+    // スキャンルート自体が gitignore 対象: 「サイズは大きいのに空」の理由を明示する
+    if cfg.root_ignored && !cfg.suppress_notes {
+        out.push_str(&format!(
+            "{}\n",
+            c(
+                i18n::tr(
+                    lang,
+                    "  note: this directory is itself gitignored — its contents are hidden by the gitignore filter (drop -G, or pass include_ignored via MCP, to list them)",
+                    "  注: このディレクトリ自体が gitignore 対象です — 中身は gitignore フィルタで隠れています（-G を外すか、MCP では include_ignored を指定すると表示されます）",
+                ),
+                &[DIM],
+                color
+            )
+        ));
+    }
 
     if !cfg.dirs_only && !stats.extensions.is_empty() {
         let mut exts: Vec<(&String, &u64)> = stats.extensions.iter().collect();

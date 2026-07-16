@@ -169,7 +169,7 @@ fn build_json_tree<F: FsProvider>(
                                 if it.kind != "class" && it.kind != "struct" && b > a {
                                     stats
                                         .long_funcs
-                                        .push((b - a + 1, format!("{}:{}", rel, it.name)));
+                                        .push((b - a + 1, format!("{}:{}", rel, it.qualified_name())));
                                 }
                             }
                         }
@@ -188,14 +188,17 @@ fn build_json_tree<F: FsProvider>(
                                     m.insert("kind".into(), json!(it.kind));
                                     m.insert("name".into(), json!(it.name));
                                     m.insert("public".into(), json!(it.public));
-                                    // doc / lines は Python 版に無いフィールドのため
-                                    // compat モードでは出さない（バイト一致維持）
+                                    // doc / lines / parent は Python 版に無いフィールドの
+                                    // ため compat モードでは出さない（バイト一致維持）
                                     if !cfg.suppress_notes {
                                         if let Some(doc) = &it.doc {
                                             m.insert("doc".into(), json!(doc));
                                         }
                                         if let Some((a, b)) = it.span {
                                             m.insert("lines".into(), json!([a, b]));
+                                        }
+                                        if let Some(p) = &it.parent {
+                                            m.insert("parent".into(), json!(p));
                                         }
                                     }
                                     Value::Object(m)
@@ -423,6 +426,12 @@ pub fn render_json<F: FsProvider>(
                 errors.push(json!({
                     "code": "gitignore_degraded",
                     "message": "gitignore uses the builtin matcher (git check-ignore unavailable)"
+                }));
+            }
+            if cfg.root_ignored {
+                errors.push(json!({
+                    "code": "root_gitignored",
+                    "message": "the scan root itself is gitignored — its contents are hidden by the gitignore filter (drop -G, or pass include_ignored via MCP, to list them)"
                 }));
             }
             wrapped.insert("errors".into(), Value::Array(errors));

@@ -77,6 +77,13 @@ pub fn render_top<F: FsProvider>(
             "\n注: ディレクトリサイズはディスク上の生サイズです — gitignore 済みの中身（node_modules/ や target/ 等）も含まれます\n",
         ));
     }
+    if cfg.root_ignored && !cfg.suppress_notes {
+        out.push_str(tr(
+            lang,
+            "\nnote: this directory is itself gitignored — its contents are hidden by the gitignore filter (drop -G, or pass include_ignored via MCP, to list them)\n",
+            "\n注: このディレクトリ自体が gitignore 対象です — 中身は gitignore フィルタで隠れています（-G を外すか、MCP では include_ignored を指定すると表示されます）\n",
+        ));
+    }
     out
 }
 

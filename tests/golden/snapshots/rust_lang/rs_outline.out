@@ -4,7 +4,7 @@ rust_lang/ (1 dir, 1 file, 526 bytes)
 │   │   ├── inner.rs (65 bytes, fn deep_fn)
 │   │   └── mod.rs (15 bytes)
 │   ├── main.rs (203 bytes, struct Config, fn run, fn main)
-│   └── util.rs (201 bytes, struct Thing, fn new, trait Runner, fn go, enum Mode, +2)
+│   └── util.rs (201 bytes, struct Thing, fn Thing::new, trait Runner, fn Runner::go, enum Mode, +2)
 └── Cargo.toml (42 bytes)
 
   Total  2 directories,  5 files

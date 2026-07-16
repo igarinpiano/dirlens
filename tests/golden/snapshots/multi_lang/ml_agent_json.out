@@ -372,7 +372,8 @@
               "lines": [
                 11,
                 12
-              ]
+              ],
+              "parent": "Helper"
             },
             {
               "kind": "class",
@@ -855,7 +856,8 @@
           "lines": [
             15,
             16
-          ]
+          ],
+          "parent": "AppRunner"
         }
       ],
       "imports": [
@@ -1103,11 +1105,11 @@
     },
     {
       "lines": 2,
-      "symbol": "main.py:_internal"
+      "symbol": "main.py:AppRunner.run"
     },
     {
       "lines": 2,
-      "symbol": "main.py:main"
+      "symbol": "main.py:_internal"
     }
   ],
   "errors": [

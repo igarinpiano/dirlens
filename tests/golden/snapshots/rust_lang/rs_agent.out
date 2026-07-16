@@ -4,7 +4,7 @@ rust_lang/ (1 dir, 1 file, 526 bytes, 3 months ago)
 │   │   ├── inner.rs (65 bytes, 3 months ago, ~19 tok, 5 lines, no test, fn deep_fn, imports×1, used-by×1)
 │   │   └── mod.rs (15 bytes, 3 months ago, ~4 tok, 1 lines, imports×1, used-by×1)
 │   ├── * main.rs (203 bytes, 3 months ago, ~56 tok, 18 lines, TODO×1, struct Config, fn run, fn main, imports×2)
-│   └── util.rs (201 bytes, 3 months ago, ~52 tok, 18 lines, no test, struct Thing, fn new, trait Runner, fn go, enum Mode, +2, used-by×2)
+│   └── util.rs (201 bytes, 3 months ago, ~52 tok, 18 lines, no test, struct Thing, fn Thing::new, trait Runner, fn Runner::go, enum Mode, +2, used-by×2)
 └── ⚙ Cargo.toml (42 bytes, 3 months ago, ~17 tok, 3 lines, config)
 
   Total  2 directories,  5 files  (.gitignore applied)

@@ -149,6 +149,10 @@ pub struct OutlineItem {
     pub doc: Option<String>,
     /// 定義の行範囲（1-indexed・両端含む）。AST 層で取得できた言語のみ
     pub span: Option<(u32, u32)>,
+    /// 直近の外側シンボル名（クラスメソッドならクラス名、impl 内 fn なら型名、
+    /// 関数内ローカル定義なら関数名）。AST 層のみ・トップレベルは None。
+    /// 同名メソッドの区別（例: 複数 impl の `fn label`）に使う。
+    pub parent: Option<String>,
 }
 
 impl OutlineItem {
@@ -159,6 +163,17 @@ impl OutlineItem {
             public,
             doc: None,
             span: None,
+            parent: None,
+        }
+    }
+
+    /// 表示用の親付き名。Rust（kind = "fn"）は `Type::name`、それ以外は
+    /// `Parent.name`。parent が無ければ name のまま。
+    pub fn qualified_name(&self) -> String {
+        match &self.parent {
+            Some(p) if self.kind == "fn" => format!("{}::{}", p, self.name),
+            Some(p) => format!("{}.{}", p, self.name),
+            None => self.name.clone(),
         }
     }
 }
@@ -169,7 +184,7 @@ pub fn fmt_outline(outline: &[OutlineItem], limit: usize) -> Option<String> {
     }
     let items: Vec<String> = outline
         .iter()
-        .map(|item| format!("{} {}", item.kind, item.name))
+        .map(|item| format!("{} {}", item.kind, item.qualified_name()))
         .collect();
     let shown = &items[..items.len().min(limit)];
     let mut s = shown.join(", ");

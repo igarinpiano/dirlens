@@ -158,6 +158,9 @@ pub fn render_stdin_report<F: FsProvider>(
                                 if let Some((a, b)) = it.span {
                                     m.insert("lines".into(), json!([a, b]));
                                 }
+                                if let Some(p) = &it.parent {
+                                    m.insert("parent".into(), json!(p));
+                                }
                                 Value::Object(m)
                             })
                             .collect(),
@@ -202,7 +205,7 @@ pub fn render_stdin_report<F: FsProvider>(
                     let names: Vec<String> = items
                         .iter()
                         .take(12)
-                        .map(|it| format!("{} {}", it.kind, it.name))
+                        .map(|it| format!("{} {}", it.kind, it.qualified_name()))
                         .collect();
                     let extra = if items.len() > 12 {
                         format!(", +{}", items.len() - 12)
@@ -787,7 +790,7 @@ pub fn render_api_diff<F: FsProvider>(
         items
             .unwrap_or_default()
             .into_iter()
-            .map(|it| format!("{} {}", it.kind, it.name))
+            .map(|it| format!("{} {}", it.kind, it.qualified_name()))
             .collect()
     };
 

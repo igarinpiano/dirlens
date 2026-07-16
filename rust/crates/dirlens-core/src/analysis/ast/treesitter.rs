@@ -66,6 +66,14 @@ fn walk_outline(
     name_kinds: &[&str],    // name フィールドが無いときに探す識別子ノードの kind
     is_public: &dyn Fn(tree_sitter::Node, &str, &str) -> bool,
 ) -> Vec<OutlineItem> {
+    let name_of = |node: tree_sitter::Node| -> Option<String> {
+        let nn = node.child_by_field_name("name").or_else(|| {
+            let mut c = node.walk();
+            node.children(&mut c).find(|ch| name_kinds.contains(&ch.kind()))
+        })?;
+        let name = node_text(nn, text).to_string();
+        (!name.is_empty()).then_some(name)
+    };
     let mut out = Vec::new();
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
@@ -79,7 +87,18 @@ fn walk_outline(
                 if !name.is_empty() {
                     let header = &text[node.start_byte()..nn.start_byte().max(node.start_byte())];
                     let public = is_public(node, header, &name);
-                    out.push(ts_item(label, name, public, node));
+                    let mut it = ts_item(label, name, public, node);
+                    // 直近の外側アウトライン対象ノード（クラス等）の名前を parent に
+                    // 入れる（同名メソッドの区別用）
+                    let mut anc = node.parent();
+                    while let Some(a) = anc {
+                        if kinds.iter().any(|(k, _)| *k == a.kind()) {
+                            it.parent = name_of(a);
+                            break;
+                        }
+                        anc = a.parent();
+                    }
+                    out.push(it);
                 }
             }
         }

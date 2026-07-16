@@ -23,6 +23,9 @@ pub struct Args {
 
     // dirlens 独自
     pub gitignore: bool,      // -G
+    /// -G / --agent 由来の gitignore 除外を打ち消す（MCP の include_ignored 用。
+    /// merge_aliases の最後に適用されるため --agent にも効く）
+    pub include_ignored: bool,
     pub sort_size: bool,      // -S
     pub type_ext: Option<String>, // -e
     pub copy: bool,           // -C
@@ -109,6 +112,10 @@ impl Args {
         // --focus / --mermaid / --dot は import グラフが前提
         if self.focus.is_some() || self.mermaid || self.dot {
             self.imports = true;
+        }
+        // include_ignored はエイリアス展開後に適用する（--agent の -G も打ち消す）
+        if self.include_ignored {
+            self.gitignore = false;
         }
         // --stdin はファイル単位の解析が本体（トークン・アウトライン・TODO）
         if self.stdin_files.is_some() {

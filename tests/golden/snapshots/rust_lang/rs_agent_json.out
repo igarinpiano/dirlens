@@ -186,7 +186,8 @@
               "lines": [
                 4,
                 4
-              ]
+              ],
+              "parent": "Thing"
             },
             {
               "kind": "trait",
@@ -204,7 +205,8 @@
               "lines": [
                 8,
                 8
-              ]
+              ],
+              "parent": "Runner"
             },
             {
               "kind": "enum",

@@ -461,6 +461,8 @@ fn main() {
         user: getb("user"),
         reverse: getb("reverse"),
         gitignore: getb("gitignore"),
+        // CLI にフラグは無い（-G を付けなければよい）。MCP の include_ignored 用
+        include_ignored: false,
         sort_size: getb("sort_size"),
         type_ext: m.get_one::<String>("type").cloned(),
         copy: getb("copy"),

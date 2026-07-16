@@ -74,11 +74,17 @@ pub fn outline(text: &str) -> Option<Vec<OutlineItem>> {
     let body = parse_module(text)?;
     let starts = line_starts(text);
     let mut out = Vec::new();
-    collect_outline(&body, &starts, Scope::Module, &mut out);
+    collect_outline(&body, &starts, Scope::Module, None, &mut out);
     Some(out)
 }
 
-fn collect_outline(stmts: &[Stmt], starts: &[usize], scope: Scope, out: &mut Vec<OutlineItem>) {
+fn collect_outline(
+    stmts: &[Stmt],
+    starts: &[usize],
+    scope: Scope,
+    parent: Option<&str>,
+    out: &mut Vec<OutlineItem>,
+) {
     for stmt in stmts {
         let span = {
             let r = stmt.range();
@@ -91,9 +97,10 @@ fn collect_outline(stmts: &[Stmt], starts: &[usize], scope: Scope, out: &mut Vec
             Stmt::ClassDef(c) => {
                 let name = c.name.to_string();
                 let public = is_public(&name, scope);
-                let mut item = OutlineItem::new("class", name, public);
+                let mut item = OutlineItem::new("class", name.clone(), public);
                 item.doc = docstring_head(&c.body);
                 item.span = span;
+                item.parent = parent.map(str::to_string);
                 out.push(item);
                 // 関数内のクラスはローカル定義のままメンバも非公開
                 let inner = if scope == Scope::Function {
@@ -101,31 +108,33 @@ fn collect_outline(stmts: &[Stmt], starts: &[usize], scope: Scope, out: &mut Vec
                 } else {
                     Scope::Class(public)
                 };
-                collect_outline(&c.body, starts, inner, out);
+                collect_outline(&c.body, starts, inner, Some(&name), out);
             }
             Stmt::FunctionDef(f) => {
                 let name = f.name.to_string();
                 let public = is_public(&name, scope);
-                let mut item = OutlineItem::new("def", name, public);
+                let mut item = OutlineItem::new("def", name.clone(), public);
                 item.doc = docstring_head(&f.body);
                 item.span = span;
+                item.parent = parent.map(str::to_string);
                 out.push(item);
-                collect_outline(&f.body, starts, Scope::Function, out);
+                collect_outline(&f.body, starts, Scope::Function, Some(&name), out);
             }
             Stmt::AsyncFunctionDef(f) => {
                 let name = f.name.to_string();
                 let public = is_public(&name, scope);
-                let mut item = OutlineItem::new("def", name, public);
+                let mut item = OutlineItem::new("def", name.clone(), public);
                 item.doc = docstring_head(&f.body);
                 item.span = span;
+                item.parent = parent.map(str::to_string);
                 out.push(item);
-                collect_outline(&f.body, starts, Scope::Function, out);
+                collect_outline(&f.body, starts, Scope::Function, Some(&name), out);
             }
             _ => {
-                // if / try / with 等の制御ブロックはスコープを変えない
+                // if / try / with 等の制御ブロックはスコープも parent も変えない
                 // （`if TYPE_CHECKING:` 直下の def はモジュールレベル扱い）
                 for child in child_bodies(stmt) {
-                    collect_outline(child, starts, scope, out);
+                    collect_outline(child, starts, scope, parent, out);
                 }
             }
         }
@@ -243,6 +252,23 @@ mod tests {
                 ("_hidden".to_string(), false),
                 ("_Private".to_string(), false),
                 ("load".to_string(), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn parent_is_nearest_enclosing_symbol() {
+        let src = "def outer():\n    def inner():\n        pass\n\nclass Server:\n    def rpc(self):\n        pass\n";
+        let items = outline(src).unwrap();
+        let parents: Vec<(String, Option<String>)> =
+            items.into_iter().map(|it| (it.name, it.parent)).collect();
+        assert_eq!(
+            parents,
+            vec![
+                ("outer".to_string(), None),
+                ("inner".to_string(), Some("outer".to_string())),
+                ("Server".to_string(), None),
+                ("rpc".to_string(), Some("Server".to_string())),
             ]
         );
     }

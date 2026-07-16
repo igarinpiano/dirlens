@@ -224,7 +224,8 @@
               "lines": [
                 11,
                 12
-              ]
+              ],
+              "parent": "Helper"
             }
           ]
         },
@@ -473,7 +474,8 @@
           "lines": [
             15,
             16
-          ]
+          ],
+          "parent": "AppRunner"
         }
       ]
     },
@@ -553,11 +555,11 @@
     },
     {
       "lines": 2,
-      "symbol": "main.py:main"
+      "symbol": "main.py:AppRunner.run"
     },
     {
       "lines": 2,
-      "symbol": "main.py:run"
+      "symbol": "main.py:main"
     },
     {
       "lines": 2,
