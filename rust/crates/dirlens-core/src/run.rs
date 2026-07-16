@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use crate::analysis::gitlog::load_git_log;
-use crate::analysis::gitstatus::{build_since_set, parse_status_porcelain};
+use crate::analysis::gitstatus::{build_since_set, parse_status_porcelain, to_scan_relative};
 use crate::analysis::index::build_project_index;
 use crate::args::Args;
 use crate::cfg::{Cfg, Heat};
@@ -167,9 +167,22 @@ pub fn execute<F: FsProvider>(
     }
 
     // ── git status / since の読み込み ────────────────────────
+    // git の出力パスはリポジトリルート相対。スキャンルートがリポジトリの
+    // サブディレクトリの場合に備え、スキャンルート相対へ変換して突き合わせる。
+    let git_prefix: String = if cfg.show_status || cfg.since.is_some() {
+        git.repo_prefix(&cfg.root).unwrap_or_default()
+    } else {
+        String::new()
+    };
     if cfg.show_status || cfg.since.is_some() {
         if let Some(out) = git.status_output(&cfg.root) {
-            cfg.status_map = parse_status_porcelain(&out);
+            cfg.status_map = parse_status_porcelain(&out)
+                .into_iter()
+                .filter_map(|(p, xy)| {
+                    to_scan_relative(&p, &git_prefix)
+                        .map(|s| (s.to_string(), xy))
+                })
+                .collect();
         }
     }
     if let Some(r) = cfg.since.clone() {
@@ -187,7 +200,8 @@ pub fn execute<F: FsProvider>(
             });
         }
         let status = git.status_output(&cfg.root);
-        let (set, marks, deleted) = build_since_set(diff.as_deref(), status.as_deref());
+        let (set, marks, deleted) =
+            build_since_set(diff.as_deref(), status.as_deref(), &git_prefix);
         cfg.since_set = set;
         cfg.since_status = marks;
         cfg.since_deleted = deleted;
@@ -236,7 +250,9 @@ pub fn execute<F: FsProvider>(
         cfg.cycles = idx.cycles;
     }
     if cfg.show_git || cfg.heat == Some(Heat::Churn) {
-        let (map, counts) = load_git_log(git, &cfg.root);
+        // DIRLENS_COMPAT=python（suppress_notes）では Python 版と同じく
+        // リポジトリルート相対のまま突き合わせる（DELTAS §14）
+        let (map, counts) = load_git_log(git, &cfg.root, !cfg.suppress_notes);
         cfg.git_map = map;
         cfg.git_change_counts = counts;
     }

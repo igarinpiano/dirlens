@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serde_json::{json, Map, Value};
 
 use crate::analysis::extras::file_extras;
-use crate::analysis::gitstatus::parse_diff_name_status;
+use crate::analysis::gitstatus::{parse_diff_name_status, to_scan_relative};
 use crate::analysis::outline::extract_outline;
 use crate::analysis::text_metrics::TEXT_READ_LIMIT;
 use crate::cfg::Cfg;
@@ -723,6 +723,10 @@ pub fn render_api_diff<F: FsProvider>(
         });
     };
     let (changed, deleted) = parse_diff_name_status(&diff_out);
+    // git diff のパスはリポジトリルート相対。スキャンルートがサブディレクトリの
+    // 場合、ツリー照合・表示にはスキャンルート相対を使い、git show には
+    // リポジトリ相対をそのまま渡す。スキャン対象外のパスは除外する。
+    let prefix = git.repo_prefix(&cfg.root).unwrap_or_default();
 
     let mut entries = Vec::new();
     collect_entries(sess, &cfg.root, cfg, active_pats, &mut entries);
@@ -751,12 +755,19 @@ pub fn render_api_diff<F: FsProvider>(
             .collect()
     };
 
-    let mut targets: Vec<String> = changed.keys().filter(|r| supported(r)).cloned().collect();
+    // (リポジトリルート相対, スキャンルート相対) のペアで扱う
+    let mut targets: Vec<(String, String)> = changed
+        .keys()
+        .filter_map(|repo_rel| {
+            let rel = to_scan_relative(repo_rel, &prefix)?;
+            supported(rel).then(|| (repo_rel.clone(), rel.to_string()))
+        })
+        .collect();
     targets.sort();
-    for rel in targets {
+    for (repo_rel, rel) in targets {
         let lower_name = rel.rsplit('/').next().unwrap_or(&rel).to_lowercase();
         let (_, ext) = splitext(&lower_name);
-        let old_text = git.show_file(&cfg.root, ref_, &rel).unwrap_or_default();
+        let old_text = git.show_file(&cfg.root, ref_, &repo_rel).unwrap_or_default();
         let old_syms = outline_names(public_outline(&old_text, &ext, cfg.enhanced_analysis));
         let new_syms = match current.get(&rel) {
             Some(e) => {
@@ -773,17 +784,20 @@ pub fn render_api_diff<F: FsProvider>(
         }
     }
     // ref 以降に削除されたファイル: 全公開シンボルが除去扱い
-    for rel in &deleted {
+    for repo_rel in &deleted {
+        let Some(rel) = to_scan_relative(repo_rel, &prefix) else {
+            continue;
+        };
         if !supported(rel) {
             continue;
         }
         let lower_name = rel.rsplit('/').next().unwrap_or(rel).to_lowercase();
         let (_, ext) = splitext(&lower_name);
-        if let Some(old_text) = git.show_file(&cfg.root, ref_, rel) {
+        if let Some(old_text) = git.show_file(&cfg.root, ref_, repo_rel) {
             let old_syms = outline_names(public_outline(&old_text, &ext, cfg.enhanced_analysis));
             if !old_syms.is_empty() {
                 diffs.push(FileDiff {
-                    rel: rel.clone(),
+                    rel: rel.to_string(),
                     added: Vec::new(),
                     removed: old_syms.into_iter().collect(),
                 });

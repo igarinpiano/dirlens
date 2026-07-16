@@ -317,6 +317,17 @@ impl GitProvider for StdGit {
         )
     }
 
+    fn repo_prefix(&self, root: &Path) -> Option<String> {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C", &root.to_string_lossy(), "rev-parse", "--show-prefix"]);
+        let (status, out) = run_with_timeout(cmd, GIT_TIMEOUT, None)?;
+        if !status.success() {
+            return None;
+        }
+        // git は Windows でもスラッシュ区切りで出力するが、念のため統一する
+        Some(String::from_utf8_lossy(&out).trim().replace('\\', "/"))
+    }
+
     fn status_output(&self, root: &Path) -> Option<String> {
         let mut cmd = Command::new("git");
         cmd.args(["-C", &root.to_string_lossy(), "status", "--porcelain", "-z"]);

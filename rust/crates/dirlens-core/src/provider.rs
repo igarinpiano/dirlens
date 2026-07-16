@@ -76,6 +76,15 @@ pub trait GitProvider {
         false
     }
 
+    /// `git -C root rev-parse --show-prefix` の stdout を trim したもの。
+    /// root がリポジトリのサブディレクトリなら「リポジトリルート相対の root の
+    /// 位置」（末尾スラッシュ付き、例: "physq/"）、リポジトリルートなら空文字。
+    /// git の各出力パスはリポジトリルート相対のため、スキャンルート相対の
+    /// ツリーパスと突き合わせる際の変換に使う。git 不在・非リポジトリなら None。
+    fn repo_prefix(&self, _root: &Path) -> Option<String> {
+        None
+    }
+
     /// `git -C root status --porcelain -z` の stdout（--status / --since 用）。
     /// git 不在・非リポジトリなら None。
     fn status_output(&self, _root: &Path) -> Option<String> {

@@ -138,7 +138,7 @@ impl<'a> App<'a> {
     fn ensure_git(&mut self) {
         if !self.git_loaded {
             self.git_loaded = true;
-            let (map, counts) = load_git_log(&StdGit, &self.cfg.root);
+            let (map, counts) = load_git_log(&StdGit, &self.cfg.root, !self.cfg.suppress_notes);
             self.cfg.git_map = map;
             self.cfg.git_change_counts = counts;
         }
