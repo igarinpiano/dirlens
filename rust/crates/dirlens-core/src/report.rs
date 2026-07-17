@@ -58,11 +58,13 @@ fn entry_for_path<F: FsProvider>(fs: &F, path: &Path) -> Option<Entry> {
     })
 }
 
-/// 入力パスをプロジェクト rel（"/" 区切り）に正規化する。root 外はそのまま返す。
-fn normalize_rel(cfg: &Cfg, resolved: &Path, given: &str) -> String {
+/// 入力パスをプロジェクト rel（"/" 区切り）に正規化する。root 外は解決済みの
+/// 絶対パスを返す（"inner/../x" のような未正規化表示を避け、root 内の相対
+/// パス表示と区別できるようにする）。
+fn normalize_rel(cfg: &Cfg, resolved: &Path) -> String {
     let rel = relpath_slash(resolved, &cfg.root);
     if rel.starts_with("..") {
-        given.replace('\\', "/")
+        resolved.to_string_lossy().replace('\\', "/")
     } else {
         rel
     }
@@ -126,7 +128,7 @@ pub fn render_stdin_report<F: FsProvider>(
                 is_dir_follow: false,
             },
         };
-        let rel = normalize_rel(cfg, &resolved, given);
+        let rel = normalize_rel(cfg, &resolved);
         let ex = file_extras(sess, &entry, &rel, cfg);
         let sz = sess.fs.stat(&entry.path, true).map(|s| s.size).unwrap_or(0);
 
@@ -333,7 +335,7 @@ pub fn render_focus<F: FsProvider>(
         let resolved = sess
             .fs
             .resolve(focus)
-            .map(|p| normalize_rel(cfg, &p, focus))
+            .map(|p| normalize_rel(cfg, &p))
             .unwrap_or_else(|| as_given.clone());
         if in_graph(&resolved) {
             resolved
@@ -569,7 +571,7 @@ pub fn render_pack<F: FsProvider>(sess: &Session<F>, cfg: &Cfg, files: &[String]
             ));
             continue;
         }
-        let rel = normalize_rel(cfg, &resolved, given);
+        let rel = normalize_rel(cfg, &resolved);
         let data = sess
             .fs
             .read_prefix(&resolved, TEXT_READ_LIMIT + 1)
@@ -787,6 +789,7 @@ pub fn render_api_diff<F: FsProvider>(
         rel: String,
         added: Vec<String>,
         removed: Vec<String>,
+        untracked: bool,
     }
     let mut diffs: Vec<FileDiff> = Vec::new();
 
@@ -823,7 +826,48 @@ pub fn render_api_diff<F: FsProvider>(
         let added: Vec<String> = new_syms.difference(&old_syms).cloned().collect();
         let removed: Vec<String> = old_syms.difference(&new_syms).cloned().collect();
         if !added.is_empty() || !removed.is_empty() {
-            diffs.push(FileDiff { rel, added, removed });
+            diffs.push(FileDiff { rel, added, removed, untracked: false });
+        }
+    }
+    // untracked ファイルは git diff <ref> に現れないため status の "??" から補完する
+    // （--since と対称にする）。untracked ディレクトリは "dir/" に集約されて
+    // 出力されるので、走査済みツリー（current）で中のファイルへ展開する。
+    let mut untracked_rels: BTreeSet<String> = BTreeSet::new();
+    if let Some(status_out) = git.status_output(&cfg.root) {
+        for (path, xy) in crate::analysis::gitstatus::parse_status_porcelain(&status_out) {
+            if xy != "??" {
+                continue;
+            }
+            let Some(rel) = to_scan_relative(&path, &prefix) else {
+                continue;
+            };
+            if let Some(dir) = rel.strip_suffix('/') {
+                let dir_pfx = format!("{}/", dir);
+                untracked_rels.extend(
+                    current
+                        .keys()
+                        .filter(|r| r.starts_with(&dir_pfx) && supported(r))
+                        .map(|r| (*r).clone()),
+                );
+            } else if supported(rel) && current.contains_key(&rel.to_string()) {
+                untracked_rels.insert(rel.to_string());
+            }
+        }
+    }
+    for rel in untracked_rels {
+        let lower_name = rel.rsplit('/').next().unwrap_or(&rel).to_lowercase();
+        let (_, ext) = splitext(&lower_name);
+        let Some(e) = current.get(&rel) else { continue };
+        let data = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT).unwrap_or_default();
+        let text = decode_utf8_ignore(&data);
+        let new_syms = outline_names(public_outline(&text, ext, cfg.enhanced_analysis));
+        if !new_syms.is_empty() {
+            diffs.push(FileDiff {
+                rel,
+                added: new_syms.into_iter().collect(),
+                removed: Vec::new(),
+                untracked: true,
+            });
         }
     }
     // ref 以降に削除されたファイル: 全公開シンボルが除去扱い
@@ -843,6 +887,7 @@ pub fn render_api_diff<F: FsProvider>(
                     rel: rel.to_string(),
                     added: Vec::new(),
                     removed: old_syms.into_iter().collect(),
+                    untracked: false,
                 });
             }
         }
@@ -871,7 +916,15 @@ pub fn render_api_diff<F: FsProvider>(
         return Ok(out);
     }
     for d in &diffs {
-        out.push_str(&format!("{}\n", sanitize_ctrl(&d.rel)));
+        if d.untracked {
+            out.push_str(&format!(
+                "{}{}\n",
+                sanitize_ctrl(&d.rel),
+                tr(lang, " (untracked)", "（未追跡）")
+            ));
+        } else {
+            out.push_str(&format!("{}\n", sanitize_ctrl(&d.rel)));
+        }
         for a in &d.added {
             out.push_str(&format!("  + {}\n", sanitize_ctrl(a)));
         }

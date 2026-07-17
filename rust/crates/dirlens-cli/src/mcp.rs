@@ -54,7 +54,7 @@ fn tool_defs() -> Value {
             "name": "outline",
             "description": "Function/class outline, token count, and TODOs for specific files (AST-based; Python/JS/TS/Rust/Go/C/Java/Ruby/PHP/C#/Kotlin/Swift), as JSON. Accepts multiple files at once — prefer this over calling it once per file. Every requested path is accounted for: unreadable ones (missing file, directory) are reported in the `errors` array instead of being silently dropped, and duplicate paths are processed once. Nested symbols carry a `parent` field (the class of a method, the impl type of a Rust fn, the enclosing function of a local def), so two same-named methods from different classes/impls are distinguishable. Each file also reports `outline_method`: \"ast\" (language parser) or \"regex\" (degraded — e.g. the file has syntax errors — so symbols may be missing). If `files` is omitted, it instead walks the whole project and returns its public API (public symbols only, like `dirlens -A`); in that mode `depth` defaults to 2 to keep the response small (directories cut off by `depth` carry `truncated: true`). Pass a larger `depth`, or `unlimited_depth: true` for no limit at all (may be a very large response on a big project), or pass `files` explicitly once you know which ones you need.",
             "inputSchema": obj(json!({
-                "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Omit for a project-wide public API outline. An empty array returns an empty result — it does NOT trigger the project-wide mode; only omitting the key does"},
+                "files": {"type": "array", "items": {"type": "string"}, "description": "file paths to analyze (resolved against `path` when relative). Files outside `path` are allowed (this runs with local user permissions, same as the CLI) and come back with a normalized absolute path instead of a relative one. Omit for a project-wide public API outline. An empty array returns an empty result — it does NOT trigger the project-wide mode; only omitting the key does"},
                 "path": path_prop,
                 "depth": depth_prop,
                 "unlimited_depth": unlimited_depth_prop
@@ -97,7 +97,7 @@ fn tool_defs() -> Value {
         },
         {
             "name": "api_diff",
-            "description": "Public API diff against a git ref (added/removed public symbols) to spot breaking changes, as text.",
+            "description": "Public API diff against a git ref (added/removed public symbols) to spot breaking changes, as text. Untracked files are included too (their public symbols show as added, with an \"(untracked)\" mark on the file), so new files count even before `git add`.",
             "inputSchema": obj(json!({
                 "path": path_prop,
                 "ref": {"type": "string", "description": "git ref to compare the public API against (e.g. a release tag or HEAD~5)"}

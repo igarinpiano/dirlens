@@ -109,6 +109,12 @@ impl FsProvider for StdFs {
     }
 
     fn read_prefix(&self, path: &Path, limit: usize) -> Option<Vec<u8>> {
+        // FIFO は open(O_RDONLY) が書き手が現れるまでブロックする（ソケット・
+        // デバイスも read が返らないことがある）ため、通常ファイル以外は
+        // 開かずに None（読めないファイルと同じ扱い）にする。
+        if !std::fs::metadata(path).ok()?.is_file() {
+            return None;
+        }
         let f = std::fs::File::open(path).ok()?;
         let mut buf = Vec::new();
         let mut handle = f.take(limit as u64);
@@ -466,5 +472,29 @@ impl ClipboardProvider for StdClipboard {
         {
             has_cmd("wl-copy") || has_cmd("xclip") || has_cmd("xsel")
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use dirlens_core::provider::FsProvider;
+
+    /// FIFO は open がブロックするため、read_prefix が開かずに None を
+    /// 返すこと（ハングしないこと）を確認する。
+    #[test]
+    fn read_prefix_skips_fifo() {
+        let dir = std::env::temp_dir().join(format!("dirlens_fifo_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fifo = dir.join("pipe.py");
+        let ok = Command::new("mkfifo").arg(&fifo).status().unwrap().success();
+        assert!(ok, "mkfifo failed");
+        let regular = dir.join("a.py");
+        std::fs::write(&regular, "x = 1\n").unwrap();
+
+        assert_eq!(StdFs.read_prefix(&fifo, 1024), None);
+        assert_eq!(StdFs.read_prefix(&regular, 1024).as_deref(), Some(&b"x = 1\n"[..]));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
