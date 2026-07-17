@@ -181,6 +181,7 @@ fn clone_extras(e: &FileExtras) -> FileExtras {
         is_config: e.is_config,
         no_test: e.no_test,
         outline: e.outline.clone(),
+        outline_method: e.outline_method,
         imports: e.imports.clone(),
         imported_by: e.imported_by.clone(),
         external_imports: e.external_imports.clone(),

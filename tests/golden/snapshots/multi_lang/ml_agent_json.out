@@ -122,6 +122,7 @@
                       ]
                     }
                   ],
+                  "outline_method": "ast",
                   "imports": [],
                   "imported_by": [],
                   "external_imports": [
@@ -205,6 +206,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [],
           "imported_by": [],
           "external_imports": [
@@ -242,6 +244,7 @@
           "is_entry": false,
           "is_config": false,
           "outline": [],
+          "outline_method": "ast",
           "imports": [
             "pkg/helpers.py"
           ],
@@ -274,6 +277,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "pkg/circle_b.py"
           ],
@@ -308,6 +312,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "pkg/circle_a.py"
           ],
@@ -385,6 +390,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [],
           "imported_by": [
             "main.py",
@@ -427,6 +433,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "pkg/helpers.py"
           ],
@@ -480,6 +487,7 @@
               "is_entry": false,
               "is_config": false,
               "outline": [],
+              "outline_method": "ast",
               "imports": [],
               "imported_by": [
                 "src/index.js"
@@ -512,6 +520,7 @@
                   ]
                 }
               ],
+              "outline_method": "ast",
               "imports": [],
               "imported_by": [
                 "src/lib/util.ts"
@@ -571,6 +580,7 @@
                   ]
                 }
               ],
+              "outline_method": "ast",
               "imports": [
                 "src/lib/types.ts"
               ],
@@ -601,6 +611,7 @@
           "is_entry": false,
           "is_config": false,
           "outline": [],
+          "outline_method": "ast",
           "imports": [
             "src/app.ts"
           ],
@@ -633,6 +644,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "src/lib/util.ts"
           ],
@@ -673,6 +685,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "src/lib/util.ts"
           ],
@@ -722,6 +735,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "src/cli.js",
             "src/lib/data.js",
@@ -772,6 +786,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [
             "pkg/utils.py"
           ],
@@ -860,6 +875,7 @@
           "parent": "AppRunner"
         }
       ],
+      "outline_method": "ast",
       "imports": [
         "pkg/helpers.py",
         "pkg/utils.py"

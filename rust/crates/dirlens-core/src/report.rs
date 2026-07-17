@@ -167,6 +167,10 @@ pub fn render_stdin_report<F: FsProvider>(
                     ),
                 },
             );
+            // "ast" か "regex"（縮退・取得漏れがありうる）か
+            if let Some(method) = ex.outline_method {
+                o.insert("outline_method".into(), json!(method));
+            }
             o.insert(
                 "todos".into(),
                 Value::Array(

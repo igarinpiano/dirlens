@@ -127,6 +127,7 @@
               ]
             }
           ],
+          "outline_method": "ast",
           "imports": [],
           "imported_by": [],
           "external_imports": []

@@ -42,7 +42,11 @@
           "size": 0,
           "size_human": "0 bytes",
           "ext": "",
-          "path": "links/broken"
+          "path": "links/broken",
+          "symlink": {
+            "target": "./nonexistent",
+            "broken": true
+          }
         },
         {
           "name": "real.txt",
@@ -58,7 +62,11 @@
           "size": 128,
           "size_human": "128 bytes",
           "ext": "",
-          "path": "links/to_dir"
+          "path": "links/to_dir",
+          "symlink": {
+            "target": "../sub",
+            "broken": false
+          }
         },
         {
           "name": "to_file",
@@ -66,7 +74,11 @@
           "size": 172,
           "size_human": "172 bytes",
           "ext": "",
-          "path": "links/to_file"
+          "path": "links/to_file",
+          "symlink": {
+            "target": "../README.md",
+            "broken": false
+          }
         }
       ]
     },
@@ -100,7 +112,11 @@
               "size": 96,
               "size_human": "96 bytes",
               "ext": "",
-              "path": "loop/inner/back"
+              "path": "loop/inner/back",
+              "symlink": {
+                "target": "../../loop",
+                "broken": false
+              }
             },
             {
               "name": "file.txt",

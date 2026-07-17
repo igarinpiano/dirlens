@@ -23,6 +23,9 @@ pub struct FileExtras {
     pub is_config: bool,
     pub no_test: bool,
     pub outline: Option<Vec<OutlineItem>>, // None = 対応外言語
+    /// アウトラインの取得方式。"ast" = 言語別 AST パーサ、"regex" = 正規表現縮退
+    /// （構文エラー・AST 無効時。取得漏れがありうる）。outline が None なら None
+    pub outline_method: Option<&'static str>,
     pub imports: Vec<String>,
     pub imported_by: Vec<String>,
     pub external_imports: Vec<String>,
@@ -128,15 +131,23 @@ pub fn file_extras<F: FsProvider>(
     }
 
     if cfg.show_outline {
-        // 2段: AST（言語別最良パーサ）→ 失敗/未対応なら正規表現
+        // 2段: AST（言語別最良パーサ）→ 失敗/未対応なら正規表現。
+        // どちらの層で取得したかを outline_method に残す（regex 縮退は
+        // 取得漏れがありうるため、JSON 消費者が機械的に判別できるように）
         let mut outline = if cfg.enhanced_analysis {
             match crate::analysis::ast::ast_outline(&text, &ext) {
-                Some(items) => Some(items),
+                Some(items) => {
+                    ex.outline_method = Some("ast");
+                    Some(items)
+                }
                 None => extract_outline(&text, &ext),
             }
         } else {
             extract_outline(&text, &ext)
         };
+        if outline.is_some() && ex.outline_method.is_none() {
+            ex.outline_method = Some("regex");
+        }
         if let Some(items) = &mut outline {
             if !items.is_empty() && cfg.public_only {
                 items.retain(|item| item.public);

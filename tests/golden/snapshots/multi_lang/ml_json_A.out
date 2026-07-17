@@ -87,7 +87,8 @@
                         8
                       ]
                     }
-                  ]
+                  ],
+                  "outline_method": "ast"
                 }
               ]
             }
@@ -128,7 +129,8 @@
                 15
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         }
       ]
     },
@@ -151,7 +153,8 @@
           "size_human": "22 bytes",
           "ext": ".py",
           "path": "pkg/__init__.py",
-          "outline": []
+          "outline": [],
+          "outline_method": "ast"
         },
         {
           "name": "circle_a.py",
@@ -170,7 +173,8 @@
                 4
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         },
         {
           "name": "circle_b.py",
@@ -189,7 +193,8 @@
                 4
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         },
         {
           "name": "helpers.py",
@@ -227,7 +232,8 @@
               ],
               "parent": "Helper"
             }
-          ]
+          ],
+          "outline_method": "ast"
         },
         {
           "name": "utils.py",
@@ -246,7 +252,8 @@
                 6
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         }
       ]
     },
@@ -281,7 +288,8 @@
               "size_human": "31 bytes",
               "ext": ".js",
               "path": "src/lib/data.js",
-              "outline": []
+              "outline": [],
+              "outline_method": "ast"
             },
             {
               "name": "types.ts",
@@ -300,7 +308,8 @@
                     3
                   ]
                 }
-              ]
+              ],
+              "outline_method": "ast"
             },
             {
               "name": "util.ts",
@@ -328,7 +337,8 @@
                     10
                   ]
                 }
-              ]
+              ],
+              "outline_method": "ast"
             }
           ]
         },
@@ -339,7 +349,8 @@
           "size_human": "64 bytes",
           "ext": ".ts",
           "path": "src/app.test.ts",
-          "outline": []
+          "outline": [],
+          "outline_method": "ast"
         },
         {
           "name": "app.ts",
@@ -358,7 +369,8 @@
                 5
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         },
         {
           "name": "cli.js",
@@ -367,7 +379,8 @@
           "size_human": "128 bytes",
           "ext": ".js",
           "path": "src/cli.js",
-          "outline": []
+          "outline": [],
+          "outline_method": "ast"
         },
         {
           "name": "index.js",
@@ -395,7 +408,8 @@
                 12
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         }
       ]
     },
@@ -428,7 +442,8 @@
                 4
               ]
             }
-          ]
+          ],
+          "outline_method": "ast"
         }
       ]
     },
@@ -477,7 +492,8 @@
           ],
           "parent": "AppRunner"
         }
-      ]
+      ],
+      "outline_method": "ast"
     },
     {
       "name": "Makefile",

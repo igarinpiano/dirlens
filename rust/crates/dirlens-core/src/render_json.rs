@@ -58,7 +58,8 @@ fn build_json_tree<F: FsProvider>(
             if entry.is_dir_nofollow {
                 children.push(build_json_tree(sess, &entry.path, depth + 1, cfg, &cur_pats, stats));
             } else {
-                let f_sz = sess.fs.stat(&entry.path, true).map(|s| s.size).unwrap_or(0);
+                let f_st = sess.fs.stat(&entry.path, true);
+                let f_sz = f_st.map(|s| s.size).unwrap_or(0);
                 let rel = relpath_slash(&entry.path, &cfg.root);
                 let extras = if cfg.has_extras {
                     file_extras(sess, &entry, &rel, cfg)
@@ -74,6 +75,18 @@ fn build_json_tree<F: FsProvider>(
                 let (_, ext_raw) = splitext(&entry.name);
                 obj.insert("ext".into(), json!(ext_raw.to_lowercase()));
                 obj.insert("path".into(), json!(rel));
+                // シンボリックリンクはテキストの「name → target」表示と同じ情報を
+                // JSON にも渡す（broken = リンク先が存在しない dangling）。
+                // Python 版に無いフィールドのため compat モードでは出さない
+                if entry.is_symlink && !cfg.suppress_notes {
+                    obj.insert(
+                        "symlink".into(),
+                        json!({
+                            "target": sess.fs.read_link(&entry.path),
+                            "broken": f_st.is_none(),
+                        }),
+                    );
+                }
 
                 if cfg.show_tokens {
                     obj.insert("tokens".into(), json!(extras.tokens));
@@ -207,6 +220,11 @@ fn build_json_tree<F: FsProvider>(
                         ),
                     };
                     obj.insert("outline".into(), v);
+                    // "ast" か "regex"（縮退・取得漏れがありうる）か。
+                    // Python 版に無いフィールドのため compat モードでは出さない
+                    if let Some(method) = extras.outline_method.filter(|_| !cfg.suppress_notes) {
+                        obj.insert("outline_method".into(), json!(method));
+                    }
                 }
                 if cfg.show_imports {
                     obj.insert("imports".into(), json!(extras.imports));
