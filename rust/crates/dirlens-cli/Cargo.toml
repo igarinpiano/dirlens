@@ -11,7 +11,7 @@ name = "dirlens"
 path = "src/main.rs"
 
 [dependencies]
-dirlens-core = { path = "../dirlens-core", features = [
+dirlens-core = { workspace = true, features = [
     "ast-python", "ast-js", "ast-rust", "lang-go", "lang-c", "lang-extra", "tokens-bpe",
 ] }
 clap = { version = "4", features = ["string"] }

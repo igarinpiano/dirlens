@@ -12,6 +12,14 @@ edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/igarinpiano/dirlens"
 
+# crates.io に公開する dirlens-core への参照はここで一元管理する。
+# dirlens-core と dirlens-cli/dirlens-wasm は常に同じ workspace.package.version で
+# 同時に公開されるため、version 要求はメジャーバージョンのみ固定すればよい
+# （"1" = >=1.0.0, <2.0.0）。パッチ/マイナーの通常バージョンアップではこの行を
+# 触る必要はなく、2.0.0 のようなメジャーアップ時にのみ更新すればよい。
+[workspace.dependencies]
+dirlens-core = { path = "crates/dirlens-core", version = "1" }
+
 [profile.release]
 lto = true
 strip = true

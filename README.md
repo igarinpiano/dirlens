@@ -37,15 +37,23 @@ tar -xzf dirlens-*-aarch64-apple-darwin.tar.gz
 sudo install -m 755 dirlens /usr/local/bin/
 ```
 
+### crates.io
+
+```bash
+cargo install dirlens-cli
+```
+
+ソースからコンパイルされます。`dirlens-cli` は Cargo ワークスペース内のパッケージ名で、
+インストールされるコマンド名は `dirlens` です（`[[bin]] name = "dirlens"` のため一致しません）。
+
 ### cargo-binstall
 
 ```bash
-cargo binstall dirlens-cli --git https://github.com/igarinpiano/dirlens
+cargo binstall dirlens-cli
 ```
 
-GitHub Releases のビルド済みバイナリを取得します（`[package.metadata.binstall]` 対応済み）。
-`dirlens-cli` は Cargo ワークスペース内のパッケージ名で、インストールされるコマンド名は
-`dirlens` です（`[[bin]] name = "dirlens"` のため一致しません）。
+crates.io のメタデータから GitHub Releases のビルド済みバイナリを取得します
+（`[package.metadata.binstall]` 対応済み）。コンパイル不要で `cargo install` より高速です。
 
 ### ソースからビルド
 

@@ -1,0 +1,252 @@
+# GitHub Releases → npm → crates.io を、実行時に選んだ公開先だけ順番に実行する
+# 統合ワークフロー。中身は github-releases-publish.yml / npm-publish.yml のビルド
+# 手順をそのまま流用しており、それら個別のワークフローは引き続き単体でも使える
+# （このワークフローが無くても困らないように据え置き）。
+#
+# 実行順序は常に GitHub Releases → npm → crates.io（固定）。workflow_dispatch の
+# 入力でどれを実行するかを選べるが、選ばなかった段はスキップされるだけで、
+# 選んだ段どうしの順序は変わらない（例: npm と crates.io だけ選んでも
+# npm → crates.io の順で実行される）。ある段が失敗/キャンセルされた場合、
+# それより後の段は実行されない（skip とは区別している）。
+#
+# crates.io への認証は Trusted Publishing（OIDC・rust-lang/crates-io-auth-action）を使う。
+# 【重要・初回のみ手動作業が必要】Trusted Publisher は「既に一度手動 publish 済みの
+# クレート」にしか設定できない仕様のため、dirlens-core / dirlens-cli を一度も
+# publish していない状態ではこのワークフローの crates.io 段は失敗する。
+# 初回は `cargo publish -p dirlens-core` → `cargo publish -p dirlens-cli` を
+# ローカルから実行し、その後 crates.io の各クレートの Settings → Trusted Publishing
+# で以下を登録すること:
+#   - Repository owner: igarinpiano / Repository name: dirlens
+#   - Workflow filename: publish-all.yml
+#   - Environment name: crates-io
+#
+# 自動トリガーは無し。GitHub → Actions → このワークフロー → Run workflow のボタン操作のみ。
+name: publish-all
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "確認用バージョン（例: 1.2.13）。rust/Cargo.toml の値と一致しないと失敗する。空欄なら確認をスキップ"
+        required: false
+      publish_github_release:
+        description: "GitHub Releases に公開する"
+        type: boolean
+        default: true
+      publish_npm:
+        description: "npm に公開する"
+        type: boolean
+        default: true
+      publish_crates_io:
+        description: "crates.io に公開する"
+        type: boolean
+        default: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ver
+        env:
+          # スクリプトインジェクション対策: 入力値はシェルに直接展開せず env 経由で渡す
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          v="$(grep -m1 '^version' rust/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "$v" ]; then
+            echo "::error::rust/Cargo.toml の version ($v) と入力値 ($INPUT_VERSION) が一致しません。先に Cargo.toml を更新するか、「Use workflow from」で正しいタグ/ブランチを選び直してください。"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check-version
+    if: ${{ inputs.publish_github_release || inputs.publish_npm }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
+          - target: x86_64-apple-darwin
+            os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
+                            # x86_64 クロスコンパイルに対応する保証が無いため固定
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build (release)
+        working-directory: rust
+        run: cargo build --release -p dirlens-cli --target ${{ matrix.target }}
+      - name: Collect
+        run: |
+          mkdir -p out/${{ matrix.target }}
+          exe=dirlens; [[ "${{ matrix.target }}" == *windows* ]] && exe=dirlens.exe
+          cp "rust/target/${{ matrix.target }}/release/$exe" "out/${{ matrix.target }}/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.target }}
+          path: out/
+
+  github-release:
+    needs: [check-version, build]
+    if: |
+      always() && inputs.publish_github_release &&
+      needs.build.result != 'failure' && needs.build.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # gh release create に必要（既定の GITHUB_TOKEN は read-only）
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: binaries
+      - name: Archive binaries for GitHub Release
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          mkdir -p release
+          for t in binaries/*/; do
+            t="${t%/}"; name="dirlens-$VERSION-$(basename "$t")"
+            if [ -f "$t/dirlens.exe" ]; then
+              (cd "$t" && zip -q "../../release/$name.zip" dirlens.exe)
+            else
+              tar -czf "release/$name.tar.gz" -C "$t" dirlens
+            fi
+          done
+      - name: Create GitHub Release (published immediately)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          # --draft を付けない＝実行した時点で一般公開される。タグ v${version} が
+          # 既に push 済みならそれを使い、無ければこの実行時点のコミットに新規作成する。
+          gh release create "v$VERSION" \
+            --title "dirlens v$VERSION" \
+            release/*
+
+  npm:
+    needs: [check-version, build, github-release]
+    if: |
+      always() && inputs.publish_npm &&
+      needs.build.result != 'failure' && needs.build.result != 'cancelled' &&
+      needs.github-release.result != 'failure' && needs.github-release.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC (npm Trusted Publishing) に必要
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          merge-multiple: true
+          path: binaries
+      - name: Assemble npm packages
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          python3 rust/npm/assemble.py \
+            --version "$VERSION" \
+            --binaries binaries --out npm-out
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Publish (機種別パッケージを先に、本体を最後に)
+        run: |
+          # setup-node が NODE_AUTH_TOKEN を GITHUB_TOKEN に設定してしまうため、
+          # step の env: では上書きできない。シェルレベルで unset して npm が
+          # OIDC 交換（Trusted Publishing）にフォールバックするようにする。
+          unset NODE_AUTH_TOKEN
+          unset NPM_CONFIG_USERCONFIG
+          for d in npm-out/dirlens-bin-*/; do
+            (cd "$d" && npm publish --access public --provenance)
+          done
+          (cd npm-out/dirlens && npm publish --provenance)
+
+  crates-io:
+    needs: [check-version, github-release, npm]
+    if: |
+      always() && inputs.publish_crates_io &&
+      needs.github-release.result != 'failure' && needs.github-release.result != 'cancelled' &&
+      needs.npm.result != 'failure' && needs.npm.result != 'cancelled'
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write  # OIDC (crates.io Trusted Publishing) に必要
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Authenticate with crates.io (OIDC / Trusted Publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish dirlens-core（先に公開する必要がある。dirlens-cli が依存）
+        working-directory: rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "User-Agent: dirlens-ci (+https://github.com/igarinpiano/dirlens)" \
+            "https://crates.io/api/v1/crates/dirlens-core/$VERSION")
+          if [ "$status" = "200" ]; then
+            echo "dirlens-core $VERSION は公開済みなのでスキップします"
+          else
+            cargo publish -p dirlens-core
+          fi
+      - name: crates.io index への反映を待つ
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          for i in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "User-Agent: dirlens-ci (+https://github.com/igarinpiano/dirlens)" \
+              "https://crates.io/api/v1/crates/dirlens-core/$VERSION")
+            [ "$status" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::dirlens-core $VERSION が crates.io index に反映されるのを待ってタイムアウトしました"
+          exit 1
+      - name: Publish dirlens-cli
+        working-directory: rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "User-Agent: dirlens-ci (+https://github.com/igarinpiano/dirlens)" \
+            "https://crates.io/api/v1/crates/dirlens-cli/$VERSION")
+          if [ "$status" = "200" ]; then
+            echo "dirlens-cli $VERSION は公開済みなのでスキップします"
+          else
+            cargo publish -p dirlens-cli
+          fi
