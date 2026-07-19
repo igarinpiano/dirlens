@@ -44,7 +44,7 @@ jobs:
 
       - name: Build CLI
         working-directory: rust
-        run: cargo build -p dirlens-cli
+        run: cargo build -p dirlens
 
       - name: Golden verify (default behavior vs snapshots)
         if: runner.os == 'macOS'

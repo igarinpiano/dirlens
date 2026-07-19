@@ -70,7 +70,7 @@ jobs:
           workspaces: rust
       - name: Build (release)
         working-directory: rust
-        run: cargo build --release -p dirlens-cli --target ${{ matrix.target }}
+        run: cargo build --release -p dirlens --target ${{ matrix.target }}
       - name: Collect
         run: |
           mkdir -p out/${{ matrix.target }}

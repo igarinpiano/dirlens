@@ -11,9 +11,9 @@
 #
 # crates.io への認証は Trusted Publishing（OIDC・rust-lang/crates-io-auth-action）を使う。
 # 【重要・初回のみ手動作業が必要】Trusted Publisher は「既に一度手動 publish 済みの
-# クレート」にしか設定できない仕様のため、dirlens-core / dirlens-cli を一度も
-# publish していない状態ではこのワークフローの crates.io 段は失敗する。
-# 初回は `cargo publish -p dirlens-core` → `cargo publish -p dirlens-cli` を
+# クレート」にしか設定できない仕様のため、dirlens-core / dirlens（crates/dirlens-cli）を
+# 一度も publish していない状態ではこのワークフローの crates.io 段は失敗する。
+# 初回は `cargo publish -p dirlens-core` → `cargo publish -p dirlens` を
 # ローカルから実行し、その後 crates.io の各クレートの Settings → Trusted Publishing
 # で以下を登録すること:
 #   - Repository owner: igarinpiano / Repository name: dirlens
@@ -99,7 +99,7 @@ jobs:
           workspaces: rust
       - name: Build (release)
         working-directory: rust
-        run: cargo build --release -p dirlens-cli --target ${{ matrix.target }}
+        run: cargo build --release -p dirlens --target ${{ matrix.target }}
       - name: Collect
         run: |
           mkdir -p out/${{ matrix.target }}
@@ -209,7 +209,7 @@ jobs:
       - name: Authenticate with crates.io (OIDC / Trusted Publishing)
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
-      - name: Publish dirlens-core（先に公開する必要がある。dirlens-cli が依存）
+      - name: Publish dirlens-core（先に公開する必要がある。dirlens が依存）
         working-directory: rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -236,7 +236,7 @@ jobs:
           done
           echo "::error::dirlens-core $VERSION が crates.io index に反映されるのを待ってタイムアウトしました"
           exit 1
-      - name: Publish dirlens-cli
+      - name: Publish dirlens
         working-directory: rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -244,9 +244,9 @@ jobs:
         run: |
           status=$(curl -s -o /dev/null -w '%{http_code}' \
             -H "User-Agent: dirlens-ci (+https://github.com/igarinpiano/dirlens)" \
-            "https://crates.io/api/v1/crates/dirlens-cli/$VERSION")
+            "https://crates.io/api/v1/crates/dirlens/$VERSION")
           if [ "$status" = "200" ]; then
-            echo "dirlens-cli $VERSION は公開済みなのでスキップします"
+            echo "dirlens $VERSION は公開済みなのでスキップします"
           else
-            cargo publish -p dirlens-cli
+            cargo publish -p dirlens
           fi

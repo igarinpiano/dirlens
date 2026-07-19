@@ -40,16 +40,15 @@ sudo install -m 755 dirlens /usr/local/bin/
 ### crates.io
 
 ```bash
-cargo install dirlens-cli
+cargo install dirlens
 ```
 
-ソースからコンパイルされます。`dirlens-cli` は Cargo ワークスペース内のパッケージ名で、
-インストールされるコマンド名は `dirlens` です（`[[bin]] name = "dirlens"` のため一致しません）。
+ソースからコンパイルされます。
 
 ### cargo-binstall
 
 ```bash
-cargo binstall dirlens-cli
+cargo binstall dirlens
 ```
 
 crates.io のメタデータから GitHub Releases のビルド済みバイナリを取得します
