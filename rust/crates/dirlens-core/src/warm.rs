@@ -21,11 +21,19 @@ use crate::provider::{Entry, FsProvider};
 use crate::render_text::deep_stats_wanted;
 use crate::session::Session;
 
-/// ワーカースレッド数の上限。逐次律速（アムダール）で 16 超は逓減するが、
-/// 多コアサーバでも取りこぼさないよう高めに取る。ロックフリーな atomic
-/// カーソルで分配するため、この本数でもキュー競合は生じない。16 コア以下の
-/// マシンでは available_parallelism がこの値を下回るので影響しない。
+/// ワーカースレッド数の既定上限。逐次律速（アムダール・~10%）で漸近点に
+/// 64 スレッド付近で到達するうえ、スレッド生成/スタックの固定コストや
+/// メモリ帯域の飽和を踏まえ、これ以上は増やしても得が薄いため既定はここで
+/// 頭打ちにする。ユーザは DIRLENS_MAX_WORKERS で上書きできる（`cfg.max_workers`）。
+/// ロックフリーな atomic カーソルで分配するため、本数を増やしてもキュー競合は
+/// 生じない。16 コア以下のマシンでは available_parallelism がこの値を下回るので
+/// 既定のままでも影響しない。
 pub(crate) const MAX_WORKERS: usize = 64;
+
+/// 実効的なワーカー上限（DIRLENS_MAX_WORKERS の上書きがあればそれ、無ければ既定）。
+pub(crate) fn worker_cap(cfg: &Cfg) -> usize {
+    cfg.max_workers.unwrap_or(MAX_WORKERS).max(1)
+}
 
 /// レンダリング（および -L 切り詰め時の全階層集計）で参照されるファイルを列挙する。
 /// symlink ディレクトリは循環回避のため辿らない（辿った先のファイルはキャッシュ
@@ -77,7 +85,7 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
     let cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(MAX_WORKERS);
+        .min(worker_cap(cfg));
     if cores < 2 {
         return;
     }

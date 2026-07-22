@@ -84,6 +84,11 @@ pub struct Cfg {
     /// トークン計数に BPE（Tier1）を使うか。false なら文字数ヒューリスティック
     /// （DIRLENS_TOKENS=heuristic / DIRLENS_COMPAT=python、または feature 無効ビルド）。
     pub tokens_bpe: bool,
+    /// 並列解析のワーカースレッド数の上限（DIRLENS_MAX_WORKERS で上書き）。
+    /// None なら既定値（warm::MAX_WORKERS = 64）。実効スレッド数は
+    /// min(この値, 論理コア数, 対象ファイル数)。高コア機で上限を上げる／
+    /// CPU 制限付きコンテナ等で下げる、の両方に使える。
+    pub max_workers: Option<usize>,
     /// 精度注記・schema_version・capabilities を出さない
     /// （DIRLENS_COMPAT=python: Python 版とのバイト一致検証用）。
     pub suppress_notes: bool,

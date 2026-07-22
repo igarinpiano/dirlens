@@ -619,6 +619,16 @@ fn main() {
     if compat_python || std::env::var("DIRLENS_TOKENS").as_deref() == Ok("heuristic") {
         cfg.tokens_bpe = false;
     }
+    // 並列ワーカー数の上限の上書き（DIRLENS_MAX_WORKERS）。高コア機で既定 64 を
+    // 超えて使いたい場合や、CPU 制限付きコンテナ等で絞りたい場合に指定する。
+    // 1 未満・数値でない値は無視して既定に従う。
+    if let Ok(v) = std::env::var("DIRLENS_MAX_WORKERS") {
+        if let Ok(n) = v.trim().parse::<usize>() {
+            if n >= 1 {
+                cfg.max_workers = Some(n);
+            }
+        }
+    }
     // 互換モードでは精度注記・schema_version・capabilities も出さない。
     // --agent/--ai バンドルに含まれる --status も Python 版に無いため無効化する
     if compat_python {
@@ -648,10 +658,12 @@ fn main() {
             // dir サイズは I/O 律速。多コア環境でトップ直下のディレクトリが
             // 多い場合に取りこぼさないよう上限を引き上げる（トップ dir 数で
             // 自然に頭打ちになる。16 コア以下では影響しない）。
+            // DIRLENS_MAX_WORKERS を指定した場合はそれにも従う。
+            let cap = cfg.max_workers.unwrap_or(16).max(1);
             let workers = tops
                 .len()
                 .min(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
-                .min(16);
+                .min(cap);
             let queue = std::sync::Mutex::new(tops);
             let sess_ref = &sess;
             std::thread::scope(|scope| {

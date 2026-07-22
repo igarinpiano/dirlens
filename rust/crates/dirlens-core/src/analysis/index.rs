@@ -741,7 +741,7 @@ fn prefetch_raw_imports<F: FsProvider + Sync>(
     let cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(crate::warm::MAX_WORKERS);
+        .min(crate::warm::worker_cap(cfg));
     if cores < 2 {
         return HashMap::new();
     }
