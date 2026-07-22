@@ -68,6 +68,18 @@ impl<'a, F: FsProvider> Session<'a, F> {
         }
     }
 
+    /// 事前計算した dir サイズ（合計, エラー有無）をまとめて sz_cache へ入れる。
+    /// 並列サイズウォーマ（warm）から呼ぶ。以後の dir_size はキャッシュヒットする。
+    pub fn bulk_insert_sizes(&self, sizes: Vec<(PathBuf, (u64, bool))>) {
+        if sizes.is_empty() {
+            return;
+        }
+        let mut cache = self.sz_cache.lock().unwrap();
+        for (path, v) in sizes {
+            cache.insert(path, v);
+        }
+    }
+
     /// dir_size 相当。(合計サイズ, 読めない箇所があったか) を返す（メモ化つき）。
     /// symlink はサイズに算入しない。file でも dir でもないエントリも同様。
     pub fn dir_size(&self, path: &Path) -> (u64, bool) {
