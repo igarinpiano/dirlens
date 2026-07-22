@@ -37,6 +37,9 @@ tiktoken-rs = { version = "0.7", optional = true }
 
 [features]
 default = []
+# 重い解析（tokens / outline / todo）の走査前並列プリウォーム（native 専用）。
+# std::thread を使うため wasm ビルドでは無効にする。
+parallel = []
 # 純 Rust パーサ（wasm でも動く）
 ast-python = ["dep:rustpython-parser"]
 ast-js = ["dep:oxc_parser", "dep:oxc_ast", "dep:oxc_allocator", "dep:oxc_span"]

@@ -124,7 +124,11 @@ pub fn prefetch_targets<F: FsProvider>(sess: &Session<F>, cfg: &Cfg) -> Vec<std:
 }
 
 /// 解析＋レンダリング本体。
-pub fn execute<F: FsProvider>(
+///
+/// `F: Sync` は重い解析の走査前並列プリウォーム（`parallel` feature・native 専用）で
+/// `&Session<F>` をワーカースレッド間で共有するために要求する。native の StdFs も
+/// wasm の MemFs も Sync のため制約にはならない。
+pub fn execute<F: FsProvider + Sync>(
     sess: &mut Session<F>,
     cfg: &mut Cfg,
     git: &dyn GitProvider,
@@ -265,6 +269,27 @@ pub fn execute<F: FsProvider>(
         let (map, counts) = load_git_log(git, &cfg.root, !cfg.suppress_notes);
         cfg.git_map = map;
         cfg.git_change_counts = counts;
+    }
+
+    // ── 重い解析（tokens / outline / todo）の走査前並列プリウォーム ──
+    // ファイル本文を読む解析は I/O + CPU が重く、しかもファイル内容だけで
+    // 結果が決まる。ツリー全体をレンダリングするモード（text / json / html /
+    // estimate）では、走査前に全ファイル分を並列で先に計算してキャッシュへ
+    // 入れておく。その後の直列レンダリングはキャッシュ参照のみになり、出力は
+    // 直列実行と完全に一致する。単一ファイル系（stdin / focus / pack）や
+    // フラット出力系（compare / dupes / top は既に return 済み）は対象外。
+    #[cfg(feature = "parallel")]
+    {
+        let renders_full_tree = cfg.stdin_files.is_none()
+            && cfg.focus.is_none()
+            && cfg.pack.is_empty()
+            && !cfg.export_mermaid
+            && !cfg.export_dot
+            && !cfg.export_csv
+            && cfg.api_diff.is_none();
+        if renders_full_tree {
+            crate::warm::warm_extras_parallel(sess, cfg, &active_pats);
+        }
     }
 
     // ── --estimate: 階層別の出力コスト見積もり ─────────────────
@@ -739,7 +764,7 @@ pub fn execute<F: FsProvider>(
 }
 
 /// prepare + execute の一括呼び出し（プリフェッチ無し・wasm 等の単純経路用）。
-pub fn run<F: FsProvider>(
+pub fn run<F: FsProvider + Sync>(
     mut args: Args,
     fs: &F,
     git: &dyn GitProvider,

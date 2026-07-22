@@ -8,12 +8,18 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use crate::provider::FsProvider;
+use crate::analysis::extras::{compute_heavy_extras, HeavyExtras};
+use crate::cfg::Cfg;
+use crate::provider::{Entry, FsProvider};
 
 pub struct Session<'a, F: FsProvider> {
     pub fs: &'a F,
     sz_cache: Mutex<HashMap<PathBuf, (u64, bool)>>,
     gi_cache: Mutex<HashMap<PathBuf, Arc<Vec<String>>>>,
+    /// 重い解析結果（tokens / lines / todos / outline）の事前計算キャッシュ。
+    /// native では走査前に全ファイル分を並列計算して埋める。読み出しはあくまで
+    /// 高速化用のウォーマーで、未登録ならその場で直列計算するため結果は同一。
+    heavy_cache: Mutex<HashMap<PathBuf, Arc<HeavyExtras>>>,
     /// Tier1（git check-ignore）で得た無視パス集合（rel path, "/" 区切り）。
     /// None なら Tier3（内蔵マッチャ）に縮退する。
     pub git_ignored: Option<std::collections::HashSet<String>>,
@@ -27,8 +33,38 @@ impl<'a, F: FsProvider> Session<'a, F> {
             fs,
             sz_cache: Mutex::new(HashMap::new()),
             gi_cache: Mutex::new(HashMap::new()),
+            heavy_cache: Mutex::new(HashMap::new()),
             git_ignored: None,
             cache: None,
+        }
+    }
+
+    /// file_extras の重い項目を返す。事前並列計算のキャッシュがあれば再利用し、
+    /// 無ければその場で計算する。
+    pub fn heavy_extras(&self, entry: &Entry, rel: &str, cfg: &Cfg) -> HeavyExtras {
+        if let Some(v) = self.heavy_cache.lock().unwrap().get(&entry.path) {
+            return (**v).clone();
+        }
+        compute_heavy_extras(self, entry, rel, cfg)
+    }
+
+    /// 事前計算した重い項目をキャッシュへ登録する（並列ウォーマから呼ぶ）。
+    pub fn insert_heavy(&self, path: PathBuf, heavy: HeavyExtras) {
+        self.heavy_cache
+            .lock()
+            .unwrap()
+            .insert(path, Arc::new(heavy));
+    }
+
+    /// ワーカー 1 本分の結果をまとめて登録する（ロック取得を per-item ではなく
+    /// per-worker にして、高コア時のロック競合を避ける）。
+    pub fn insert_heavy_many(&self, items: Vec<(PathBuf, HeavyExtras)>) {
+        if items.is_empty() {
+            return;
+        }
+        let mut cache = self.heavy_cache.lock().unwrap();
+        for (path, heavy) in items {
+            cache.insert(path, Arc::new(heavy));
         }
     }
 

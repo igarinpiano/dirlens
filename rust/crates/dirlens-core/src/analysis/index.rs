@@ -602,7 +602,181 @@ fn resolve_js_manifest(spec: &str, st: &WalkState) -> Option<String> {
     None
 }
 
-pub fn build_project_index<F: FsProvider>(
+/// import 抽出の生結果（言語別）。解決前の、ファイル内容だけで決まる純粋な値。
+/// I/O + AST パースが重いので、native ではこれを全ソースファイル分だけ並列で
+/// 先に計算し、解決フェーズ（共有マップ参照・順序依存）は直列のまま回す。
+enum RawImports {
+    Py(Vec<(String, u32, Option<Vec<String>>)>),
+    Js(Vec<String>),
+    Go(Vec<String>),
+    JavaKt(Vec<String>),
+    Php(Vec<String>, Vec<String>), // (use 文の FQN, require/include の spec)
+    Rb(Vec<(bool, String)>),       // (require_relative か, spec)
+    Rs(Vec<String>, Vec<String>, bool), // (use パス, mod 宣言, インラインテスト有り)
+    Skip,
+}
+
+/// import 解決に使うソース本文を読む（-T の本文読込と同じ上限）。
+fn read_source_text<F: FsProvider>(sess: &Session<F>, root: &Path, relpath: &str) -> String {
+    let full = root.join(relpath.replace('/', std::path::MAIN_SEPARATOR_STR));
+    sess.fs
+        .read_prefix(&full, TEXT_READ_LIMIT)
+        .map(|d| decode_utf8_ignore(&d))
+        .unwrap_or_default()
+}
+
+/// ファイル本文を読んで言語別に生の import を抽出する（解決はしない）。
+/// 出力はファイル内容と cfg だけに依存する純粋な計算で、並列実行しても
+/// 直列と完全に一致する。build_project_index の解決ループと同じ言語・enhanced
+/// ゲートを再現している。
+fn extract_raw_imports<F: FsProvider>(
+    sess: &Session<F>,
+    root: &Path,
+    relpath: &str,
+    cfg: &Cfg,
+) -> RawImports {
+    let (_, ext_raw) = splitext(relpath.rsplit('/').next().unwrap_or(relpath));
+    let ext = ext_raw.to_lowercase();
+    match ext.as_str() {
+        ".py" => {
+            let text = read_source_text(sess, root, relpath);
+            let imports = if cfg.enhanced_analysis {
+                crate::analysis::ast::ast_imports_py(&text)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| extract_imports_py(&text));
+            RawImports::Py(imports)
+        }
+        ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => {
+            let text = read_source_text(sess, root, relpath);
+            let specs = if cfg.enhanced_analysis {
+                crate::analysis::ast::ast_imports_js(&text, &ext)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| extract_imports_js(&text));
+            RawImports::Js(specs)
+        }
+        ".go" => {
+            let text = read_source_text(sess, root, relpath);
+            let specs = if cfg.enhanced_analysis {
+                crate::analysis::ast::ast_imports_go(&text)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| extract_imports_go(&text));
+            RawImports::Go(specs)
+        }
+        ".java" | ".kt" | ".kts" if cfg.enhanced_analysis => {
+            let text = read_source_text(sess, root, relpath);
+            static IMPORT_RE: OnceLock<Regex> = OnceLock::new();
+            let re = IMPORT_RE.get_or_init(|| Regex::new(r"(?m)^\s*import\s+([\w.]+)").unwrap());
+            let fqs = re
+                .captures_iter(&text)
+                .map(|m| m.get(1).unwrap().as_str().to_string())
+                .collect();
+            RawImports::JavaKt(fqs)
+        }
+        ".php" if cfg.enhanced_analysis => {
+            let text = read_source_text(sess, root, relpath);
+            static USE_RE: OnceLock<Regex> = OnceLock::new();
+            static REQ_RE: OnceLock<Regex> = OnceLock::new();
+            let use_re = USE_RE.get_or_init(|| Regex::new(r"(?m)^\s*use\s+([\w\\]+)").unwrap());
+            let req_re = REQ_RE.get_or_init(|| {
+                Regex::new(r#"(?:require|include)(?:_once)?\s*\(?\s*['"]([^'"]+)['"]"#).unwrap()
+            });
+            let uses = use_re
+                .captures_iter(&text)
+                .map(|m| m.get(1).unwrap().as_str().to_string())
+                .collect();
+            let reqs = req_re
+                .captures_iter(&text)
+                .map(|m| m.get(1).unwrap().as_str().to_string())
+                .collect();
+            RawImports::Php(uses, reqs)
+        }
+        ".rb" if cfg.enhanced_analysis => {
+            let text = read_source_text(sess, root, relpath);
+            static REQ_RE: OnceLock<Regex> = OnceLock::new();
+            let re = REQ_RE.get_or_init(|| {
+                Regex::new(r#"(?m)^\s*require(_relative)?\s+['"]([^'"]+)['"]"#).unwrap()
+            });
+            let items = re
+                .captures_iter(&text)
+                .map(|m| (m.get(1).is_some(), m.get(2).unwrap().as_str().to_string()))
+                .collect();
+            RawImports::Rb(items)
+        }
+        ".rs" => {
+            let text = read_source_text(sess, root, relpath);
+            let has_inline_test = cfg.show_tests
+                && cfg.enhanced_analysis
+                && (text.contains("#[cfg(test)]") || text.contains("#[test]"));
+            let (uses, mods) = if cfg.enhanced_analysis {
+                crate::analysis::ast::ast_imports_rs(&text)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| extract_imports_rs(&text));
+            RawImports::Rs(uses, mods, has_inline_test)
+        }
+        _ => RawImports::Skip,
+    }
+}
+
+/// 全ソースファイルの生 import 抽出を並列で先に計算する（native 専用）。
+#[cfg(feature = "parallel")]
+fn prefetch_raw_imports<F: FsProvider + Sync>(
+    sess: &Session<F>,
+    root: &Path,
+    cfg: &Cfg,
+    relpaths: &std::collections::BTreeSet<String>,
+) -> HashMap<String, RawImports> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+    // 単一コアでは並列化の得が無く、スレッド生成とキューロックが純粋な
+    // オーバーヘッドになる。空マップを返し、解決ループにその場で（直列で）
+    // 抽出させる（出力は同一）。
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .min(crate::warm::worker_cap(cfg));
+    if cores < 2 {
+        return HashMap::new();
+    }
+    let targets: Vec<String> = relpaths.iter().cloned().collect();
+    if targets.len() < 2 {
+        return HashMap::new();
+    }
+    // warm と同じロックフリー atomic 分配 + per-worker バッチ登録。
+    let targets = &targets;
+    let n = targets.len();
+    let workers = cores.min(n);
+    let cursor = AtomicUsize::new(0);
+    let out: Mutex<HashMap<String, RawImports>> = Mutex::new(HashMap::with_capacity(n));
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                let mut local: Vec<(String, RawImports)> = Vec::new();
+                loop {
+                    let i = cursor.fetch_add(1, Ordering::Relaxed);
+                    if i >= n {
+                        break;
+                    }
+                    let r = &targets[i];
+                    let raw = extract_raw_imports(sess, root, r, cfg);
+                    local.push((r.clone(), raw));
+                }
+                let mut o = out.lock().unwrap();
+                o.extend(local);
+            });
+        }
+    });
+    out.into_inner().unwrap()
+}
+
+pub fn build_project_index<F: FsProvider + Sync>(
     sess: &Session<F>,
     root: &Path,
     cfg: &Cfg,
@@ -676,32 +850,26 @@ pub fn build_project_index<F: FsProvider>(
             HashMap::new()
         };
 
+        // 生 import 抽出（読込 + AST パース）は重いので、native では全ソース
+        // ファイル分を並列で先に計算しておく。解決フェーズ（共有マップ参照・
+        // imported_by の挿入順が出力に効く）は下の直列ループのままにする。
+        #[cfg(feature = "parallel")]
+        let mut raw_map = prefetch_raw_imports(sess, root, cfg, &st.all_relpaths);
+        #[cfg(not(feature = "parallel"))]
+        let mut raw_map: HashMap<String, RawImports> = HashMap::new();
+
         for relpath in &st.all_relpaths {
-            let (_, ext_raw) = splitext(relpath.rsplit('/').next().unwrap_or(relpath));
-            let ext = ext_raw.to_lowercase();
             let base_dir = dirname(relpath).to_string();
             let mut local_targets: BTreeSet<String> = BTreeSet::new();
             let mut external_raw: Vec<String> = Vec::new();
 
-            let read_text = || {
-                let full = root.join(relpath.replace('/', std::path::MAIN_SEPARATOR_STR));
-                // -T の本文読込と同じ上限。import 文はファイル先頭に集中するため
-                // 打ち切りの影響は実質なく、巨大ファイルによる OOM を防ぐ
-                sess.fs
-                    .read_prefix(&full, TEXT_READ_LIMIT)
-                    .map(|d| decode_utf8_ignore(&d))
-                    .unwrap_or_default()
-            };
+            // 事前並列計算があれば取り出し、無ければ（wasm / 直列ビルド）その場で抽出。
+            let raw = raw_map
+                .remove(relpath)
+                .unwrap_or_else(|| extract_raw_imports(sess, root, relpath, cfg));
 
-            match ext.as_str() {
-                ".py" => {
-                    let text = read_text();
-                    let imports = if cfg.enhanced_analysis {
-                        crate::analysis::ast::ast_imports_py(&text)
-                    } else {
-                        None
-                    }
-                    .unwrap_or_else(|| extract_imports_py(&text));
+            match raw {
+                RawImports::Py(imports) => {
                     for (module, level, names) in imports {
                         if level > 0 {
                             let mut pkg_parts: Vec<String> = if base_dir.is_empty() {
@@ -758,14 +926,7 @@ pub fn build_project_index<F: FsProvider>(
                         }
                     }
                 }
-                ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => {
-                    let text = read_text();
-                    let specs = if cfg.enhanced_analysis {
-                        crate::analysis::ast::ast_imports_js(&text, &ext)
-                    } else {
-                        None
-                    }
-                    .unwrap_or_else(|| extract_imports_js(&text));
+                RawImports::Js(specs) => {
                     for spec in specs {
                         if spec.starts_with('.') || spec.starts_with('/') {
                             match resolve_relative_path(&base_dir, &spec, &st.all_relpaths) {
@@ -791,14 +952,7 @@ pub fn build_project_index<F: FsProvider>(
                         }
                     }
                 }
-                ".go" => {
-                    let text = read_text();
-                    let specs = if cfg.enhanced_analysis {
-                        crate::analysis::ast::ast_imports_go(&text)
-                    } else {
-                        None
-                    }
-                    .unwrap_or_else(|| extract_imports_go(&text));
+                RawImports::Go(specs) => {
                     for spec in specs {
                         let matched = st
                             .go_module_name
@@ -834,14 +988,8 @@ pub fn build_project_index<F: FsProvider>(
                 //   PHP: use A\B\C → A/B/C.php、require/include → 相対解決
                 //   Ruby: require_relative → 相対解決、require → external
                 //   C# / Swift: 名前空間・モジュール単位のため external のみ
-                ".java" | ".kt" | ".kts" if cfg.enhanced_analysis => {
-                    let text = read_text();
-                    static IMPORT_RE: OnceLock<Regex> = OnceLock::new();
-                    let re = IMPORT_RE.get_or_init(|| {
-                        Regex::new(r"(?m)^\s*import\s+([\w.]+)").unwrap()
-                    });
-                    for m in re.captures_iter(&text) {
-                        let fq = m.get(1).unwrap().as_str();
+                RawImports::JavaKt(fqs) => {
+                    for fq in &fqs {
                         // JVM 系は .java / .kt が混在するため両方を試す
                         let base = fq.replace('.', "/");
                         let hit = [".java", ".kt"].iter().find_map(|se| {
@@ -854,22 +1002,12 @@ pub fn build_project_index<F: FsProvider>(
                             Some(r) => {
                                 local_targets.insert(r.clone());
                             }
-                            None => external_raw.push(fq.to_string()),
+                            None => external_raw.push(fq.clone()),
                         }
                     }
                 }
-                ".php" if cfg.enhanced_analysis => {
-                    let text = read_text();
-                    static USE_RE: OnceLock<Regex> = OnceLock::new();
-                    static REQ_RE: OnceLock<Regex> = OnceLock::new();
-                    let use_re = USE_RE
-                        .get_or_init(|| Regex::new(r"(?m)^\s*use\s+([\w\\]+)").unwrap());
-                    let req_re = REQ_RE.get_or_init(|| {
-                        Regex::new(r#"(?:require|include)(?:_once)?\s*\(?\s*['"]([^'"]+)['"]"#)
-                            .unwrap()
-                    });
-                    for m in use_re.captures_iter(&text) {
-                        let fq = m.get(1).unwrap().as_str();
+                RawImports::Php(uses, reqs) => {
+                    for fq in &uses {
                         let path_suffix = format!("{}.php", fq.replace('\\', "/"));
                         let hit = st
                             .all_relpaths
@@ -879,29 +1017,21 @@ pub fn build_project_index<F: FsProvider>(
                             Some(r) => {
                                 local_targets.insert(r.clone());
                             }
-                            None => external_raw.push(fq.to_string()),
+                            None => external_raw.push(fq.clone()),
                         }
                     }
-                    for m in req_re.captures_iter(&text) {
-                        let spec = m.get(1).unwrap().as_str();
+                    for spec in &reqs {
                         let cand = normpath(&pjoin(&base_dir, spec));
                         if st.all_relpaths.contains(&cand) && cand != *relpath {
                             local_targets.insert(cand);
                         } else {
-                            external_raw.push(spec.to_string());
+                            external_raw.push(spec.clone());
                         }
                     }
                 }
-                ".rb" if cfg.enhanced_analysis => {
-                    let text = read_text();
-                    static REQ_RE: OnceLock<Regex> = OnceLock::new();
-                    let re = REQ_RE.get_or_init(|| {
-                        Regex::new(r#"(?m)^\s*require(_relative)?\s+['"]([^'"]+)['"]"#).unwrap()
-                    });
-                    for m in re.captures_iter(&text) {
-                        let relative = m.get(1).is_some();
-                        let spec = m.get(2).unwrap().as_str();
-                        if relative {
+                RawImports::Rb(items) => {
+                    for (relative, spec) in &items {
+                        if *relative {
                             let mut cand = normpath(&pjoin(&base_dir, spec));
                             if !cand.ends_with(".rb") {
                                 cand.push_str(".rb");
@@ -909,28 +1039,18 @@ pub fn build_project_index<F: FsProvider>(
                             if st.all_relpaths.contains(&cand) && cand != *relpath {
                                 local_targets.insert(cand);
                             } else {
-                                external_raw.push(spec.to_string());
+                                external_raw.push(spec.clone());
                             }
                         } else {
-                            external_raw.push(spec.to_string());
+                            external_raw.push(spec.clone());
                         }
                     }
                 }
-                ".rs" => {
-                    let text = read_text();
+                RawImports::Rs(uses, mods, has_inline_test) => {
                     // Rust のインラインテスト検出（-V 用・enhanced のみ）
-                    if cfg.show_tests
-                        && cfg.enhanced_analysis
-                        && (text.contains("#[cfg(test)]") || text.contains("#[test]"))
-                    {
+                    if has_inline_test {
                         rs_self_tested.insert(relpath.clone());
                     }
-                    let (uses, mods) = if cfg.enhanced_analysis {
-                        crate::analysis::ast::ast_imports_rs(&text)
-                    } else {
-                        None
-                    }
-                    .unwrap_or_else(|| extract_imports_rs(&text));
                     for m in mods {
                         let cands = if base_dir.is_empty() {
                             [format!("{}.rs", m), format!("{}/mod.rs", m)]
@@ -978,7 +1098,7 @@ pub fn build_project_index<F: FsProvider>(
                         }
                     }
                 }
-                _ => {}
+                RawImports::Skip => {}
             }
 
             if !local_targets.is_empty() {

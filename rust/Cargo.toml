@@ -24,6 +24,10 @@ dirlens-core = { path = "crates/dirlens-core", version = "1" }
 [profile.release]
 lto = true
 strip = true
+# 単一コード生成ユニットで最適化を最大化する（CPU バウンドな解析
+# ―BPE トークナイズ・AST パース― の実行速度を優先。ビルド時間は延びるが
+# 配布バイナリの実行性能を最優先する）。
+codegen-units = 1
 
 # 開発ビルドの容量削減（debuginfo が target/ の大半を占めるため）
 [profile.dev]

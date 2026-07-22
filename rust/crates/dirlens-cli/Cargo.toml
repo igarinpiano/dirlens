@@ -36,5 +36,7 @@ libc = "0.2"
 
 [features]
 default = ["parallel"]
-# ルート直下 dir サイズの並列プリフェッチ（native のみ）
-parallel = []
+# 並列化（native のみ）:
+#   - ルート直下 dir サイズの並列プリフェッチ
+#   - 重い解析（tokens / outline / todo）の走査前並列プリウォーム（dirlens-core 側）
+parallel = ["dirlens-core/parallel"]

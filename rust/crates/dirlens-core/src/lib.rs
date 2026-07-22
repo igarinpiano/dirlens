@@ -27,6 +27,9 @@ pub mod render_json;
 pub mod render_text;
 pub mod run;
 pub mod session;
+// 並列プリウォーム（native 専用・std::thread を使うため feature gate）。
+#[cfg(feature = "parallel")]
+pub mod warm;
 
 pub use args::Args;
 pub use cfg::Cfg;
