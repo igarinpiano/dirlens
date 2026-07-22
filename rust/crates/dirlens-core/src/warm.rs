@@ -64,6 +64,17 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
         return;
     }
 
+    // 単一コアでは並列化の得が無いので、ファイル列挙もスレッド生成もせず
+    // 直列パス（file_extras がその場で計算）に丸ごと任せる。ここで早期に
+    // 判定することで、単一コア環境に列挙ウォークのオーバーヘッドを課さない。
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .min(16);
+    if cores < 2 {
+        return;
+    }
+
     // レンダリングが参照する範囲だけを列挙する（-L 切り詰め時、全階層集計を出す
     // モードでは全階層、そうでなければ表示深さまで）。
     let visit_limit = if deep_stats_wanted(cfg) {
@@ -78,16 +89,7 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
         return;
     }
 
-    let workers = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1)
-        .min(targets.len())
-        .min(16);
-    if workers < 2 {
-        // 単一コア: 並列化しても得が無い。直列パスに任せる（キャッシュは埋めない）。
-        return;
-    }
-
+    let workers = cores.min(targets.len());
     let queue = Mutex::new(targets);
     std::thread::scope(|scope| {
         for _ in 0..workers {

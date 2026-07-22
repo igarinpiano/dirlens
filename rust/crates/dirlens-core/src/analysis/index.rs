@@ -734,20 +734,22 @@ fn prefetch_raw_imports<F: FsProvider + Sync>(
     relpaths: &std::collections::BTreeSet<String>,
 ) -> HashMap<String, RawImports> {
     use std::sync::Mutex;
-    let targets: Vec<String> = relpaths.iter().cloned().collect();
-    let out: Mutex<HashMap<String, RawImports>> = Mutex::new(HashMap::new());
-    if targets.len() < 2 {
-        for r in targets {
-            let raw = extract_raw_imports(sess, root, &r, cfg);
-            out.lock().unwrap().insert(r, raw);
-        }
-        return out.into_inner().unwrap();
-    }
-    let workers = std::thread::available_parallelism()
+    // 単一コアでは並列化の得が無く、スレッド生成とキューロックが純粋な
+    // オーバーヘッドになる。空マップを返し、解決ループにその場で（直列で）
+    // 抽出させる（出力は同一）。
+    let cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(targets.len())
         .min(16);
+    if cores < 2 {
+        return HashMap::new();
+    }
+    let targets: Vec<String> = relpaths.iter().cloned().collect();
+    if targets.len() < 2 {
+        return HashMap::new();
+    }
+    let out: Mutex<HashMap<String, RawImports>> = Mutex::new(HashMap::new());
+    let workers = cores.min(targets.len());
     let queue = Mutex::new(targets);
     std::thread::scope(|scope| {
         for _ in 0..workers {
