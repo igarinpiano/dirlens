@@ -62,10 +62,20 @@ impl Spinner {
             let mut frame_i = 0usize;
             let mut ticks = 0usize;
             let mut err = std::io::stderr();
+            // \x1b[2K（行クリア）は Windows の従来コンソール（Windows Terminal
+            // 以外の cmd.exe / PowerShell 等）では ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            // が有効でない限り解釈されず、行が消えずに前フレームの文字が残って
+            // ちらつく。\r + 末尾スペース埋めなら制御文字のみで完結し、ANSI 非対応
+            // 環境でも確実に前の行を上書きできる。
+            let mut prev_len = 0usize;
             while !stop2.load(Ordering::Relaxed) {
                 let word = WORDS[word_i];
-                let _ = write!(err, "\r\x1b[2K{} {}…", FRAMES[frame_i], word);
+                let line = format!("{} {}…", FRAMES[frame_i], word);
+                let line_len = line.chars().count();
+                let pad = " ".repeat(prev_len.saturating_sub(line_len));
+                let _ = write!(err, "\r{line}{pad}");
                 let _ = err.flush();
+                prev_len = line_len;
                 frame_i = (frame_i + 1) % FRAMES.len();
                 ticks += 1;
                 if ticks % 25 == 0 {
@@ -73,7 +83,7 @@ impl Spinner {
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
-            let _ = write!(err, "\r\x1b[2K");
+            let _ = write!(err, "\r{}\r", " ".repeat(prev_len));
             let _ = err.flush();
         });
         Spinner { stop, handle: Some(handle) }
