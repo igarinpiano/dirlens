@@ -31,13 +31,30 @@ pub struct FileExtras {
     pub external_imports: Vec<String>,
 }
 
-pub fn file_extras<F: FsProvider>(
+/// ファイル本文の読み込みを要する重い解析結果（tokens / lines / todos / outline）。
+/// ファイル内容と cfg だけに依存する純粋な計算なので、事前に並列で計算して
+/// キャッシュしておける（cfg.git_map 等の共有状態に依存する軽い項目は含めない）。
+#[derive(Debug, Default, Clone)]
+pub struct HeavyExtras {
+    pub tokens: Option<i64>,
+    pub tokens_estimated: bool,
+    pub lines: Option<i64>,
+    pub todos: Vec<(usize, String, String)>,
+    pub outline: Option<Vec<OutlineItem>>,
+    pub outline_method: Option<&'static str>,
+}
+
+/// 本文読込を伴う重い解析（tokens / lines / todos / outline）を計算する。
+/// I/O と CPU（BPE トークナイズ・AST パース）が集中するため、native では
+/// これを全ファイル分だけ事前に並列実行して `Session` にキャッシュする。
+/// 出力は入力（ファイル内容 + cfg）だけで決まるので、直列実行と完全に一致する。
+pub fn compute_heavy_extras<F: FsProvider>(
     sess: &Session<F>,
     entry: &Entry,
     rel: &str,
     cfg: &Cfg,
-) -> FileExtras {
-    let mut ex = FileExtras::default();
+) -> HeavyExtras {
+    let mut ex = HeavyExtras::default();
     let lower_name = entry.name.to_lowercase();
     let (_, ext_raw) = splitext(&lower_name);
     let ext = ext_raw.to_string();
@@ -110,24 +127,8 @@ pub fn file_extras<F: FsProvider>(
         }
     }
 
-    if cfg.show_git {
-        ex.git = cfg.git_map.get(rel).cloned();
-    }
-
     if cfg.show_todo {
         ex.todos = scan_todos(&text);
-    }
-
-    if cfg.show_entry {
-        ex.is_entry = cfg.entry_set.contains(rel);
-    }
-
-    if cfg.show_config {
-        ex.is_config = cfg.config_set.contains(rel);
-    }
-
-    if cfg.show_tests {
-        ex.no_test = cfg.untested_set.contains(rel);
     }
 
     if cfg.show_outline {
@@ -154,6 +155,45 @@ pub fn file_extras<F: FsProvider>(
             }
         }
         ex.outline = outline;
+    }
+
+    ex
+}
+
+pub fn file_extras<F: FsProvider>(
+    sess: &Session<F>,
+    entry: &Entry,
+    rel: &str,
+    cfg: &Cfg,
+) -> FileExtras {
+    // 重い項目は事前並列計算のキャッシュがあれば再利用し、無ければその場で計算する
+    // （キャッシュはあくまで高速化のためのウォーマーで、ミスしても結果は同一）。
+    let heavy = sess.heavy_extras(entry, rel, cfg);
+
+    let mut ex = FileExtras {
+        tokens: heavy.tokens,
+        tokens_estimated: heavy.tokens_estimated,
+        lines: heavy.lines,
+        todos: heavy.todos,
+        outline: heavy.outline,
+        outline_method: heavy.outline_method,
+        ..Default::default()
+    };
+
+    if cfg.show_git {
+        ex.git = cfg.git_map.get(rel).cloned();
+    }
+
+    if cfg.show_entry {
+        ex.is_entry = cfg.entry_set.contains(rel);
+    }
+
+    if cfg.show_config {
+        ex.is_config = cfg.config_set.contains(rel);
+    }
+
+    if cfg.show_tests {
+        ex.no_test = cfg.untested_set.contains(rel);
     }
 
     if cfg.show_imports {
