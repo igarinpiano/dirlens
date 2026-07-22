@@ -988,10 +988,6 @@ pub fn build_project_index<F: FsProvider + Sync>(
                 //   PHP: use A\B\C → A/B/C.php、require/include → 相対解決
                 //   Ruby: require_relative → 相対解決、require → external
                 //   C# / Swift: 名前空間・モジュール単位のため external のみ
-                // 追加言語（enhanced のみ・正規表現ベースの軽量抽出）:
-                //   Java / Kotlin: import a.b.C → a/b/C.java 等のサフィックス一致で解決
-                //   PHP: use A\B\C → A/B/C.php、require/include → 相対解決
-                //   Ruby: require_relative → 相対解決、require → external
                 RawImports::JavaKt(fqs) => {
                     for fq in &fqs {
                         // JVM 系は .java / .kt が混在するため両方を試す
