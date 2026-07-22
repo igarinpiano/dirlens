@@ -733,6 +733,7 @@ fn prefetch_raw_imports<F: FsProvider + Sync>(
     cfg: &Cfg,
     relpaths: &std::collections::BTreeSet<String>,
 ) -> HashMap<String, RawImports> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
     // 単一コアでは並列化の得が無く、スレッド生成とキューロックが純粋な
     // オーバーヘッドになる。空マップを返し、解決ループにその場で（直列で）
@@ -740,7 +741,7 @@ fn prefetch_raw_imports<F: FsProvider + Sync>(
     let cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(16);
+        .min(crate::warm::MAX_WORKERS);
     if cores < 2 {
         return HashMap::new();
     }
@@ -748,16 +749,27 @@ fn prefetch_raw_imports<F: FsProvider + Sync>(
     if targets.len() < 2 {
         return HashMap::new();
     }
-    let out: Mutex<HashMap<String, RawImports>> = Mutex::new(HashMap::new());
-    let workers = cores.min(targets.len());
-    let queue = Mutex::new(targets);
+    // warm と同じロックフリー atomic 分配 + per-worker バッチ登録。
+    let targets = &targets;
+    let n = targets.len();
+    let workers = cores.min(n);
+    let cursor = AtomicUsize::new(0);
+    let out: Mutex<HashMap<String, RawImports>> = Mutex::new(HashMap::with_capacity(n));
     std::thread::scope(|scope| {
         for _ in 0..workers {
-            scope.spawn(|| loop {
-                let next = queue.lock().unwrap().pop();
-                let Some(r) = next else { break };
-                let raw = extract_raw_imports(sess, root, &r, cfg);
-                out.lock().unwrap().insert(r, raw);
+            scope.spawn(|| {
+                let mut local: Vec<(String, RawImports)> = Vec::new();
+                loop {
+                    let i = cursor.fetch_add(1, Ordering::Relaxed);
+                    if i >= n {
+                        break;
+                    }
+                    let r = &targets[i];
+                    let raw = extract_raw_imports(sess, root, r, cfg);
+                    local.push((r.clone(), raw));
+                }
+                let mut o = out.lock().unwrap();
+                o.extend(local);
             });
         }
     });

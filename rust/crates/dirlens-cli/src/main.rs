@@ -645,10 +645,13 @@ fn main() {
     {
         let tops = prefetch_targets(&sess, &cfg);
         if tops.len() >= 2 {
+            // dir サイズは I/O 律速。多コア環境でトップ直下のディレクトリが
+            // 多い場合に取りこぼさないよう上限を引き上げる（トップ dir 数で
+            // 自然に頭打ちになる。16 コア以下では影響しない）。
             let workers = tops
                 .len()
                 .min(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
-                .min(8);
+                .min(16);
             let queue = std::sync::Mutex::new(tops);
             let sess_ref = &sess;
             std::thread::scope(|scope| {

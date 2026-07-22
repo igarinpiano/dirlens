@@ -56,6 +56,18 @@ impl<'a, F: FsProvider> Session<'a, F> {
             .insert(path, Arc::new(heavy));
     }
 
+    /// ワーカー 1 本分の結果をまとめて登録する（ロック取得を per-item ではなく
+    /// per-worker にして、高コア時のロック競合を避ける）。
+    pub fn insert_heavy_many(&self, items: Vec<(PathBuf, HeavyExtras)>) {
+        if items.is_empty() {
+            return;
+        }
+        let mut cache = self.heavy_cache.lock().unwrap();
+        for (path, heavy) in items {
+            cache.insert(path, Arc::new(heavy));
+        }
+    }
+
     /// dir_size 相当。(合計サイズ, 読めない箇所があったか) を返す（メモ化つき）。
     /// symlink はサイズに算入しない。file でも dir でもないエントリも同様。
     pub fn dir_size(&self, path: &Path) -> (u64, bool) {

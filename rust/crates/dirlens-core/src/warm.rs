@@ -9,16 +9,23 @@
 //! std::thread を使うためコア本体からは feature gate 越しに分離している
 //! （wasm ビルドではこのモジュールをコンパイルしない）。
 
-use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
-use crate::analysis::extras::compute_heavy_extras;
+use crate::analysis::extras::{compute_heavy_extras, HeavyExtras};
 use crate::cfg::Cfg;
 use crate::filter::filter_entries;
 use crate::gitignore::{extend_pats, relpath_slash};
 use crate::provider::{Entry, FsProvider};
 use crate::render_text::deep_stats_wanted;
 use crate::session::Session;
+
+/// ワーカースレッド数の上限。逐次律速（アムダール）で 16 超は逓減するが、
+/// 多コアサーバでも取りこぼさないよう高めに取る。ロックフリーな atomic
+/// カーソルで分配するため、この本数でもキュー競合は生じない。16 コア以下の
+/// マシンでは available_parallelism がこの値を下回るので影響しない。
+pub(crate) const MAX_WORKERS: usize = 64;
 
 /// レンダリング（および -L 切り詰め時の全階層集計）で参照されるファイルを列挙する。
 /// symlink ディレクトリは循環回避のため辿らない（辿った先のファイルはキャッシュ
@@ -70,7 +77,7 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
     let cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(16);
+        .min(MAX_WORKERS);
     if cores < 2 {
         return;
     }
@@ -89,16 +96,28 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
         return;
     }
 
-    let workers = cores.min(targets.len());
-    let queue = Mutex::new(targets);
+    // ロックフリーな atomic カーソルで動的に 1 件ずつ分配する（動的分配なので
+    // 巨大ファイルが混じっても負荷が偏らない。ロックが無いのでコア数を上げても
+    // 分配点がボトルネックにならない）。結果はワーカーごとにローカルへ溜め、
+    // 最後に 1 回だけロックしてまとめて登録する（登録ロックも per-item にしない）。
+    let targets = &targets;
+    let n = targets.len();
+    let workers = cores.min(n);
+    let cursor = AtomicUsize::new(0);
     std::thread::scope(|scope| {
         for _ in 0..workers {
-            scope.spawn(|| loop {
-                // 1 件ずつ取り出す（キューロックは短時間）。
-                let next = queue.lock().unwrap().pop();
-                let Some((entry, rel)) = next else { break };
-                let heavy = compute_heavy_extras(sess, &entry, &rel, cfg);
-                sess.insert_heavy(entry.path, heavy);
+            scope.spawn(|| {
+                let mut local: Vec<(PathBuf, HeavyExtras)> = Vec::new();
+                loop {
+                    let i = cursor.fetch_add(1, Ordering::Relaxed);
+                    if i >= n {
+                        break;
+                    }
+                    let (entry, rel) = &targets[i];
+                    let heavy = compute_heavy_extras(sess, entry, rel, cfg);
+                    local.push((entry.path.clone(), heavy));
+                }
+                sess.insert_heavy_many(local);
             });
         }
     });
