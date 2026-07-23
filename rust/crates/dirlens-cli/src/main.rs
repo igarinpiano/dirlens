@@ -14,7 +14,7 @@ mod tui;
 use std::io::{IsTerminal, Write};
 
 use clap::{Arg, ArgAction, Command};
-use dirlens_core::{execute, prefetch_targets, prepare, Args, Lang, Session};
+use dirlens_core::{execute, prepare, Args, Lang, Session};
 
 use providers::{StdClipboard, StdFs, StdGit};
 
@@ -650,37 +650,13 @@ fn main() {
     // ── 進捗スピナー（stderr が端末のときのみ・400ms 以降に出現） ──
     let spin = spinner::Spinner::start();
 
-    // ── トップレベル dir サイズの並列プリフェッチ ──────────────
+    // ── dir サイズの並列プリウォーム ───────────────────────────
+    // 合計サイズのための全サブツリー stat は syscall（I/O）律速。ツリー全体を
+    // レベル同期の並列 BFS で走査して sz_cache を埋める（従来のトップ直下だけの
+    // プリフェッチと違い、巨大サブツリーも複数スレッドで分担して負荷が偏らない）。
+    // 出力は直列 dir_size とバイト一致する。単一コアでは何もせず直列に任せる。
     #[cfg(feature = "parallel")]
-    {
-        let tops = prefetch_targets(&sess, &cfg);
-        if tops.len() >= 2 {
-            // dir サイズは I/O 律速。多コア環境でトップ直下のディレクトリが
-            // 多い場合に取りこぼさないよう上限を引き上げる（トップ dir 数で
-            // 自然に頭打ちになる。16 コア以下では影響しない）。
-            // DIRLENS_MAX_WORKERS を指定した場合はそれにも従う。
-            let cap = cfg.max_workers.unwrap_or(16).max(1);
-            let workers = tops
-                .len()
-                .min(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
-                .min(cap);
-            let queue = std::sync::Mutex::new(tops);
-            let sess_ref = &sess;
-            std::thread::scope(|scope| {
-                for _ in 0..workers {
-                    scope.spawn(|| loop {
-                        let next = queue.lock().unwrap().pop();
-                        match next {
-                            Some(p) => {
-                                sess_ref.dir_size(&p);
-                            }
-                            None => break,
-                        }
-                    });
-                }
-            });
-        }
-    }
+    dirlens_core::warm::warm_dir_sizes_parallel(&sess, &cfg.root.clone(), &cfg);
 
     let res = execute(&mut sess, &mut cfg, &git, &clip);
     spin.stop();
