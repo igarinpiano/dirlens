@@ -548,6 +548,11 @@ pub fn execute<F: FsProvider + Sync>(
 
     // ── JSON ─────────────────────────────────────────────────
     if cfg.json {
+        // 単発描画。deep-stats 集計が無ければ各ファイルの重い解析はちょうど一度
+        // しか参照しないので、描画しながらウォームキャッシュを解放してよい。
+        if !crate::render_text::deep_stats_wanted(cfg) {
+            sess.set_heavy_evict(true);
+        }
         return RunResult {
             stdout: render_json(sess, cfg, &active_pats, &probe),
             ..Default::default()
@@ -572,6 +577,12 @@ pub fn execute<F: FsProvider + Sync>(
     }
 
     // ── テキスト出力 ─────────────────────────────────────────
+    // budget 指定時は予算に収まるまで複数回レンダリングするためキャッシュを保持する。
+    // budget 無し・deep-stats 集計無しなら各ファイルを一度しか参照しないので、
+    // 描画しながらウォームキャッシュを解放してピークメモリを抑える。
+    if cfg.budget.is_none() && !crate::render_text::deep_stats_wanted(cfg) {
+        sess.set_heavy_evict(true);
+    }
     let (mut text, mut stats) = render_text_with_stats(sess, cfg, &active_pats);
 
     // --budget N: 出力トークンが予算内に収まるまで深さ→アウトラインの順で削る。
