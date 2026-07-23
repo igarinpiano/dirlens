@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::analysis::extras::{compute_heavy_extras, HeavyExtras};
@@ -20,6 +21,13 @@ pub struct Session<'a, F: FsProvider> {
     /// native では走査前に全ファイル分を並列計算して埋める。読み出しはあくまで
     /// 高速化用のウォーマーで、未登録ならその場で直列計算するため結果は同一。
     heavy_cache: Mutex<HashMap<PathBuf, Arc<HeavyExtras>>>,
+    /// heavy_cache を「読み出し時に破棄する」モード。各ファイルをちょうど一度しか
+    /// 参照しない単発レンダリング（budget/estimate 無し・deep-stats 集計無しの
+    /// text / json）では、描画が進むにつれ消費済みエントリを解放してピークメモリを
+    /// 抑える。複数パス（--estimate / --budget）や deep-stats 集計は同じファイルを
+    /// 再参照するため false（保持）のまま。破棄してもミスは同一の直列計算に
+    /// フォールバックするだけで、出力は完全に一致する。
+    heavy_evict: AtomicBool,
     /// Tier1（git check-ignore）で得た無視パス集合（rel path, "/" 区切り）。
     /// None なら Tier3（内蔵マッチャ）に縮退する。
     pub git_ignored: Option<std::collections::HashSet<String>>,
@@ -34,6 +42,7 @@ impl<'a, F: FsProvider> Session<'a, F> {
             sz_cache: Mutex::new(HashMap::new()),
             gi_cache: Mutex::new(HashMap::new()),
             heavy_cache: Mutex::new(HashMap::new()),
+            heavy_evict: AtomicBool::new(false),
             git_ignored: None,
             cache: None,
         }
@@ -41,11 +50,30 @@ impl<'a, F: FsProvider> Session<'a, F> {
 
     /// file_extras の重い項目を返す。事前並列計算のキャッシュがあれば再利用し、
     /// 無ければその場で計算する。
+    ///
+    /// evict モード（set_heavy_evict）が有効なときは、参照したエントリをキャッシュ
+    /// から取り除いて所有権ごと返す（クローン不要）。各ファイルを一度しか参照しない
+    /// 単発レンダリングでは、これで消費済み結果を都度解放しピークメモリを抑える。
     pub fn heavy_extras(&self, entry: &Entry, rel: &str, cfg: &Cfg) -> HeavyExtras {
-        if let Some(v) = self.heavy_cache.lock().unwrap().get(&entry.path) {
-            return (**v).clone();
+        {
+            let mut cache = self.heavy_cache.lock().unwrap();
+            if self.heavy_evict.load(Ordering::Relaxed) {
+                if let Some(v) = cache.remove(&entry.path) {
+                    // 取り出した Arc はキャッシュが唯一の所有者だったので、通常は
+                    // ムーブで取り出せる（ディープクローンは発生しない）。
+                    return Arc::try_unwrap(v).unwrap_or_else(|a| (*a).clone());
+                }
+            } else if let Some(v) = cache.get(&entry.path) {
+                return (**v).clone();
+            }
         }
         compute_heavy_extras(self, entry, rel, cfg)
+    }
+
+    /// heavy_cache を「読み出し時に破棄する」モードへ切り替える。各ファイルを
+    /// ちょうど一度だけ参照する単発レンダリングの直前にだけ true にする。
+    pub fn set_heavy_evict(&self, on: bool) {
+        self.heavy_evict.store(on, Ordering::Relaxed);
     }
 
     /// 事前計算した重い項目をキャッシュへ登録する（並列ウォーマから呼ぶ）。
