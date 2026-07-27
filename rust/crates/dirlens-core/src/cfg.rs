@@ -89,6 +89,11 @@ pub struct Cfg {
     /// min(この値, 論理コア数, 対象ファイル数)。高コア機で上限を上げる／
     /// CPU 制限付きコンテナ等で下げる、の両方に使える。
     pub max_workers: Option<usize>,
+    /// 本文読み込み・BPE正確計数の対象にする1ファイルあたりの最大バイト数
+    /// （これを超えると比例概算 = tokens_estimated になる）。既定は
+    /// text_metrics::TEXT_READ_LIMIT（5MB）。CLI はマシンの物理メモリ量に応じて
+    /// これを引き上げる（DIRLENS_MAX_FILE_BYTES で明示指定も可）。
+    pub text_read_limit: usize,
     /// 精度注記・schema_version・capabilities を出さない
     /// （DIRLENS_COMPAT=python: Python 版とのバイト一致検証用）。
     pub suppress_notes: bool,
@@ -223,6 +228,7 @@ impl Cfg {
             root_ignored: false,
             enhanced_analysis: true,
             tokens_bpe: true,
+            text_read_limit: crate::analysis::text_metrics::TEXT_READ_LIMIT,
             suppress_notes: false,
             check: args.check,
             top: args.top,

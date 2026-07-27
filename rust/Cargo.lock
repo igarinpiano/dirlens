@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "dirlens"
-version = "1.2.16"
+version = "1.2.17"
 dependencies = [
  "clap",
  "clap_complete",
@@ -473,11 +473,12 @@ dependencies = [
  "serde_json",
  "toml",
  "unicode-width",
+ "windows-sys",
 ]
 
 [[package]]
 name = "dirlens-core"
-version = "1.2.16"
+version = "1.2.17"
 dependencies = [
  "indexmap",
  "oxc_allocator",
@@ -504,7 +505,7 @@ dependencies = [
 
 [[package]]
 name = "dirlens-wasm"
-version = "1.2.16"
+version = "1.2.17"
 dependencies = [
  "dirlens-core",
  "serde",

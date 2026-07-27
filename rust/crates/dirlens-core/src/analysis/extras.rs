@@ -1,9 +1,7 @@
 //! ファイル単位の追加情報（dirlens.py の _file_extras の等価移植）。
 
 use crate::analysis::outline::extract_outline;
-use crate::analysis::text_metrics::{
-    count_lines, count_tokens, is_probably_binary, TEXT_READ_LIMIT,
-};
+use crate::analysis::text_metrics::{count_lines, count_tokens, is_probably_binary};
 use crate::analysis::todo::scan_todos;
 use crate::cfg::Cfg;
 use crate::fmt::{splitext, GitInfo, OutlineItem};
@@ -66,14 +64,14 @@ pub fn compute_heavy_extras<F: FsProvider>(
     let mut byte_len: usize = 0;
     let mut truncated = false;
     if need_text && !is_binary {
-        if let Some(mut data) = sess.fs.read_prefix(&entry.path, TEXT_READ_LIMIT + 1) {
+        if let Some(mut data) = sess.fs.read_prefix(&entry.path, cfg.text_read_limit + 1) {
             let head_len = data.len().min(8192);
             if data[..head_len].contains(&0u8) {
                 is_binary = true;
             } else {
-                truncated = data.len() > TEXT_READ_LIMIT;
+                truncated = data.len() > cfg.text_read_limit;
                 if truncated {
-                    data.truncate(TEXT_READ_LIMIT);
+                    data.truncate(cfg.text_read_limit);
                 }
                 byte_len = data.len();
                 text = decode_utf8_ignore(&data);
@@ -91,15 +89,18 @@ pub fn compute_heavy_extras<F: FsProvider>(
             ex.tokens_estimated = truncated;
             let st = sess.fs.stat(&entry.path, true);
             let sz = st.map(|s| s.size);
-            // 永続キャッシュ: BPE 計数はコストが高いため (rel, size, mtime, 方式) を
-            // キーに再利用する。ファイル変更でキーが変わり自然に無効化される。
+            // 永続キャッシュ: BPE 計数はコストが高いため (rel, size, mtime, 方式,
+            // 読み込み上限) をキーに再利用する。ファイル変更や DIRLENS_MAX_FILE_BYTES
+            // の変更（≒マシンを跨いだ実行）でキーが変わり自然に無効化される
+            // （読み込み上限が変わると打ち切り有無や比例概算の値も変わりうるため）。
             let key = st.map(|s| {
                 format!(
-                    "tok:{}:{}:{}:{}",
+                    "tok:{}:{}:{}:{}:{}",
                     rel,
                     s.size,
                     (s.mtime * 1e9) as i128,
-                    if cfg.tokens_bpe { "bpe" } else { "chr" }
+                    if cfg.tokens_bpe { "bpe" } else { "chr" },
+                    cfg.text_read_limit,
                 )
             });
             let cached = key

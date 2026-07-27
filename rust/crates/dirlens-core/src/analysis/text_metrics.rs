@@ -31,6 +31,40 @@ fn bpe_encoder() -> Option<&'static tiktoken_rs::CoreBPE> {
     ENC.get_or_init(|| tiktoken_rs::o200k_base().ok()).as_ref()
 }
 
+/// tiktoken-rs（vendor_tiktoken.rs）は内部で使う fancy-regex の分岐バックトラック
+/// スタックが自前の上限（1,000,000 分岐）を超えたときに返す `Err` を `.unwrap()`
+/// しており、そのまま panic になる。OS のスタックオーバーフローではなく
+/// fancy-regex 自身が検知して安全に `Err` を返している値なので、catch_unwind で
+/// 捕まえれば通常の panic として回収できる（実測: 空白の無い2MB超の1トークンで
+/// 確実に再現する — 改行の無い巨大な1行や連続したbase64/バイナリ様データ等）。
+/// 捕まえた場合は Tier2 ヒューリスティックへ縮退する。デフォルトの panic hook が
+/// 出す "thread panicked at ..." はこの既知ケースでは煩わしいだけなのでこの1件に
+/// 限って抑制する（他の panic は通常どおり出力する）。
+#[cfg(feature = "tokens-bpe")]
+fn bpe_encode_len(enc: &tiktoken_rs::CoreBPE, text: &str) -> Option<usize> {
+    use std::cell::Cell;
+    use std::panic::{self, AssertUnwindSafe};
+    use std::sync::Once;
+
+    thread_local! {
+        static SUPPRESS: Cell<bool> = const { Cell::new(false) };
+    }
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let default_hook = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            if !SUPPRESS.with(Cell::get) {
+                default_hook(info);
+            }
+        }));
+    });
+
+    SUPPRESS.with(|c| c.set(true));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| enc.encode_ordinary(text)));
+    SUPPRESS.with(|c| c.set(false));
+    result.ok().map(|v| v.len())
+}
+
 /// このビルドで BPE 計数が使えるか（--check / capabilities 用）。
 pub fn bpe_available() -> bool {
     #[cfg(feature = "tokens-bpe")]
@@ -57,15 +91,19 @@ pub fn count_tokens(
     #[cfg(feature = "tokens-bpe")]
     if prefer_bpe {
         if let Some(enc) = bpe_encoder() {
-            let mut tokens = enc.encode_ordinary(text).len() as f64;
-            if truncated {
-                if let Some(sz) = actual_size {
-                    if sz != 0 && byte_len > 0 {
-                        tokens *= sz as f64 / byte_len as f64;
+            if let Some(n) = bpe_encode_len(enc, text) {
+                let mut tokens = n as f64;
+                if truncated {
+                    if let Some(sz) = actual_size {
+                        if sz != 0 && byte_len > 0 {
+                            tokens *= sz as f64 / byte_len as f64;
+                        }
                     }
                 }
+                return std::cmp::max(1, py_round(tokens));
             }
-            return std::cmp::max(1, py_round(tokens));
+            // fancy-regex の内部バックトラック上限超過（→ 上の bpe_encode_len 参照）。
+            // この1ファイルだけ Tier2 ヒューリスティックへ縮退し、処理は継続する。
         }
     }
     let _ = prefer_bpe;
@@ -118,6 +156,18 @@ mod bpe_tests {
         let full = count_tokens("abcd ".repeat(100).as_str(), 500, Some(1000), true, true);
         let half = count_tokens("abcd ".repeat(100).as_str(), 500, Some(500), false, true);
         assert!(full >= half * 2 - 1);
+    }
+
+    /// 空白の無い巨大な1トークン（実測: 2MB超で確実に再現）は fancy-regex の
+    /// 内部バックトラック上限を超え、素の tiktoken-rs では panic する
+    /// （vendor_tiktoken.rs:230 の unwrap）。catch_unwind で回収し Tier2 へ
+    /// 縮退することを確認する（= プロセス全体がクラッシュしないことの回帰テスト）。
+    #[test]
+    fn bpe_pathological_input_falls_back_instead_of_crashing() {
+        let text = "!".repeat(2_000_000);
+        let byte_len = text.len();
+        let tokens = count_tokens(&text, byte_len, None, false, true);
+        assert!(tokens > 0);
     }
 }
 

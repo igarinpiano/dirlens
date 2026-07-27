@@ -372,7 +372,8 @@
     ],
     "git_log": true,
     "clipboard": false,
-    "tokens": "bpe-o200k_base"
+    "tokens": "bpe-o200k_base",
+    "max_file_bytes": 5000000
   },
   "analysis": {
     "gitignore_tier": "builtin",
