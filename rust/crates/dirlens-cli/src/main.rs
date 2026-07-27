@@ -6,6 +6,7 @@
 
 mod cache;
 mod config;
+mod envcfg;
 mod mcp;
 mod providers;
 mod spinner;
@@ -293,6 +294,12 @@ fn build_command(lang: Lang) -> Command {
                 .help(h("disable the persistent token-count cache (also: DIRLENS_CACHE=off)", "トークン計数の永続キャッシュを使わない（DIRLENS_CACHE=off も同じ）")),
         )
         .arg(
+            Arg::new("clear_cache")
+                .long("clear-cache")
+                .action(ArgAction::SetTrue)
+                .help(h("delete all persistent token-count cache files (~/.cache/dirlens/) and exit", "永続トークンキャッシュ（~/.cache/dirlens/）を全て削除して終了")),
+        )
+        .arg(
             Arg::new("completions")
                 .long("completions")
                 .value_name("SHELL")
@@ -385,6 +392,22 @@ fn main() {
         let mut buf = Vec::new();
         if clap_mangen::Man::new(build_command(lang)).render(&mut buf).is_ok() {
             let _ = std::io::stdout().write_all(&buf);
+        }
+        return;
+    }
+    if m.get_flag("clear_cache") {
+        match cache::clear_all() {
+            Ok(n) => {
+                if lang == Lang::Ja {
+                    println!("{} 件のキャッシュファイルを削除しました（~/.cache/dirlens/）", n);
+                } else {
+                    println!("removed {} cache file(s) (~/.cache/dirlens/)", n);
+                }
+            }
+            Err(e) => {
+                eprintln!("dirlens: failed to clear cache: {}", e);
+                std::process::exit(1);
+            }
         }
         return;
     }
@@ -599,64 +622,13 @@ fn main() {
         }
     };
 
-    // gitignore 層の選択（テスト・検証用の環境変数。通常は auto = Tier1 を試す）:
-    //   DIRLENS_GITIGNORE=builtin … 内蔵マッチャ（Tier3）を強制
-    //   DIRLENS_COMPAT=python     … Python 版完全互換モード（ゴールデン検証用）
-    let compat_python = std::env::var("DIRLENS_COMPAT").as_deref() == Ok("python");
-    match std::env::var("DIRLENS_GITIGNORE").as_deref() {
-        Ok("builtin") => cfg.gitignore_prefer_git = false,
-        Ok("git") => cfg.gitignore_prefer_git = true,
-        _ => {
-            if compat_python {
-                cfg.gitignore_prefer_git = false;
-            }
-        }
-    }
-    // AST 第1段＋import 解決改善の無効化（DIRLENS_AST=off または互換モード）
-    if compat_python || std::env::var("DIRLENS_AST").as_deref() == Ok("off") {
-        cfg.enhanced_analysis = false;
-    }
-    // トークン計数層の選択（DIRLENS_TOKENS=heuristic で Tier2 固定）
-    if compat_python || std::env::var("DIRLENS_TOKENS").as_deref() == Ok("heuristic") {
-        cfg.tokens_bpe = false;
-    }
-    // 並列ワーカー数の上限の上書き（DIRLENS_MAX_WORKERS）。高コア機で既定 64 を
-    // 超えて使いたい場合や、CPU 制限付きコンテナ等で絞りたい場合に指定する。
-    // 1 未満・数値でない値は無視して既定に従う。
-    if let Ok(v) = std::env::var("DIRLENS_MAX_WORKERS") {
-        if let Ok(n) = v.trim().parse::<usize>() {
-            if n >= 1 {
-                cfg.max_workers = Some(n);
-            }
-        }
-    }
-    // 本文読み込み・BPE正確計数の対象にする1ファイルあたりの上限（既定 5MB）を、
-    // マシンの物理メモリ量に応じて動的に引き上げる。メモリに余裕があるほど
-    // より大きなファイルも比例概算ではなく正確な値の対象にする
-    // （DIRLENS_MAX_FILE_BYTES で明示指定した場合はそちらを優先。互換モードは
-    // Python 版とバイト一致させる検証用なので固定 5MB のまま変えない）。
-    // メモリ量を検出できない環境・取得失敗時は total_memory_bytes() が None を
-    // 返し、resolve_text_read_limit が default（＝ここに渡す既存の cfg.text_read_limit
-    // = TEXT_READ_LIMIT）へフォールバックする（sysmem::tests で分岐を個別に検証済み）。
-    cfg.text_read_limit = sysmem::resolve_text_read_limit(
-        std::env::var("DIRLENS_MAX_FILE_BYTES").ok().as_deref(),
-        compat_python,
-        sysmem::total_memory_bytes(),
-        cfg.text_read_limit,
-    );
-    // 互換モードでは精度注記・schema_version・capabilities も出さない。
-    // --agent/--ai バンドルに含まれる --status も Python 版に無いため無効化する
-    if compat_python {
-        cfg.suppress_notes = true;
-        cfg.show_status = false;
-    }
+    // DIRLENS_* 環境変数の反映（CLI・MCP 両経路で共通のロジック。envcfg.rs 参照）。
+    let env_cfg = envcfg::apply(&mut cfg);
 
     let mut sess = Session::new(&fs);
 
     // ── 永続キャッシュ（トークン計数） ──────────────────────────
-    let cache_enabled = !m.get_flag("no_cache")
-        && std::env::var("DIRLENS_CACHE").as_deref() != Ok("off")
-        && !compat_python;
+    let cache_enabled = !m.get_flag("no_cache") && envcfg::cache_env_enabled(env_cfg.compat_python);
     let file_cache = cache::StdCache::new(&cfg.root);
     if cache_enabled {
         sess.cache = Some(&file_cache);

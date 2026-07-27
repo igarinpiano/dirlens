@@ -244,6 +244,53 @@ Rust 版既定動作（`record --bin`）で意図的に更新している。こ�
   この経路への到達可能性が上がるため、安全網として不可欠）。単体テスト
   `analysis::text_metrics::bpe_tests::bpe_pathological_input_falls_back_instead_of_crashing`。
 
+### 22. `--check` の「git repo ではない」を degraded から外す・関連メッセージの是正（v1.2.17）
+- 対象ケース: `check` / `check_json`（再記録済み）。`ml_agent_json` / `rs_agent_json`
+  の `errors[].gitignore_degraded.message` も文言変更のみで再記録済み
+- 内容: `--check` は「このビルド・この環境・この対象ディレクトリで dirlens が
+  どの解析方式を使えるか」を報告する設計だが、これまで「対象ディレクトリが
+  git work tree ではない」ことも `degraded`（終了コード1）に数えていた。これは
+  git バイナリ自体が無い等の環境/ビルド側の能力不足とは性質が異なり、単に
+  「今回のスキャン対象がたまたま git 初期化されていない」という対象ディレクトリ
+  固有の事実（ダウンロードしたコード・データフォルダ等では普通のこと）であり、
+  修正できる/すべき欠陥ではない。git 自体が使える場合はこれを degraded から
+  除外し、`gitignore (-G):` 行に「git は使えるが対象が git リポジトリではない」
+  旨を注記するだけに変更した（git バイナリが本当に無い場合は従来どおり
+  `deg_no_git` として degraded のまま）。`--agent --json` の
+  `errors[].gitignore_degraded` メッセージも同様に、"git check-ignore
+  unavailable" という（git が使えるのに「unavailable」と言い切る）誤解を招く
+  文言から、状況に応じた正確な文言（git 自体は利用可能/本当に未インストール）
+  に分けた。いずれも Rust 版独自機能のため `DIRLENS_COMPAT=python` は影響を
+  受けない（元々 compat では `--check`/`errors` 自体を出さない）。
+
+### 23. `--mcp` 経路が DIRLENS_* 環境変数・永続キャッシュを無視していた不整合の修正（v1.2.17）
+- 対象ケース: なし（golden/live は `--mcp` を経由しないため無関係。
+  `dirlens-cli/src/mcp.rs::tests::analyze_tool_annotates_tree_with_heavy_extras` で
+  MCP 経路の回帰を検証）
+- 内容: `main()` は `--mcp` フラグを見た時点で `mcp::serve()` へ即 return して
+  おり、その後段にある DIRLENS_GITIGNORE / DIRLENS_AST / DIRLENS_TOKENS /
+  DIRLENS_MAX_WORKERS / DIRLENS_MAX_FILE_BYTES / DIRLENS_COMPAT の反映と
+  永続トークンキャッシュのセットアップを一切通らないまま `mcp.rs::run_tool` が
+  `dirlens_core::run()` を直接呼んでいた。同じバイナリ・同じプロセス環境で
+  動くにもかかわらず、これらの環境変数（特に本PRで追加した
+  DIRLENS_MAX_FILE_BYTES）や永続キャッシュが CLI 経由の呼び出しにしか効かず
+  MCP 経由では常に素の既定値（DIRLENS_MAX_FILE_BYTES なら固定5MB、キャッシュ
+  なら毎回フルコスト）になっていた。環境変数の反映ロジックを
+  `dirlens-cli/src/envcfg.rs` へ切り出して `main()` と `mcp.rs::run_tool`
+  （新設した `run_dirlens` 経由）の両方から呼ぶようにし、永続キャッシュも
+  MCP 経路で有効化した。この切り出しの際に `Args::merge_aliases()`
+  （`--agent` 等のフラグ束展開）の呼び出しを一度失念し、`analyze` 等の
+  MCP ツールが `capabilities` は返すのにツリー本体の `tokens`/`outline`/`git`
+  等の注釈が一切付かなくなる回帰を作り込んだが、上記の回帰テストで検出・修正
+  済み。
+
+### 24. `--clear-cache`（新規機能・v1.2.17）
+- 対象ケース: なし（永続キャッシュの管理機能で、ツリー/JSON出力は不変。
+  単体テスト `dirlens-cli/src/cache.rs::tests::{clear_dir_removes_only_token_cache_files,
+  clear_dir_missing_directory_is_zero_not_error}`）
+- 内容: 永続トークンキャッシュ（`~/.cache/dirlens/tokens-*.json`）を手動で
+  全削除して終了するフラグ。dirlens.py に無い Rust 版独自機能。
+
 ## 差分に該当しないもの（バイト一致を維持）
 
 - tree 互換フラグ全般・テキスト/JSON/HTML の構造・サマリ行

@@ -1,5 +1,5 @@
 dirlens capability report
-  gitignore (-G): builtin matcher (fnmatch approximation, basic patterns only)
+  gitignore (-G): builtin matcher (fnmatch approximation, basic patterns only) — not a git repository yet (git itself is available; git init would enable exact matching)
   git history (-H): ✓ git
   outline (-O/-A):
     Python: ast / JS・TS: ast / Rust: ast / Go: ast / C: ast
@@ -9,5 +9,4 @@ dirlens capability report
   clipboard (-C): ✗
 
 Degraded items:
-  - target is not a git work tree (gitignore uses builtin matcher)
   - no clipboard tool found (-C unavailable)

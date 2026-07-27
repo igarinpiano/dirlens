@@ -210,7 +210,7 @@ AIチャットやコーディングエージェントがプロジェクト構造
 - **公開API差分** — `--api-diff REF` で公開シンボルの追加/削除を git ref と比較（破壊的変更の検出）
 - **グラフのエクスポート** — `--mermaid` / `--dot` で import グラフを図のソースとして出力、`--csv` でファイルメタデータ表を出力
 - **--pack** — `--pack FILE...` で指定ファイルの中身＋トークン数を貼り付け用 Markdown に整形
-- **MCP サーバー** — `--mcp` で MCP サーバーとして起動し、analyze / tree / outline / imports / focus / todos / since / history / api_diff の9ツールをエージェントがネイティブに呼べる（analyze/tree はトークン予算 `budget`・コスト見積もり `estimate`・上位表示 `top`、imports/todos は該当なしファイルを含まないフラットな一覧＋件数上限 `limit`（切り詰め時は `truncated`/`total_files` 付き・v1.2.9+。imports はさらに `format: mermaid/dot`）、outline は複数ファイル一括（解決不能パスは `errors` に報告・重複は dedupe・v1.2.9+。ネストしたシンボルに `parent` 付き・v1.2.10+。スキャンルート外のファイルも指定可で正規化済み絶対パスで返る・v1.2.12+）と `files` 省略時の公開API出力に対応、api_diff は untracked ファイルも `(untracked)` 注記付きで含む（v1.2.12+）、tree/analyze は `include_ignored` で gitignore 除外を外せる・v1.2.10+）。多くの MCP ホストは 1 応答に上限がある（Claude Code 既定 25,000 トークン）ため、`estimate` の結果が上限を超える場合は上限未満の `budget` を指定する（v1.2.6+ は見積もり表の該当行に `⚠ exceeds host cap` マークと上限値・推奨 `budget` が表示される。上限は `MAX_MCP_OUTPUT_TOKENS` があればその値、無ければ Claude Code 既定の 25000 を仮定。v1.2.9+ は見積もり表に「全階層・テキスト（budget 指定時の形式）」行も併記され、テキストなら収まる場合はヒントが出る）。**設定は `dirlens --mcp-setup` が案内**（バイナリの絶対パス入りで Claude Code のワンライナー・Claude Desktop / Cursor の設定 JSON を出力するので、コピペで完了）
+- **MCP サーバー** — `--mcp` で MCP サーバーとして起動し、analyze / tree / outline / imports / focus / todos / since / history / api_diff の9ツールをエージェントがネイティブに呼べる。CLI と同じバイナリ・同じプロセス環境で動くため、DIRLENS_* 環境変数（`DIRLENS_MAX_FILE_BYTES`/`DIRLENS_MAX_WORKERS`/`DIRLENS_GITIGNORE`/`DIRLENS_AST`/`DIRLENS_TOKENS`/`DIRLENS_COMPAT`/`DIRLENS_CACHE`）はMCP経由の呼び出しにもそのまま適用され、永続トークンキャッシュも使われる（v1.2.17+。それ以前はMCP経由だとこれらが一切効かない不整合があった）（analyze/tree はトークン予算 `budget`・コスト見積もり `estimate`・上位表示 `top`、imports/todos は該当なしファイルを含まないフラットな一覧＋件数上限 `limit`（切り詰め時は `truncated`/`total_files` 付き・v1.2.9+。imports はさらに `format: mermaid/dot`）、outline は複数ファイル一括（解決不能パスは `errors` に報告・重複は dedupe・v1.2.9+。ネストしたシンボルに `parent` 付き・v1.2.10+。スキャンルート外のファイルも指定可で正規化済み絶対パスで返る・v1.2.12+）と `files` 省略時の公開API出力に対応、api_diff は untracked ファイルも `(untracked)` 注記付きで含む（v1.2.12+）、tree/analyze は `include_ignored` で gitignore 除外を外せる・v1.2.10+）。多くの MCP ホストは 1 応答に上限がある（Claude Code 既定 25,000 トークン）ため、`estimate` の結果が上限を超える場合は上限未満の `budget` を指定する（v1.2.6+ は見積もり表の該当行に `⚠ exceeds host cap` マークと上限値・推奨 `budget` が表示される。上限は `MAX_MCP_OUTPUT_TOKENS` があればその値、無ければ Claude Code 既定の 25000 を仮定。v1.2.9+ は見積もり表に「全階層・テキスト（budget 指定時の形式）」行も併記され、テキストなら収まる場合はヒントが出る）。**設定は `dirlens --mcp-setup` が案内**（バイナリの絶対パス入りで Claude Code のワンライナー・Claude Desktop / Cursor の設定 JSON を出力するので、コピペで完了）
 - **設定ファイル検出** — `-F` で `.env`・`tsconfig.json`・`Makefile` 等の設定ファイルを検出して一覧表示
 - **構造化エラー** — `--json` は部分的な解析失敗があっても常に valid な JSON を返し、`errors` 配列で機械可読に報告
 
@@ -385,6 +385,7 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 | `--preset NAME`     | —            | 設定ファイルの `[presets]` で定義した引数セットを適用           |
 | `--no-config`       | —            | 設定ファイルを読まない（`DIRLENS_CONFIG=off` と同じ）          |
 | `--no-cache`        | —            | トークン計数の永続キャッシュを使わない（`DIRLENS_CACHE=off` と同じ） |
+| `--clear-cache`     | —            | 永続トークンキャッシュ（`~/.cache/dirlens/`）のファイルを全て削除して終了 |
 | `--completions SHELL` | —          | シェル補完スクリプトを生成（bash/zsh/fish/powershell/elvish）   |
 | `--man`             | —            | man ページ（roff）を生成                                       |
 | `--version`         | —            | バージョンを表示（`-V` は `--missing-tests` のため使用不可）   |
@@ -431,7 +432,8 @@ dirlens の解析は**「最良の方式を試し、使えない環境では自�
 | `DIRLENS_AST=off` | AST 解析を無効化し正規表現層に固定 |
 | `DIRLENS_TOKENS=heuristic` | トークン計数を文字数概算に固定 |
 | `DIRLENS_MAX_WORKERS=N` | 並列解析のワーカースレッド数の上限（既定 64）。実効スレッド数は `min(N, 論理コア数, 対象ファイル数)`。64 コア超のマシンで上限を上げる、または CPU 制限付きコンテナ等で下げるのに使う（`1` で実質直列。出力は値に依らず不変） |
-| `DIRLENS_COMPAT=python` | 上記の縮退すべて＋日本語出力＋精度注記/`schema_version` 抑止（旧 Python 版とバイト一致になる検証用モード） |
+| `DIRLENS_MAX_FILE_BYTES=N` | トークン計数・BPE正確値の対象にする1ファイルあたりの読み込み上限（バイト）を明示指定する。既定はホストの物理メモリ量に応じた自動判定（v1.2.17+。8GB未満は5MB、以降16/32/64GB刻みで15/30/50/80MB）。実際の値は `--check` の `capabilities.max_file_bytes` で確認可能 |
+| `DIRLENS_COMPAT=python` | 上記の縮退すべて＋日本語出力＋精度注記/`schema_version` 抑止＋トークン読み込み上限を固定5MBに固定（旧 Python 版とバイト一致になる検証用モード） |
 
 ### 設定ファイル
 

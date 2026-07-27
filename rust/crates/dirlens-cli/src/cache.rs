@@ -30,6 +30,38 @@ fn cache_dir() -> Option<PathBuf> {
     Some(PathBuf::from(home).join(".cache").join("dirlens"))
 }
 
+/// `--clear-cache`: 永続トークンキャッシュ（プロジェクトごとに `tokens-<hash>.json`
+/// 1 ファイル）を全て削除する。ディレクトリが無ければ 0 件として成功扱い。
+pub fn clear_all() -> std::io::Result<usize> {
+    let Some(dir) = cache_dir() else {
+        return Ok(0);
+    };
+    clear_dir(&dir)
+}
+
+/// `clear_all` の本体。指定ディレクトリ内の `tokens-*.json` だけを削除する
+/// （キャッシュディレクトリ自体は dirlens 専用だが、将来ここへ別種のファイルが
+/// 増えても壊さないよう命名パターンで絞る）。ディレクトリが無ければ 0 件。
+/// 実ディレクトリ（$XDG_CACHE_HOME 等）に依存せずテストできるよう分離してある。
+fn clear_dir(dir: &Path) -> std::io::Result<usize> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(e) => return Err(e),
+    };
+    let mut removed = 0usize;
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with("tokens-") && name.ends_with(".json") {
+            std::fs::remove_file(entry.path())?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
 /// エントリ数の上限（超えたら古い集合ごと捨てて作り直す）。
 const MAX_ENTRIES: usize = 200_000;
 
@@ -109,5 +141,45 @@ impl CacheProvider for StdCache {
         }
         st.map.insert(key.to_string(), value);
         st.dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clear_dir_removes_only_token_cache_files() {
+        let dir = std::env::temp_dir().join(format!(
+            "dirlens_clear_cache_test_{}_{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tokens-abc123.json"), "{}").unwrap();
+        std::fs::write(dir.join("tokens-def456.json"), "{}").unwrap();
+        std::fs::write(dir.join("not-a-cache-file.txt"), "keep me").unwrap();
+
+        let removed = clear_dir(&dir).unwrap();
+        assert_eq!(removed, 2);
+        assert!(!dir.join("tokens-abc123.json").exists());
+        assert!(!dir.join("tokens-def456.json").exists());
+        assert!(dir.join("not-a-cache-file.txt").exists());
+
+        // 2回目は0件（既に消えている）で、存在しないファイルの再削除でエラーにならない。
+        assert_eq!(clear_dir(&dir).unwrap(), 0);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn clear_dir_missing_directory_is_zero_not_error() {
+        let dir = std::env::temp_dir().join(format!(
+            "dirlens_clear_cache_missing_{}_{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        assert!(!dir.exists());
+        assert_eq!(clear_dir(&dir).unwrap(), 0);
     }
 }

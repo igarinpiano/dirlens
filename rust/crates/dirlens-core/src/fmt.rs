@@ -49,6 +49,19 @@ pub fn fmt_size(n: u64, partial: bool) -> String {
     format!("{}{} {}", n, sfx, word)
 }
 
+/// バイト数を「30MB」のような簡潔な10進MB表記にする（`--check` の読み込み上限
+/// 表示専用）。`fmt_size` は 1024 進（MiB）のため、dynamic_text_read_limit の
+/// 値（5_000_000 のようなきりのよい10進数）を渡すと "4.77 MB" のようにズレて
+/// 見える。ここでは10進で丸め、きりのよい値はそのまま整数表示にする。
+pub fn fmt_mb(bytes: usize) -> String {
+    let mb = bytes as f64 / 1_000_000.0;
+    if (mb - mb.round()).abs() < 0.05 {
+        format!("{}MB", mb.round() as i64)
+    } else {
+        format!("{:.1}MB", mb)
+    }
+}
+
 pub fn fmt_count(nd: usize, nf: usize, denied: bool) -> String {
     let sfx = if denied { "+" } else { "" };
     let d_word = if nd == 1 && !denied { "dir" } else { "dirs" };

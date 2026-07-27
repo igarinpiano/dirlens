@@ -1135,7 +1135,7 @@
     },
     {
       "code": "gitignore_degraded",
-      "message": "gitignore uses the builtin matcher (git check-ignore unavailable)"
+      "message": "gitignore uses the builtin matcher (this target isn't a git repository yet; git itself is available — git init would enable exact matching via git check-ignore)"
     }
   ],
   "capabilities": {

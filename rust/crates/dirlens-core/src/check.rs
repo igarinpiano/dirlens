@@ -164,10 +164,13 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
     let e = cfg.enhanced_analysis;
     let t = cfg.lang.t();
     let mut degraded: Vec<String> = Vec::new();
+    // git 自体が無い（-H も使えない）のは環境側の能力不足として degraded に数える。
+    // 一方「git はあるが対象ディレクトリが git repo ではない」のは対象ディレクトリの
+    // 単なる事実であって dirlens/環境の能力不足ではないため degraded には含めない
+    // （gitignore (-G) の行に案内を出すだけに留める。多くの利用シーン——
+    // ダウンロードしたコード・データフォルダ等——では git repo でなくて当然）。
     if !probe.git_available {
         degraded.push(t.deg_no_git.into());
-    } else if !probe.is_work_tree {
-        degraded.push(t.deg_not_worktree.into());
     }
     if !e {
         degraded.push(t.deg_no_ast.into());
@@ -202,14 +205,14 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
     let mut out = String::new();
     out.push_str(t.check_title);
     out.push('\n');
-    out.push_str(&format!(
-        "  gitignore (-G): {}\n",
-        if probe.git_available && probe.is_work_tree {
-            t.check_gitignore_git
-        } else {
-            t.check_gitignore_builtin
-        }
-    ));
+    let gitignore_desc = if probe.git_available && probe.is_work_tree {
+        t.check_gitignore_git.to_string()
+    } else if probe.git_available {
+        format!("{} — {}", t.check_gitignore_builtin, t.gitignore_not_a_repo_hint)
+    } else {
+        t.check_gitignore_builtin.to_string()
+    };
+    out.push_str(&format!("  gitignore (-G): {}\n", gitignore_desc));
     out.push_str(&format!(
         "  {} (-H): {} git\n",
         if is_ja { "git 履歴" } else { "git history" },
@@ -240,14 +243,20 @@ pub fn render_check(cfg: &Cfg, probe: &EnvProbe, as_json: bool) -> (String, i32)
         if is_ja { "import 解決" } else { "import resolution" },
         if e { t.check_imports_ast } else { t.check_imports_regex }
     ));
+    let tokens_desc = if tokens_mode(cfg) == "bpe-o200k_base" {
+        format!(
+            "{}{}{}",
+            t.check_tokens_bpe_prefix,
+            crate::fmt::fmt_mb(cfg.text_read_limit),
+            t.check_tokens_bpe_suffix
+        )
+    } else {
+        t.check_tokens_heuristic.to_string()
+    };
     out.push_str(&format!(
         "  {} (-T): {}\n",
         if is_ja { "トークン計数" } else { "token counting" },
-        if tokens_mode(cfg) == "bpe-o200k_base" {
-            t.check_tokens_bpe
-        } else {
-            t.check_tokens_heuristic
-        }
+        tokens_desc
     ));
     out.push_str(&format!(
         "  {} (-C): {}\n",

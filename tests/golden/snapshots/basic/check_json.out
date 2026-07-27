@@ -30,7 +30,6 @@
     "max_file_bytes": 5000000
   },
   "degraded": [
-    "target is not a git work tree (gitignore uses builtin matcher)",
     "no clipboard tool found (-C unavailable)"
   ],
   "best": false

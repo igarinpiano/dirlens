@@ -13,7 +13,7 @@ use std::io::{BufRead, Write};
 use serde_json::{json, Map, Value};
 
 use dirlens_core::provider::NoClipboard;
-use dirlens_core::{run, Args};
+use dirlens_core::{execute, prepare, Args, RunResult, Session};
 
 use crate::providers::{StdFs, StdGit};
 
@@ -104,6 +104,36 @@ fn tool_defs() -> Value {
             }), vec!["ref"])
         }
     ])
+}
+
+/// `dirlens_core::run` 相当だが、CLI（main.rs）と同じ DIRLENS_* 環境変数の反映
+/// （envcfg::apply）と永続トークンキャッシュを間に挟む。`dirlens_core::run` を
+/// 素通しで使うと、CLI 経由なら効くはずの DIRLENS_MAX_FILE_BYTES /
+/// DIRLENS_MAX_WORKERS / DIRLENS_GITIGNORE / DIRLENS_AST / DIRLENS_TOKENS /
+/// DIRLENS_COMPAT や永続キャッシュが MCP 経由の呼び出しにだけ効かなくなる
+/// （同じバイナリ・同じプロセス環境なのに経路で挙動が食い違うのは意図しない差）。
+fn run_dirlens(mut a: Args) -> RunResult {
+    // -G/--tokens/--outline 等のフラグ束展開（--agent 等のエイリアス）。
+    // dirlens_core::run が内部で必ず呼んでいるのと同じ手順（prepare 単体では
+    // 呼ばれない）。忘れると --agent 相当のフラグが tokens/outline/git 等へ
+    // 展開されず、capabilities は出るのにツリー本体に注釈が一切付かなくなる。
+    a.merge_aliases();
+    let mut cfg = match prepare(&a, &StdFs, false) {
+        Ok(cfg) => cfg,
+        Err(res) => return res,
+    };
+    let env_cfg = crate::envcfg::apply(&mut cfg);
+    let mut sess = Session::new(&StdFs);
+    let cache_enabled = crate::envcfg::cache_env_enabled(env_cfg.compat_python);
+    let file_cache = crate::cache::StdCache::new(&cfg.root);
+    if cache_enabled {
+        sess.cache = Some(&file_cache);
+    }
+    let res = execute(&mut sess, &mut cfg, &StdGit, &NoClipboard);
+    if cache_enabled {
+        file_cache.flush();
+    }
+    res
 }
 
 /// ツール実行。成功時は (テキスト, is_error=false)。
@@ -306,7 +336,7 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         _ => false,
     };
 
-    let res = run(a, &StdFs, &StdGit, &NoClipboard, false);
+    let res = run_dirlens(a);
     if res.exit_code != 0 {
         (
             if res.stderr.is_empty() { res.stdout } else { res.stderr },
@@ -612,5 +642,47 @@ pub fn serve() {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `analyze`（--agent --json 相当）はツリー本体のファイルに tokens/outline/git
+    /// 等の注釈が付くはず。`run_dirlens` を素の `dirlens_core::run` から
+    /// prepare+envcfg::apply+execute の手動シーケンスへ切り替えた際、
+    /// `Args::merge_aliases()`（--agent 等のフラグ束展開）の呼び出しを一度
+    /// 忘れ、capabilities は出るのにツリー本体の注釈が一切付かなくなる回帰が
+    /// 実際に起きた。その再発を防ぐ回帰テスト。
+    #[test]
+    fn analyze_tool_annotates_tree_with_heavy_extras() {
+        let mut args_val = Map::new();
+        args_val.insert("path".into(), json!(env!("CARGO_MANIFEST_DIR")));
+        args_val.insert("depth".into(), json!(1));
+
+        let (text, is_error) = run_tool("analyze", &args_val);
+        assert!(!is_error, "analyze tool call failed: {text}");
+
+        let v: Value = serde_json::from_str(&text).expect("analyze must return valid JSON");
+        let children = v["children"].as_array().expect("children must be an array");
+        assert!(!children.is_empty(), "expected at least one child entry");
+
+        let file_with_tokens = children.iter().find(|c| {
+            c.get("type").and_then(|t| t.as_str()) == Some("file")
+                && c.get("tokens").map(|t| !t.is_null()).unwrap_or(false)
+        });
+        assert!(
+            file_with_tokens.is_some(),
+            "expected at least one file child with a non-null 'tokens' annotation \
+             (merge_aliases() must run so --agent's implied -T/-O/-H/... take effect); got: {}",
+            serde_json::to_string_pretty(&v).unwrap()
+        );
+
+        let file_with_outline = children.iter().find(|c| c.get("outline").is_some());
+        assert!(
+            file_with_outline.is_some(),
+            "expected at least one file child with an 'outline' annotation"
+        );
     }
 }
