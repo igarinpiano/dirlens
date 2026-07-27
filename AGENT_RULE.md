@@ -75,6 +75,7 @@ dirlensは「使えたら速い索引ツール」として扱う。**必須ツ�
    - gitignore 済みディレクトリを `path` に指定すると既定では空のツリーが返る（注記付き・v1.2.10+）。中身は `tree`/`analyze` の `include_ignored: true` で見える。負の `depth` はエラー（0 はサマリのみで有効）
    - MCP サーバーは実装レベルでクリップボード無効（`NoClipboard` 固定）。`capabilities.clipboard: false` は異常ではない
    - MCP に**無い**もの: `--pack` / `--compare` / `--dupes` / `--heat` / `--csv` / stdin パイプ。必要ならシェルで CLI を直接使う。v1.2.1 以前のサーバーはツールが 6 個（since/history/api_diff と budget/estimate/format/top パラメータが無い）なので、無ければバージョンを確認する
+   - MCP サーバーは CLI と同じバイナリ・同じプロセス環境で動くため、DIRLENS_* 環境変数（`DIRLENS_MAX_FILE_BYTES`/`DIRLENS_MAX_WORKERS`/`DIRLENS_GITIGNORE`/`DIRLENS_AST`/`DIRLENS_TOKENS`/`DIRLENS_COMPAT`/`DIRLENS_CACHE`）は MCP 経由の呼び出しにもそのまま適用され、永続トークンキャッシュも使われる（v1.2.17+）
 
 ---
 

@@ -441,9 +441,17 @@ pub fn render_json<F: FsProvider>(
                 }));
             }
             if cfg.use_gitignore && cfg.gitignore_tier == Some("builtin") {
+                // git 自体が無い場合と、git はあるが対象が git repo ではない場合とで
+                // メッセージを分ける（後者は dirlens/環境の能力不足ではなく対象
+                // ディレクトリの事実なので「unavailable」と言い切らない）。
+                let message = if probe.git_available {
+                    "gitignore uses the builtin matcher (this target isn't a git repository yet; git itself is available — git init would enable exact matching via git check-ignore)"
+                } else {
+                    "gitignore uses the builtin matcher (git check-ignore unavailable: git not installed)"
+                };
                 errors.push(json!({
                     "code": "gitignore_degraded",
-                    "message": "gitignore uses the builtin matcher (git check-ignore unavailable)"
+                    "message": message
                 }));
             }
             if cfg.root_ignored {

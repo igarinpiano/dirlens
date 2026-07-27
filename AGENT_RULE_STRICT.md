@@ -90,6 +90,7 @@
     - `path` に gitignore 済みディレクトリ（node_modules/ や target/ 等）を指定すると、既定では中身が全て隠れて空のツリーが返る（出力末尾に「this directory is itself gitignored」の注記、`analyze` の JSON では `errors` に `root_gitignored` が付く・v1.2.10+）。中身を見るには `tree`/`analyze` の `include_ignored: true` を使う。負の `depth` は明確なエラーになる（`depth: 0` は「サマリのみ」の正当な使い方として有効のまま）
     - MCP サーバーは実装レベルでクリップボード無効（`NoClipboard` 固定）のため、`capabilities.clipboard: false` は異常ではない
     - MCP に**無い**もの: `--pack` / `--compare` / `--dupes` / `--heat` / `--csv` / stdin パイプ。必要ならシェルで CLI を直接使う
+    - MCP サーバーは CLI と同じバイナリ・同じプロセス環境で動くため、DIRLENS_* 環境変数（`DIRLENS_MAX_FILE_BYTES`/`DIRLENS_MAX_WORKERS`/`DIRLENS_GITIGNORE`/`DIRLENS_AST`/`DIRLENS_TOKENS`/`DIRLENS_COMPAT`/`DIRLENS_CACHE`）は MCP 経由の呼び出しにもそのまま適用され、永続トークンキャッシュも使われる（v1.2.17+）
 
 ---
 
