@@ -73,7 +73,8 @@ def main():
     os.makedirs(os.path.join(main_dir, "bin"), exist_ok=True)
     shutil.copy2(os.path.join(here, "launcher.js"),
                  os.path.join(main_dir, "bin", "dirlens.js"))
-    for doc in ["README.md", "LICENSE", "NOTICE", "AGENT_RULE.md", "AGENT_RULE_STRICT.md"]:
+    for doc in ["README.md", "LICENSE", "NOTICE", "AGENT_RULE.md", "AGENT_RULE_STRICT.md",
+                "AGENT_RULE_MCP.md"]:
         src = os.path.join(repo_root, doc)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(main_dir, doc))
@@ -86,7 +87,7 @@ def main():
         "license": "Apache-2.0",
         "bin": {"dirlens": "bin/dirlens.js"},
         "files": ["bin/", "README.md", "AGENT_RULE.md", "AGENT_RULE_STRICT.md",
-                  "LICENSE", "NOTICE"],
+                  "AGENT_RULE_MCP.md", "LICENSE", "NOTICE"],
         "optionalDependencies": optional,
     })
     print(f"assembled: dirlens + {len(optional)} platform packages -> {args.out}")
