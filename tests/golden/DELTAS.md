@@ -221,6 +221,29 @@ Rust 版既定動作（`record --bin`）で意図的に更新している。こ�
   ローカル権限で動くツールとして意図した仕様（MCP `outline` の
   説明文に明記）。
 
+### 21. トークン読み込み上限のメモリ量に応じた動的化・`capabilities.max_file_bytes`（v1.2.17）
+- 対象ケース: `check_json` / `gi_agent_json` / `ml_agent_json` / `rs_agent_json`（`capabilities`
+  に `max_file_bytes` フィールドが増えた分のみ再記録済み。値自体は本文再掲）
+- 内容: 本文読込・BPE正確計数の対象になる1ファイルあたりの上限（`Cfg.text_read_limit`。
+  従来は `TEXT_READ_LIMIT`=5MB 固定）を、CLI がホストの物理メモリ量に応じて
+  段階的に引き上げるようにした（8GB未満は5MBのまま、16/32/64GB刻みで
+  15/30/50/80MB。判定は `dirlens-cli/src/sysmem.rs`）。`DIRLENS_MAX_FILE_BYTES`
+  で明示指定も可能（この場合はメモリ量の自動判定より優先）。実際に使われた値は
+  `capabilities.max_file_bytes`（新規フィールド）で機械的に確認できる。
+  ゴールデン/live 検証はホストのメモリ量に依存させないため
+  `tests/golden/run.py` の `build_env()` で `DIRLENS_MAX_FILE_BYTES=5000000`
+  を強制している（無ければ実行機のスペック次第でスナップショットがブレる）。
+  `DIRLENS_COMPAT=python` では Python 版とのバイト一致検証のため固定5MBの
+  ままメモリ量の自動判定を行わない。
+  単体テスト `dirlens-cli/src/sysmem.rs::tests::tiers_are_monotonic_and_floor_is_the_old_constant`。
+  なお、5MB超の病的な入力（空白の無い巨大な1トークン等）で BPE 計数が
+  fancy-regex の内部バックトラック上限を超えて panic していた既知の問題
+  （tiktoken-rs の `vendor_tiktoken.rs` が `Err` を `unwrap()` していた）も
+  同時に修正し、`analysis::text_metrics::count_tokens` が catch_unwind で
+  回収して Tier2 ヒューリスティックへ縮退するようにした（上限引き上げにより
+  この経路への到達可能性が上がるため、安全網として不可欠）。単体テスト
+  `analysis::text_metrics::bpe_tests::bpe_pathological_input_falls_back_instead_of_crashing`。
+
 ## 差分に該当しないもの（バイト一致を維持）
 
 - tree 互換フラグ全般・テキスト/JSON/HTML の構造・サマリ行

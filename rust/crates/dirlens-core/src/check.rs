@@ -71,6 +71,10 @@ pub fn capabilities_json(cfg: &Cfg, probe: &EnvProbe) -> Value {
     m.insert("git_log".into(), json!(probe.git_available));
     m.insert("clipboard".into(), json!(probe.clipboard));
     m.insert("tokens".into(), json!(tokens_mode(cfg)));
+    // 本文読込・BPE正確計数の対象になる1ファイルあたりの上限（バイト）。
+    // マシンのメモリ量や DIRLENS_MAX_FILE_BYTES で実行ごとに変わりうるため、
+    // 実際に使われた値を機械的に確認できるようにする
+    m.insert("max_file_bytes".into(), json!(cfg.text_read_limit));
     Value::Object(m)
 }
 

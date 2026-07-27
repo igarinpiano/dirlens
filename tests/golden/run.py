@@ -98,6 +98,10 @@ def build_env():
         # と永続キャッシュを無効化して決定論性を保つ（どちらも Rust 版 v1.2+ の機能）
         "DIRLENS_CONFIG": "off",
         "DIRLENS_CACHE": "off",
+        # 本文読込上限は既定でホストの物理メモリ量に応じて動的に変わる（Rust 版
+        # v1.2.17+）ため、明示的に固定しないと実行機のスペック次第でゴールデンが
+        # ブレる（5MB超フィクスチャの打ち切り・tokens_estimated の有無等）。
+        "DIRLENS_MAX_FILE_BYTES": "5000000",
     }
 
 

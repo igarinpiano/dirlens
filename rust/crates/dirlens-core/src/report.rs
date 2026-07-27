@@ -10,7 +10,6 @@ use serde_json::{json, Map, Value};
 use crate::analysis::extras::file_extras;
 use crate::analysis::gitstatus::{parse_diff_name_status, to_scan_relative};
 use crate::analysis::outline::extract_outline;
-use crate::analysis::text_metrics::TEXT_READ_LIMIT;
 use crate::cfg::Cfg;
 use crate::filter::filter_entries;
 use crate::fmt::{fmt_size, fmt_tokens, sanitize_ctrl, splitext, OutlineItem};
@@ -574,12 +573,12 @@ pub fn render_pack<F: FsProvider>(sess: &Session<F>, cfg: &Cfg, files: &[String]
         let rel = normalize_rel(cfg, &resolved);
         let data = sess
             .fs
-            .read_prefix(&resolved, TEXT_READ_LIMIT + 1)
+            .read_prefix(&resolved, cfg.text_read_limit + 1)
             .unwrap_or_default();
-        let truncated = data.len() > TEXT_READ_LIMIT;
+        let truncated = data.len() > cfg.text_read_limit;
         let mut data = data;
         if truncated {
-            data.truncate(TEXT_READ_LIMIT);
+            data.truncate(cfg.text_read_limit);
         }
         let text = decode_utf8_ignore(&data);
         let sz = sess.fs.stat(&resolved, true).map(|s| s.size).unwrap_or(0);
@@ -817,7 +816,7 @@ pub fn render_api_diff<F: FsProvider>(
         let old_syms = outline_names(public_outline(&old_text, &ext, cfg.enhanced_analysis));
         let new_syms = match current.get(&rel) {
             Some(e) => {
-                let data = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT).unwrap_or_default();
+                let data = sess.fs.read_prefix(&e.path, cfg.text_read_limit).unwrap_or_default();
                 let text = decode_utf8_ignore(&data);
                 outline_names(public_outline(&text, &ext, cfg.enhanced_analysis))
             }
@@ -858,7 +857,7 @@ pub fn render_api_diff<F: FsProvider>(
         let lower_name = rel.rsplit('/').next().unwrap_or(&rel).to_lowercase();
         let (_, ext) = splitext(&lower_name);
         let Some(e) = current.get(&rel) else { continue };
-        let data = sess.fs.read_prefix(&e.path, TEXT_READ_LIMIT).unwrap_or_default();
+        let data = sess.fs.read_prefix(&e.path, cfg.text_read_limit).unwrap_or_default();
         let text = decode_utf8_ignore(&data);
         let new_syms = outline_names(public_outline(&text, ext, cfg.enhanced_analysis));
         if !new_syms.is_empty() {

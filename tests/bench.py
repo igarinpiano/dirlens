@@ -120,6 +120,12 @@ def main() -> None:
         help="Rust 側の計測系列: both=既定+同条件（既定）/ default=既定のみ / compat=同条件のみ",
     )
     ap.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Rust 版の永続トークンキャッシュを無効化して計測する（DIRLENS_CACHE=off）。"
+        "キャッシュヒットに頼らない毎回フルコストを測りたい場合に使う",
+    )
+    ap.add_argument(
         "flags",
         nargs=argparse.REMAINDER,
         help="-- 以降は dirlens にそのまま渡すフラグ（省略時: --agent）",
@@ -136,6 +142,10 @@ def main() -> None:
 
     base_env = dict(os.environ)
     base_env.pop("DIRLENS_COMPAT", None)
+    if args.no_cache:
+        base_env["DIRLENS_CACHE"] = "off"
+    else:
+        base_env.pop("DIRLENS_CACHE", None)
     compat_env = dict(base_env, DIRLENS_COMPAT="python")
 
     # 系列: (表示名, コマンド, 環境)
@@ -161,6 +171,8 @@ def main() -> None:
         print("  ※ Rust(既定) は BPE トークン・AST・git 厳密判定込み（Python 版より多くの解析を行う）")
     if args.mode != "default":
         print("  ※ Rust(同条件) は DIRLENS_COMPAT=python で Python 版と同一アルゴリズムに揃えた値")
+    if args.no_cache:
+        print("  ※ --no-cache: Rust 版は DIRLENS_CACHE=off（永続トークンキャッシュ無効・毎回フルコスト）")
     print()
 
     for _ in range(args.warmup):

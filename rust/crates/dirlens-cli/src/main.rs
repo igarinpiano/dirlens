@@ -9,6 +9,7 @@ mod config;
 mod mcp;
 mod providers;
 mod spinner;
+mod sysmem;
 mod tui;
 
 use std::io::{IsTerminal, Write};
@@ -629,6 +630,20 @@ fn main() {
             }
         }
     }
+    // 本文読み込み・BPE正確計数の対象にする1ファイルあたりの上限（既定 5MB）を、
+    // マシンの物理メモリ量に応じて動的に引き上げる。メモリに余裕があるほど
+    // より大きなファイルも比例概算ではなく正確な値の対象にする
+    // （DIRLENS_MAX_FILE_BYTES で明示指定した場合はそちらを優先。互換モードは
+    // Python 版とバイト一致させる検証用なので固定 5MB のまま変えない）。
+    // メモリ量を検出できない環境・取得失敗時は total_memory_bytes() が None を
+    // 返し、resolve_text_read_limit が default（＝ここに渡す既存の cfg.text_read_limit
+    // = TEXT_READ_LIMIT）へフォールバックする（sysmem::tests で分岐を個別に検証済み）。
+    cfg.text_read_limit = sysmem::resolve_text_read_limit(
+        std::env::var("DIRLENS_MAX_FILE_BYTES").ok().as_deref(),
+        compat_python,
+        sysmem::total_memory_bytes(),
+        cfg.text_read_limit,
+    );
     // 互換モードでは精度注記・schema_version・capabilities も出さない。
     // --agent/--ai バンドルに含まれる --status も Python 版に無いため無効化する
     if compat_python {

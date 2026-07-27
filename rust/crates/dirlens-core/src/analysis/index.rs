@@ -616,11 +616,11 @@ enum RawImports {
     Skip,
 }
 
-/// import 解決に使うソース本文を読む（-T の本文読込と同じ上限）。
-fn read_source_text<F: FsProvider>(sess: &Session<F>, root: &Path, relpath: &str) -> String {
+/// import 解決に使うソース本文を読む（-T の本文読込と同じ上限 = cfg.text_read_limit）。
+fn read_source_text<F: FsProvider>(sess: &Session<F>, root: &Path, relpath: &str, cfg: &Cfg) -> String {
     let full = root.join(relpath.replace('/', std::path::MAIN_SEPARATOR_STR));
     sess.fs
-        .read_prefix(&full, TEXT_READ_LIMIT)
+        .read_prefix(&full, cfg.text_read_limit)
         .map(|d| decode_utf8_ignore(&d))
         .unwrap_or_default()
 }
@@ -639,7 +639,7 @@ fn extract_raw_imports<F: FsProvider>(
     let ext = ext_raw.to_lowercase();
     match ext.as_str() {
         ".py" => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             let imports = if cfg.enhanced_analysis {
                 crate::analysis::ast::ast_imports_py(&text)
             } else {
@@ -649,7 +649,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::Py(imports)
         }
         ".js" | ".jsx" | ".ts" | ".tsx" | ".mjs" | ".cjs" => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             let specs = if cfg.enhanced_analysis {
                 crate::analysis::ast::ast_imports_js(&text, &ext)
             } else {
@@ -659,7 +659,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::Js(specs)
         }
         ".go" => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             let specs = if cfg.enhanced_analysis {
                 crate::analysis::ast::ast_imports_go(&text)
             } else {
@@ -669,7 +669,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::Go(specs)
         }
         ".java" | ".kt" | ".kts" if cfg.enhanced_analysis => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             static IMPORT_RE: OnceLock<Regex> = OnceLock::new();
             let re = IMPORT_RE.get_or_init(|| Regex::new(r"(?m)^\s*import\s+([\w.]+)").unwrap());
             let fqs = re
@@ -679,7 +679,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::JavaKt(fqs)
         }
         ".php" if cfg.enhanced_analysis => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             static USE_RE: OnceLock<Regex> = OnceLock::new();
             static REQ_RE: OnceLock<Regex> = OnceLock::new();
             let use_re = USE_RE.get_or_init(|| Regex::new(r"(?m)^\s*use\s+([\w\\]+)").unwrap());
@@ -697,7 +697,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::Php(uses, reqs)
         }
         ".rb" if cfg.enhanced_analysis => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             static REQ_RE: OnceLock<Regex> = OnceLock::new();
             let re = REQ_RE.get_or_init(|| {
                 Regex::new(r#"(?m)^\s*require(_relative)?\s+['"]([^'"]+)['"]"#).unwrap()
@@ -709,7 +709,7 @@ fn extract_raw_imports<F: FsProvider>(
             RawImports::Rb(items)
         }
         ".rs" => {
-            let text = read_source_text(sess, root, relpath);
+            let text = read_source_text(sess, root, relpath, cfg);
             let has_inline_test = cfg.show_tests
                 && cfg.enhanced_analysis
                 && (text.contains("#[cfg(test)]") || text.contains("#[test]"));
