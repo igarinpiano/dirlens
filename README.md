@@ -475,8 +475,12 @@ paste = ["--ai", "-L", "3"]
 ### AIエージェントへの指示テンプレート
 
 エージェント（Claude Code・Cursor等）にプロジェクト探索の手順として `dirlens --agent` を
-使わせたい場合、`AGENT_RULE.md` のテンプレートを `CLAUDE.md`・`.cursorrules` 等の
-グローバルルールファイルにそのまま貼り付けて使えます。
+使わせたい場合、以下いずれかのテンプレートを `CLAUDE.md`・`.cursorrules` 等の
+グローバルルールファイルにそのまま貼り付けて使えます。用途に応じて使い分けてください:
+
+- **[`AGENT_RULE.md`](AGENT_RULE.md)** — dirlensが無い/バージョンが古い環境も含めて動かすテンプレート。存在確認とフォールバック手順を重視
+- **[`AGENT_RULE_STRICT.md`](AGENT_RULE_STRICT.md)** — dirlensのCLIが常に使える前提の厳格版（存在確認を省略し、機能を最大限使わせたい場合）
+- **[`AGENT_RULE_HYBRID.md`](AGENT_RULE_HYBRID.md)** — CLIとMCPサーバー（`--mcp`）を両方登録済みの環境向け。同じ情報を取る手段が2つあるときの使い分け（どちらを優先するか、片方が不調な時のフォールバック等）を追加した版
 
 ---
 

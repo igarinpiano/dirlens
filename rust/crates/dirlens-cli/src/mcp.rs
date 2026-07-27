@@ -534,6 +534,16 @@ pub fn print_setup(host: &str, ja: bool) {
         println!();
         println!("  claude mcp add dirlens -s user -- \"{}\" --mcp", exe);
         println!();
+        println!(
+            "  {}",
+            tr(
+                "same command whether Claude Code runs in a terminal or its Mac/Windows desktop app \
+                 (the desktop app reads the same config; no separate GUI step exists for custom MCP servers)",
+                "Claude Code をターミナルで使う場合も Mac/Windows デスクトップアプリで使う場合も同じコマンドでよい\
+                 （デスクトップアプリも同じ設定を読むため、独自MCPサーバー用のGUI手順は別途無い）"
+            )
+        );
+        println!();
     }
     if host == "all" || host == "claude-desktop" {
         println!("── Claude Desktop ───────────────────────────────");

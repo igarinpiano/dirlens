@@ -2,6 +2,8 @@
 
 dirlensは「使えたら速い索引ツール」として扱う。**必須ツールとして扱わない**。実行に失敗しても作業を止めず、標準コマンドにフォールバックして調査を続けること。
 
+他の版: dirlensのCLIが常時使える前提でよいなら [AGENT_RULE_STRICT.md](AGENT_RULE_STRICT.md)、CLIとMCP（`--mcp`）を両方登録済みの環境なら [AGENT_RULE_HYBRID.md](AGENT_RULE_HYBRID.md) を使ってください。
+
 ---
 
 ## 基本ルール

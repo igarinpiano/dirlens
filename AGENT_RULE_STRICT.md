@@ -2,6 +2,8 @@
 
 このプロジェクトのコード探索を始める前に、`dirlens --agent` を実行してプロジェクト全体の構造を把握してください。
 
+他の版: dirlensが無い/古い環境も考慮するなら [AGENT_RULE.md](AGENT_RULE.md)、CLIとMCP（`--mcp`）を両方登録済みの環境なら [AGENT_RULE_HYBRID.md](AGENT_RULE_HYBRID.md) を使ってください。
+
 ## 基本ルール
 
 1. **調査の最初の一手として `dirlens --agent` を実行する**
