@@ -6,7 +6,7 @@
 # 増やすたびに4箇所を同時に直す必要があった。ここに一本化することで、対象
 # プラットフォームの追加/変更はこのファイルだけで完結する。
 #
-# ターゲットは3種類に分かれる:
+# ターゲットは2種類に分かれる:
 #   1) ネイティブ runner でそのまま `cargo build --target` するもの（cross: false）。
 #      macOS Intel は `macos-26` 固定（以降の macos-latest が x86_64 クロスコンパイルに
 #      対応する保証が無いため）。Apple Silicon は `macos-latest` で最新を追従する。
@@ -17,12 +17,6 @@
 #      dirlens-core は tree-sitter 系クレート（C ソースを cc でコンパイル）に依存する
 #      ため、素の `cargo build --target` では対象アーキ用の C クロスコンパイラが無く
 #      失敗する。cross はこれを Docker イメージ側で解決する。
-#   3) 上記のうち利用者・実績が少なくビルド可否そのものが未知数なターゲット
-#      （experimental: true）。`continue-on-error` にして、失敗してもリリース全体は
-#      止めない（rust/npm/assemble.py 側もバイナリが無ければ該当パッケージを
-#      自動でスキップするので、失敗しても壊れた成果物が公開されることはない）。
-#      対応ライブラリの有無は実際にビルドしてみないと分からない、という前提で
-#      「まず入れてみる」方針を取っている。
 #
 # npm パッケージ化されるのはこのうち Node.js が公式バイナリを配っている
 # os/cpu の組み合わせのみ（rust/npm/assemble.py 参照）。armv7 / i686 / riscv64gc は
@@ -45,65 +39,48 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
             cross: false
-            experimental: false
           - target: x86_64-apple-darwin
             os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
                             # x86_64 クロスコンパイルに対応する保証が無いため固定
             cross: false
-            experimental: false
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
             cross: false
-            experimental: false
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
             cross: false
-            experimental: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             cross: false
-            experimental: false
           - target: aarch64-pc-windows-msvc
             os: windows-11-arm   # 2025-08 GA のホスト型 Windows Arm64 ランナー
             cross: false
-            experimental: false
           - target: i686-pc-windows-msvc
             os: windows-latest   # MSVC は既定で x86 クロスツールを含むため同一 host で足りる
             cross: false
-            experimental: false
           # ── cross（Docker）経由の Linux 他アーキテクチャ ─────────
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             cross: true
-            experimental: false
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             cross: true
-            experimental: false
           - target: armv7-unknown-linux-gnueabihf
             os: ubuntu-latest
             cross: true
-            experimental: false
           - target: i686-unknown-linux-gnu
             os: ubuntu-latest
             cross: true
-            experimental: false
-          # ── 実績が薄く成否未知数（続行はするが失敗してもリリース全体は止めない） ──
           - target: powerpc64le-unknown-linux-gnu
             os: ubuntu-latest
             cross: true
-            experimental: true
           - target: s390x-unknown-linux-gnu
-            os: ubuntu-latest   # ビッグエンディアン。依存クレートのエンディアン仮定が
-                                # 露見しやすいターゲットなので experimental 扱い
+            os: ubuntu-latest
             cross: true
-            experimental: true
           - target: riscv64gc-unknown-linux-gnu
             os: ubuntu-latest
             cross: true
-            experimental: true
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     defaults:
       run:
         shell: bash
