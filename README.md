@@ -23,13 +23,17 @@ git status オーバーレイ・ヒートカラー・重複検出・ディレク
 npm install -g dirlens
 ```
 
-機種別のネイティブバイナリ（macOS arm64/x64・Linux arm64/x64・Windows x64）が
-自動で選択されます。Windows でもネイティブな `dirlens.exe` が動作します。
+機種別のネイティブバイナリ（macOS arm64/x64・Linux arm64/x64・Linux arm64/x64 musl
+（Alpine 等）・Linux ppc64・Linux s390x・Windows x64・Windows arm64）が自動で
+選択されます。Windows でもネイティブな `dirlens.exe` が動作します。
 
 ### バイナリ直接ダウンロード
 
 [GitHub Releases](https://github.com/igarinpiano/dirlens/releases) から
 お使いのプラットフォームのアーカイブを取得し、PATH の通った場所へ置くだけです。
+npm パッケージが無い armv7（32bit Linux arm）・i686（32bit x86 Linux/Windows）・
+riscv64gc 向けにも、ビルドできたターゲットについてはここに生バイナリを置きます
+（対応する Node.js の公式ビルドが無いため npm では配布していません）。
 
 ```bash
 # 例: macOS (Apple Silicon)

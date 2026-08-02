@@ -1,0 +1,116 @@
+# 全リリース系ワークフロー（rust-release.yml / publish-all.yml / npm-publish.yml /
+# github-releases-publish.yml）が共有する「release バイナリを全ターゲット分ビルドして
+# artifacts に上げる」ジョブを一箇所に集約した再利用可能ワークフロー（workflow_call）。
+#
+# 以前はこのジョブ（matrix 定義込み）が4ファイルにコピペされており、ターゲットを
+# 増やすたびに4箇所を同時に直す必要があった。ここに一本化することで、対象
+# プラットフォームの追加/変更はこのファイルだけで完結する。
+#
+# ターゲットは2種類に分かれる:
+#   1) ネイティブ runner でそのまま `cargo build --target` するもの（cross: false）。
+#      macOS Intel は `macos-26` 固定（以降の macos-latest が x86_64 クロスコンパイルに
+#      対応する保証が無いため）。Apple Silicon は `macos-latest` で最新を追従する。
+#      Windows arm64 は `windows-11-arm`（2025-08 GA のホスト型 Arm64 ランナー。
+#      public リポジトリなら無料枠で使える）。
+#   2) `cross`（cross-rs、Docker 上に構築済みの GCC クロスツールチェーンを持つ）で
+#      ubuntu-latest から Linux 他アーキテクチャ向けにビルドするもの（cross: true）。
+#      dirlens-core は tree-sitter 系クレート（C ソースを cc でコンパイル）に依存する
+#      ため、素の `cargo build --target` では対象アーキ用の C クロスコンパイラが無く
+#      失敗する。cross はこれを Docker イメージ側で解決する。
+#
+# npm パッケージ化されるのはこのうち Node.js が公式バイナリを配っている
+# os/cpu の組み合わせのみ（rust/npm/assemble.py 参照）。armv7 / i686 / riscv64gc は
+# GitHub Releases の生バイナリとしてのみ配布される（対応する Node.js ビルドが無いため）。
+name: build-matrix
+
+on:
+  workflow_call: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── ネイティブ runner ──────────────────────────────────
+          - target: aarch64-apple-darwin
+            os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
+            cross: false
+          - target: x86_64-apple-darwin
+            os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
+                            # x86_64 クロスコンパイルに対応する保証が無いため固定
+            cross: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+            cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm   # 2025-08 GA のホスト型 Windows Arm64 ランナー
+            cross: false
+          - target: i686-pc-windows-msvc
+            os: windows-latest   # MSVC は既定で x86 クロスツールを含むため同一 host で足りる
+            cross: false
+          # ── cross（Docker）経由の Linux 他アーキテクチャ ─────────
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+            cross: true
+          - target: i686-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: powerpc64le-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: s390x-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: riscv64gc-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: ${{ matrix.target }}
+      - uses: taiki-e/install-action@v2
+        if: matrix.cross
+        with:
+          tool: cross
+      - name: Build (release, native)
+        if: ${{ !matrix.cross }}
+        working-directory: rust
+        run: cargo build --release -p dirlens --target ${{ matrix.target }}
+      - name: Build (release, cross)
+        if: matrix.cross
+        working-directory: rust
+        run: cross build --release -p dirlens --target ${{ matrix.target }}
+      - name: Collect
+        run: |
+          mkdir -p out/${{ matrix.target }}
+          exe=dirlens; [[ "${{ matrix.target }}" == *windows* ]] && exe=dirlens.exe
+          cp "rust/target/${{ matrix.target }}/release/$exe" "out/${{ matrix.target }}/"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.target }}
+          path: out/

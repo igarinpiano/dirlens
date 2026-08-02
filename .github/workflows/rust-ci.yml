@@ -1,9 +1,16 @@
 # dirlens（Rust）の CI。
 #
 # ジョブ構成:
-#   test  … linux / macos / windows で unit test + ゴールデンテスト
+#   test  … unit test（`--test mcp_e2e` の実プロセス MCP stdio テストも含む）+
+#            ゴールデンテスト + 日常的な範疇のフラグ網羅スモーク + 極端な環境
+#            （巨大ツリー・深い階層・非UTF-8ファイル名・FIFO・ファイルサイズ上限
+#            フォールバック）への耐性チェックを、複数の OS/バージョン/アーキ
+#            テクチャで実行する:
 #            - verify     = 既定動作のスナップショット照合（記録元: macOS）
 #            - tier/ast   = gitignore 2層・AST 2段の敵対的検証
+#            ubuntu-latest/macos-latest/windows-latest に加え、配布対象になった
+#            新環境（Windows arm64・Intel Mac 等）と、違うOSバージョン/アーキ
+#            テクチャ（ubuntu-22.04・ネイティブ ARM64 Linux）も同列に必須で回す。
 #            ※ 旧 Python 版とのバイト一致検証（live）は python ブランチの
 #               dirlens.py を --py で与えると実行できる（メインには同梱しない）
 #   wasm  … dirlens-core が wasm32 でコンパイルできることの常時保証（bit-rot 防止）
@@ -23,7 +30,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+          - ubuntu-22.04       # ubuntu-latest（24.04系）より古い glibc
+          - ubuntu-24.04-arm   # ネイティブ ARM64 Linux（release の
+                               # aarch64-unknown-linux-gnu は ubuntu-22.04-arm
+                               # だが、テストではより新しい 24.04 系も見る）
+          - macos-26           # Intel Mac（配布対象 x86_64-apple-darwin に対応）
+          - windows-11-arm     # Windows on Arm（配布対象 aarch64-pc-windows-msvc に対応）
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -64,11 +80,111 @@ jobs:
       - name: AST tier checks
         run: python3 tests/golden/ast_check.py --bin rust/target/debug/dirlens
 
-      - name: Smoke (--agent / --check on this repository)
+      - name: Smoke (representative flag/subcommand coverage on this repository)
         run: |
-          rust/target/debug/dirlens --agent -L 2 > /dev/null
-          rust/target/debug/dirlens --check || true
-          rust/target/debug/dirlens --agent --json | python3 -c "import json,sys; json.load(sys.stdin)"
+          set -e
+          BIN=rust/target/debug/dirlens
+          run() { echo "+ dirlens $*"; "$BIN" "$@" > /dev/null; }
+          run --agent -L 2
+          run --agent --estimate
+          run --agent --budget 3000
+          run --lang ja --agent -L 1
+          run -O rust/crates/dirlens-core/src/lib.rs
+          run -A -G
+          run -M -G
+          run -M --mermaid -G
+          run -M --dot -G
+          run -V -G
+          run -K -G
+          run -H -L 1 -G
+          run -F -G
+          run -N -G
+          run --status -G
+          run --top 10 -G
+          run --focus rust/crates/dirlens-core/src/lib.rs -G
+          run --since HEAD -G
+          run --csv -G
+          run --heat age -G
+          run --dupes -G
+          run --pack rust/Cargo.toml rust/crates/dirlens-core/Cargo.toml
+          run --compare rust/crates/dirlens-cli rust/crates/dirlens-core -G
+          git ls-files -- rust | "$BIN" --stdin --json > /dev/null
+          "$BIN" --agent --json | python3 -c "import json,sys; json.load(sys.stdin)"
+          "$BIN" --check || true   # --check は縮退時に意図的に exit 1 を返す（仕様）
+
+      - name: Stress test (wide synthetic tree, ~10k files)
+        timeout-minutes: 5
+        run: |
+          python3 - <<'PY'
+          import os
+          root = "stress-wide"
+          for d in range(100):
+              dirp = os.path.join(root, f"d{d:03d}")
+              os.makedirs(dirp, exist_ok=True)
+              for f in range(100):
+                  with open(os.path.join(dirp, f"f{f:03d}.txt"), "w") as fh:
+                      fh.write("x" * 40 + "\n")
+          PY
+          echo "generated $(find stress-wide -type f | wc -l) files"
+          time rust/target/debug/dirlens --agent --budget 3000 stress-wide > /dev/null
+          time rust/target/debug/dirlens --agent -L 1 stress-wide > /dev/null
+          rm -rf stress-wide
+
+      - name: Stress test (deeply nested directories, path-length edge case)
+        timeout-minutes: 3
+        run: |
+          python3 - <<'PY'
+          import os
+          p = "stress-deep"
+          for i in range(60):
+              p = os.path.join(p, f"level{i:03d}")
+          os.makedirs(p, exist_ok=True)
+          with open(os.path.join(p, "leaf.txt"), "w") as f:
+              f.write("leaf\n")
+          PY
+          rust/target/debug/dirlens --agent stress-deep > /dev/null
+          rm -rf stress-deep
+
+      - name: Stress test (non-UTF-8 filename doesn't panic)
+        if: runner.os == 'Linux'   # ファイル名が任意バイト列を許すのは Linux のみ。
+                                    # NTFS は UTF-16、APFS/HFS+ も有効な UTF-8 を要求するため
+                                    # 「非UTF-8のファイル名」自体を作れない（実際に macOS で
+                                    # os.mkdir が Illegal byte sequence で失敗することを確認済み）
+        timeout-minutes: 2
+        run: |
+          mkdir -p stress-nonutf8
+          python3 -c "
+          import os
+          d = os.fsdecode(b'stress-nonutf8/\xff\xfe-invalid')
+          os.mkdir(d)
+          with open(os.path.join(d, 'f.txt'), 'w') as f:
+              f.write('x')
+          "
+          rust/target/debug/dirlens --agent stress-nonutf8 > /dev/null
+          rust/target/debug/dirlens --agent --json stress-nonutf8 | python3 -c "import json,sys; json.load(sys.stdin)"
+          rm -rf stress-nonutf8
+
+      - name: Stress test (FIFO is size-0/not-read, doesn't hang)
+        if: runner.os != 'Windows'   # 名前付きパイプは Unix 限定
+        timeout-minutes: 1   # ドキュメント通り「読まない」ことの回帰検知（ハングすればここで検知される）
+        run: |
+          mkdir -p stress-fifo
+          mkfifo stress-fifo/pipe
+          rust/target/debug/dirlens --agent -T stress-fifo > /dev/null
+          rm -rf stress-fifo
+
+      - name: Stress test (per-file read-limit fallback tier via DIRLENS_MAX_FILE_BYTES)
+        run: |
+          mkdir -p stress-bigfile
+          python3 -c "open('stress-bigfile/big.txt', 'w').write('token ' * 2000)"
+          DIRLENS_MAX_FILE_BYTES=64 rust/target/debug/dirlens --agent --json stress-bigfile | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          child = data['children'][0]
+          assert child.get('tokens_estimated') is True, f'expected tokens_estimated=true, got: {child}'
+          print('ok: tokens_estimated fallback confirmed')
+          "
+          rm -rf stress-bigfile
 
   wasm:
     runs-on: ubuntu-latest
