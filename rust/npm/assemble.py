@@ -2,12 +2,12 @@
 """npm パッケージ群の組み立てスクリプト（リリース CI から呼ぶ）。
 
 入力: --version X.Y.Z --binaries <dir>
-  <dir>/ 配下に「<target>/dirlens(.exe)」の形で機種別バイナリが置かれている想定:
-    aarch64-apple-darwin/dirlens
-    x86_64-apple-darwin/dirlens
-    aarch64-unknown-linux-gnu/dirlens
-    x86_64-unknown-linux-gnu/dirlens
-    x86_64-pc-windows-msvc/dirlens.exe
+  <dir>/ 配下に「<target>/dirlens(.exe)」の形で機種別バイナリが置かれている想定
+  （reusable-build-matrix.yml がビルドする全ターゲット。TARGETS に無いものは
+  npm パッケージ化されない＝ GitHub Releases の生バイナリのみで配布される。
+  対象を絞っているのは Node.js が公式バイナリを配っていない os/cpu の組み合わせ
+  （armv7 の 32bit linux-arm・i686 系・riscv64gc）に npm パッケージを作っても
+  インストールする Node.js ランタイム自体が存在せず無意味なため）。
 
 出力: --out <dir> に本体パッケージ dirlens/ と機種別パッケージ dirlens-bin-*/ を生成する。
 公開は所有者が手動で行う（CI は dry-run / artifacts の生成までに留める）。
@@ -18,12 +18,23 @@ import os
 import shutil
 import stat
 
+# target -> (npm パッケージ名, os[], cpu[], libc[] または None, 実行ファイル名)
+# os/cpu は Node.js の process.platform/process.arch にそのまま対応する値。
+# libc は package.json の "libc" フィールド（npm 9+ が対応。musl 版と glibc 版の
+# 両方が os/cpu だけでは区別できない linux x64/arm64 でのみ指定する。既定
+# （libc 指定なし）は「どの libc でも対象」＝ glibc 版で、Alpine 等 musl ホストは
+# launcher.js のランタイム検出で musl 版を優先させる）。
 TARGETS = {
-    "aarch64-apple-darwin": ("dirlens-bin-darwin-arm64", ["darwin"], ["arm64"], "dirlens"),
-    "x86_64-apple-darwin": ("dirlens-bin-darwin-x64", ["darwin"], ["x64"], "dirlens"),
-    "aarch64-unknown-linux-gnu": ("dirlens-bin-linux-arm64", ["linux"], ["arm64"], "dirlens"),
-    "x86_64-unknown-linux-gnu": ("dirlens-bin-linux-x64", ["linux"], ["x64"], "dirlens"),
-    "x86_64-pc-windows-msvc": ("dirlens-bin-win32-x64", ["win32"], ["x64"], "dirlens.exe"),
+    "aarch64-apple-darwin": ("dirlens-bin-darwin-arm64", ["darwin"], ["arm64"], None, "dirlens"),
+    "x86_64-apple-darwin": ("dirlens-bin-darwin-x64", ["darwin"], ["x64"], None, "dirlens"),
+    "aarch64-unknown-linux-gnu": ("dirlens-bin-linux-arm64", ["linux"], ["arm64"], None, "dirlens"),
+    "x86_64-unknown-linux-gnu": ("dirlens-bin-linux-x64", ["linux"], ["x64"], None, "dirlens"),
+    "aarch64-unknown-linux-musl": ("dirlens-bin-linux-arm64-musl", ["linux"], ["arm64"], ["musl"], "dirlens"),
+    "x86_64-unknown-linux-musl": ("dirlens-bin-linux-x64-musl", ["linux"], ["x64"], ["musl"], "dirlens"),
+    "powerpc64le-unknown-linux-gnu": ("dirlens-bin-linux-ppc64", ["linux"], ["ppc64"], None, "dirlens"),
+    "s390x-unknown-linux-gnu": ("dirlens-bin-linux-s390x", ["linux"], ["s390x"], None, "dirlens"),
+    "x86_64-pc-windows-msvc": ("dirlens-bin-win32-x64", ["win32"], ["x64"], None, "dirlens.exe"),
+    "aarch64-pc-windows-msvc": ("dirlens-bin-win32-arm64", ["win32"], ["arm64"], None, "dirlens.exe"),
 }
 
 DESCRIPTION = "ファイルサイズ・AI/エージェント解析つきディレクトリツリー表示ツール（tree 互換）"
@@ -47,7 +58,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     optional = {}
-    for target, (pkg, os_list, cpu_list, exe) in TARGETS.items():
+    for target, (pkg, os_list, cpu_list, libc_list, exe) in TARGETS.items():
         src = os.path.join(args.binaries, target, exe)
         if not os.path.isfile(src):
             print(f"skip {target}（バイナリなし）")
@@ -57,7 +68,7 @@ def main():
         dst = os.path.join(pdir, "bin", exe)
         shutil.copy2(src, dst)
         os.chmod(dst, os.stat(dst).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        write_json(os.path.join(pdir, "package.json"), {
+        pkg_json = {
             "name": pkg,
             "version": args.version,
             "description": f"dirlens の {target} バイナリ",
@@ -66,7 +77,10 @@ def main():
             "os": os_list,
             "cpu": cpu_list,
             "files": ["bin/"],
-        })
+        }
+        if libc_list:
+            pkg_json["libc"] = libc_list
+        write_json(os.path.join(pdir, "package.json"), pkg_json)
         optional[pkg] = args.version
 
     main_dir = os.path.join(args.out, "dirlens")
