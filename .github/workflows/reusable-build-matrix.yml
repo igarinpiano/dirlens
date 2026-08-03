@@ -8,7 +8,7 @@
 #
 # ターゲットは2種類に分かれる:
 #   1) ネイティブ runner でそのまま `cargo build --target` するもの（cross: false）。
-#      macOS Intel は `macos-26` 固定（以降の macos-latest が x86_64 クロスコンパイルに
+#      macOS Intel は `macos-26-intel` 固定（以降の macos-latest が x86_64 クロスコンパイルに
 #      対応する保証が無いため）。Apple Silicon は `macos-latest` で最新を追従する。
 #      Windows arm64 は `windows-11-arm`（2025-08 GA のホスト型 Arm64 ランナー。
 #      public リポジトリなら無料枠で使える）。
@@ -40,8 +40,8 @@ jobs:
             os: macos-latest   # 常に最新の Apple Silicon ランナーを追従
             cross: false
           - target: x86_64-apple-darwin
-            os: macos-26   # Intel Mac 対応の最終 macOS。以降の macos-latest が
-                            # x86_64 クロスコンパイルに対応する保証が無いため固定
+            os: macos-26-intel   # Intel Mac 対応の最終 macOS。以降の macos-latest が
+                                 # x86_64 クロスコンパイルに対応する保証が無いため固定
             cross: false
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04

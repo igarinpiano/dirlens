@@ -38,7 +38,7 @@ jobs:
           - ubuntu-24.04-arm   # ネイティブ ARM64 Linux（release の
                                # aarch64-unknown-linux-gnu は ubuntu-22.04-arm
                                # だが、テストではより新しい 24.04 系も見る）
-          - macos-26           # Intel Mac（配布対象 x86_64-apple-darwin に対応）
+          - macos-26-intel     # Intel Mac（配布対象 x86_64-apple-darwin に対応）
           - windows-11-arm     # Windows on Arm（配布対象 aarch64-pc-windows-msvc に対応）
     runs-on: ${{ matrix.os }}
     defaults:
