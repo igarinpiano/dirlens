@@ -8,9 +8,9 @@
 #            テクチャで実行する:
 #            - verify     = 既定動作のスナップショット照合（記録元: macOS）
 #            - tier/ast   = gitignore 2層・AST 2段の敵対的検証
-#            ubuntu-latest/macos-latest/windows-latest に加え、配布対象になった
-#            新環境（Windows arm64・Intel Mac 等）と、違うOSバージョン/アーキ
-#            テクチャ（ubuntu-22.04・ネイティブ ARM64 Linux）も同列に必須で回す。
+#            macos-latest/windows-latest/ubuntu-latest に加え、配布対象になった
+#            新環境（Intel Mac・Windows arm64 等）と、違うOSバージョン/アーキ
+#            テクチャ（ubuntu-24.04・ネイティブ ARM64 Linux）も同列に必須で回す。
 #            ※ 旧 Python 版とのバイト一致検証（live）は python ブランチの
 #               dirlens.py を --py で与えると実行できる（メインには同梱しない）
 #   wasm  … dirlens-core が wasm32 でコンパイルできることの常時保証（bit-rot 防止）
@@ -31,15 +31,17 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
           - macos-latest
-          - windows-latest
-          - ubuntu-22.04       # ubuntu-latest（24.04系）より古い glibc
-          - ubuntu-24.04-arm   # ネイティブ ARM64 Linux（release の
-                               # aarch64-unknown-linux-gnu は ubuntu-22.04-arm
-                               # だが、テストではより新しい 24.04 系も見る）
           - macos-26-intel     # Intel Mac（配布対象 x86_64-apple-darwin に対応）
+          - windows-latest
           - windows-11-arm     # Windows on Arm（配布対象 aarch64-pc-windows-msvc に対応）
+          - ubuntu-latest      # 今後のランナー更新にも追従
+          - ubuntu-26.04
+          - ubuntu-24.04       # ubuntu-latestより古い glibc（22.04系は2026年9月から非推奨）
+          - ubuntu-26.04-arm
+          - ubuntu-24.04-arm   # ネイティブ ARM64 Linux（release の
+                               # aarch64-unknown-linux-gnu は ubuntu-26.04-arm
+                               # だが、テストではより古い 24.04 系も見る）
     runs-on: ${{ matrix.os }}
     defaults:
       run:

@@ -34,9 +34,9 @@ jobs:
             os: macos-26-intel   # Intel Mac 対応の最終 macOS。以降の macos-latest が
                                  # x86_64 クロスコンパイルに対応する保証が無いため固定
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
+            os: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04-arm
+            os: ubuntu-26.04-arm
           - target: x86_64-pc-windows-msvc
             os: windows-latest
     runs-on: ${{ matrix.os }}
