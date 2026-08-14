@@ -1,17 +1,36 @@
-# dirlens 🌳
+# dirlens
 
-ファイルサイズ付きのディレクトリツリーを表示するコマンドラインツール。
-**単一バイナリ（Rust 製）・ランタイム依存ゼロ**で、`tree` コマンドと高い互換性を持ち、
-AI・コーディングエージェントがプロジェクト構造を把握するための解析機能
-（トークン数・git 情報・TODO・アウトライン・import 依存グラフ・影響範囲クエリ・
-トークン予算・MCP サーバー等）を備えています。人間向けにもインタラクティブ TUI・
-git status オーバーレイ・ヒートカラー・重複検出・ディレクトリ比較などを搭載。
+**dirlens は、filesystem structure と lightweight code intelligence と AI context をつなぐ project map です。**
+
+`tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・
+git・トークン数・TODO・テストの手掛かり・エントリーポイント・シンボルのアウトライン・
+ローカル import 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AI
+チャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるように
+するための CLI です。
+
+```text
+filesystem tree
+      + project metadata / git
+      + lightweight code structure
+      + dependency / impact hints
+      + token / context awareness
+      └── one project map for humans, AI chats, and coding agents
+```
+
+dirlens は `tree` を置き換える用途にも使えますが、単に tree の機能を増やすことが目的では
+ありません。また、深い意味検索・LSP・symbol graph・knowledge graph を提供する code
+intelligence 製品の代替を目指すものでもありません。filesystem だけを見る tree と、
+コードの意味を深く追う仕組みの間で、**今どこに何があり、次にどこを読めばよいか**を
+人間にも機械にも読みやすく示します。
+
+**単一バイナリ（Rust 製）・ランタイム依存ゼロ**で、主要な `tree` フラグとの互換性も
+備えています。
 
 **出力はデフォルトで英語**です。日本語にするには `--lang ja`、または設定ファイル
 （`~/.config/dirlens/config.toml` に `lang = "ja"`）か環境変数 `DIRLENS_LANG=ja` を使います。
 
 > 旧 Python 実装（v1.0.x）は `python` ブランチにあります。Rust 版はゴールデンテストで
-> Python 版と出力互換であることを検証したうえで、解析精度を強化しています。
+> Python 版との出力互換を検証しています。
 
 ---
 
@@ -67,7 +86,46 @@ cd dirlens/rust && cargo build --release
 ```
 
 > **pip 版について**: `pip install dirlens` は旧 Python 実装（v1.0.x）を配布しています。
-> 新機能・精度改善は Rust 版のみです。
+> 現行機能は Rust 版にあります。
+
+---
+
+## ひとつの project map、3つの使い方
+
+dirlens の `--ai`、`--agent`、`--mcp` は別々の製品機能ではありません。いずれも同じ
+project map を、受け取る相手に合わせて渡すための入口です。
+
+| 使い方 | 受け取る相手 | 何をするか |
+|---|---|---|
+| `dirlens --ai` | 人間が使う通常の AI チャット | `.gitignore` を反映した日時付きの Markdown をクリップボードへコピー。Finder のスクリーンショットや素の tree より、構造化されたプロジェクトの文脈を渡せます。 |
+| `dirlens --agent` | Claude Code / Codex / Cursor などの coding agent | 色やクリップボードの副作用を省き、構造・規模・重要そうな場所・依存関係をまとめた探索用レポートを出力します。agent そのものではなく、読む前の reconnaissance layer です。 |
+| `dirlens --mcp` | MCP 対応の coding agent | 同じ解析を `analyze`、`outline`、`focus`、`since` などの問い合わせとして公開。必要な情報だけをセッション中に取り直せます。 |
+
+通常の AI チャットでは `--ai` で地図を貼り付け、agent には `--agent` で最初の見取り図を
+渡し、MCP を使う agent には状況に応じて地図の一部を問い合わせてもらう、という使い分けです。
+
+## 最初の一歩
+
+```bash
+# tree として: まず構造を見る
+dirlens -G -L 2
+
+# AI チャットへ: Markdown をコピーして貼り付ける
+dirlens --ai -L 3
+
+# coding agent として: 探索前の project map を得る
+dirlens --agent
+
+# 大きさが未知のプロジェクト: 先に出力コストを確認する
+dirlens --agent --estimate
+dirlens --agent --budget 3000
+
+# MCP の登録手順を出す
+dirlens --mcp-setup
+```
+
+`--agent` のレポートは、コードの完全な意味モデルではなく、次に読む場所を選ぶための
+地図です。正確な挙動や変更判断は、必ず対象ファイルを読んで確認してください。
 
 ---
 
@@ -150,7 +208,11 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
 
 ---
 
-## 特徴
+## project map に重ねる情報
+
+dirlens は、一覧を「より深いコード理解の唯一の答え」にするものではありません。ファイルを
+開く前の見取り図として、filesystem の上に次の情報を重ねます。個々の検出には対象言語や
+縮退時の制限があり、後述の「解析方式と制限」で確認できます。
 
 - **単一バイナリ** — Python も Node も不要。ダウンロードして置くだけで動く（macOS / Linux / Windows）
 - **tree コマンドとの高い互換性** — **`-a -d -f -g -l -p -u -r -s -t -c -L -D -P -I -n -J --prune` など主要フラグが `tree` と互換**。dirlens 独自機能は `-G`（gitignore）・`-S`（サイズ順）・`-e`（拡張子）・`-C`（クリップボード）で提供
@@ -193,10 +255,11 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
   含まれる場合に stderr へ警告
 - **進捗スピナー** — 時間のかかるスキャンでは端末にスピナーを表示（非端末では出ない）
 
-### AI/エージェント向け解析機能（`--agent` でまとめて有効化）
+### コードと文脈のレイヤー（`--agent` でまとめて有効化）
 
-AIチャットやコーディングエージェントがプロジェクト構造を理解する際に、ファイルの中身を
-逐一読まなくても済むよう設計された機能です。個別フラグでも使えます。
+AIチャットや coding agent が、コードを読む順番と探索範囲を判断するための手掛かりです。
+個別フラグでも使えます。ファイルの正確な振る舞いを確定する用途ではなく、必要なファイルを
+絞り込んだ後は中身を読んで確認してください。
 **解析は「最良の方式 → 縮退」の多層構成**で、実際に使われた方式は `--check` や
 `--agent --json` の `capabilities` / `analysis` ブロックで機械的に確認できます。
 
@@ -205,7 +268,7 @@ AIチャットやコーディングエージェントがプロジェクト構造
 - **TODO/FIXME抽出** — `-K` で `TODO`/`FIXME`/`HACK`/`XXX` コメントを抽出し、行番号付きで一覧表示
 - **テスト欠落検知** — `-V` で対応するテストファイルが見つからないソースファイルをマーク。命名規則に加え、**テストファイルからの推移的 import を追跡**し、Rust のインラインテスト（`#[cfg(test)]`）にも対応
 - **エントリーポイント検出** — `-N` で `main.py`・`index.js`・`package.json` の `main`/`bin` フィールドなどから入口ファイルを推測してマーク
-- **シンボルアウトライン** — `-O` で関数・クラス名を抽出。**言語別 AST パーサ（Python / JS・TS / Rust / Go / C / Java / Ruby / PHP / C# / Kotlin / Swift）による正確な抽出**、パース失敗時は正規表現に縮退。`-A` で公開 API のみに絞り込み。JSON 出力では doc コメント1行目と行範囲も付与し、サマリーには**長大関数トップ5**を表示
+- **シンボルアウトライン** — `-O` で関数・クラス名を抽出。言語別 AST パーサ（Python / JS・TS / Rust / Go / C / Java / Ruby / PHP / C# / Kotlin / Swift）を使い、パース失敗時は正規表現に縮退。`-A` で公開 API のみに絞り込み。JSON 出力では doc コメント1行目と行範囲も付与し、サマリーには**長大関数トップ5**を表示
 - **import/依存グラフ** — `-M` でファイル間のローカルな import 関係を解析し、`imports×N`（依存先数）・`used-by×N`（被参照数）・循環依存を表示。**tsconfig の `paths`・package.json の `imports`・go.mod・Rust のモジュールツリー（`crate::`/`self::`/`super::`）・Java/Kotlin の FQCN・PHP の use・Ruby の require_relative を読んで解決**
 - **影響範囲クエリ** — `--focus FILE` で「このファイルを変更したら何が壊れうるか」を依存元/依存先の推移閉包で表示（`--json` 対応）
 - **トークン予算** — `--budget N` でテキスト出力自体を指定トークン数以内に自動調整（自前の BPE で実測しながら深さ→詳細→ツリー行の順で削減。収まらない分は省略し「全表示に必要なトークン数」を注記）。`--estimate` で階層別コストの事前見積もりも可能
@@ -408,7 +471,7 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 
 ---
 
-## 解析方式と精度について
+## 解析方式と制限について
 
 dirlens の解析は**「最良の方式を試し、使えない環境では自動的に縮退する」多層構成**です。
 いまどの方式が使われているかは `dirlens --check` で確認できます
