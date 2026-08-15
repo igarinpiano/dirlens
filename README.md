@@ -2,9 +2,9 @@
 
 **English** | [日本語](README_ja.md)
 
-**dirlens is a project map that connects filesystem structure, lightweight code intelligence, and AI context.**
+**`dirlens` is a project map that connects filesystem structure, lightweight code intelligence, and AI context.**
 
-Starting with a familiar `tree`-style directory view, dirlens layers in sizes, modification times, Git information, token counts, TODOs, test hints, entry-point candidates, symbol outlines, local import relationships, and configuration files. It gives people, AI chats, and coding agents one readable map of a codebase.
+Starting with a familiar `tree`-style directory view, `dirlens` layers in sizes, modification times, Git information, token counts, TODOs, test hints, entry-point candidates, symbol outlines, local import relationships, and configuration files. It gives people, AI chats, and coding agents one readable map of a codebase.
 
 ```text
 filesystem tree
@@ -15,7 +15,7 @@ filesystem tree
       └── one project map for humans, AI chats, and coding agents
 ```
 
-dirlens can replace `tree`, but it is not merely a larger `tree`. Nor is it a substitute for deep semantic search, an LSP, a symbol graph, or a knowledge graph. It sits between a filesystem-only listing and deep code intelligence, making it clear—at a glance—what is where and what to read next.
+`dirlens` can replace `tree`, but it is not merely a larger `tree`. Nor is it a substitute for deep semantic search, an LSP, a symbol graph, or a knowledge graph. It sits between a filesystem-only listing and deep code intelligence, making it clear—at a glance—what is where and what to read next.
 
 It is a **single Rust binary with no runtime dependencies**, with compatibility for major `tree` flags.
 
@@ -143,7 +143,7 @@ The JSON output stays valid even when a partial analysis cannot run. Check `erro
 
 ---
 
-## What dirlens adds to a project map
+## What `dirlens` adds to a project map
 
 | Layer | Information |
 | --- | --- |
@@ -210,7 +210,7 @@ Then choose a hard output budget:
 dirlens --agent --budget 3000
 ```
 
-dirlens first reduces tree depth, then annotations, then tree rows. It reports omitted entries and the measured token count, so you can decide whether a larger budget is worthwhile.
+`dirlens` first reduces tree depth, then annotations, then tree rows. It reports omitted entries and the measured token count, so you can decide whether a larger budget is worthwhile.
 
 `-L` only restricts the displayed tree depth; project-wide analysis aggregates still cover the full scan. Directory sizes are raw disk sizes and, unlike the tree entries, include ignored content—do not infer that ignored files were analyzed merely from a directory’s size.
 
@@ -268,7 +268,7 @@ Run `dirlens --help` for the authoritative, version-specific option list.
 
 ## Analysis methods and limits
 
-dirlens favors a best available method with a safe fallback. Use `dirlens --check` to see what is available in your environment.
+`dirlens` favors a best available method with a safe fallback. Use `dirlens --check` to see what is available in your environment.
 
 - Token counts use `o200k_base` BPE. Files larger than the read limit are proportionally estimated and identified as such in JSON.
 - Outlines use language-specific AST parsers for Python, JavaScript/TypeScript, Rust, Go, C, Java, Ruby, PHP, C#, Kotlin, and Swift. A syntactically invalid file can fall back to regex extraction, which can miss symbols; JSON reports `outline_method`.
