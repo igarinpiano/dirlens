@@ -71,7 +71,7 @@ def main():
         pkg_json = {
             "name": pkg,
             "version": args.version,
-            "description": f"dirlens の {target} バイナリ",
+            "description": f"dirlens binary for {target}",
             "repository": REPO,
             "license": "Apache-2.0",
             "os": os_list,
