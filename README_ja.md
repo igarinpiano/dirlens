@@ -4,11 +4,7 @@
 
 **`dirlens` は、filesystem structure と lightweight code intelligence と AI context をつなぐ project map です。**
 
-`tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・
-git・トークン数・TODO・テストの手掛かり・エントリーポイント・シンボルのアウトライン・
-ローカル import 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AI
-チャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるように
-するための CLI です。
+`tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・`git`・トークン数・`TODO`・テストの手掛かり・エントリーポイント・シンボルのアウトライン・ローカル `import` 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AIチャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるようにするための CLI です。
 
 ```text
 filesystem tree
@@ -19,20 +15,13 @@ filesystem tree
       └── one project map for humans, AI chats, and coding agents
 ```
 
-`dirlens` は `tree` を置き換える用途にも使えますが、単に tree の機能を増やすことが目的では
-ありません。また、深い意味検索・LSP・symbol graph・knowledge graph を提供する code
-intelligence 製品の代替を目指すものでもありません。filesystem だけを見る tree と、
-コードの意味を深く追う仕組みの間で、**今どこに何があり、次にどこを読めばよいか**を
-人間にも機械にも読みやすく示します。
+`dirlens` は `tree` を置き換える用途にも使えますが、単に tree の機能を増やすことが目的ではありません。また、深い意味検索・LSP・symbol graph・knowledge graph を提供する codeintelligence 製品の代替を目指すものでもありません。filesystem だけを見る tree と、コードの意味を深く追う仕組みの間で、**今どこに何があり、次にどこを読めばよいか**を人間にも機械にも読みやすく示します。
 
-**単一バイナリ（Rust 製）・ランタイム依存ゼロ**で、主要な `tree` フラグとの互換性も
-備えています。
+**単一バイナリ（Rust 製）・ランタイム依存ゼロ**で、主要な `tree` フラグとの互換性も備えています。
 
-**出力はデフォルトで英語**です。日本語にするには `--lang ja`、または設定ファイル
-（`~/.config/dirlens/config.toml` に `lang = "ja"`）か環境変数 `DIRLENS_LANG=ja` を使います。
+**出力はデフォルトで英語**です。日本語にするには `--lang ja`、設定ファイル（`~/.config/dirlens/config.toml` に `lang = "ja"`）、環境変数 `DIRLENS_LANG=ja` のいずれかをご使用ください。
 
-> 旧 Python 実装（v1.0.x）は `python` ブランチにあります。Rust 版はゴールデンテストで
-> Python 版との出力互換を検証しています。
+> 旧 Python 実装（v1.0.x）は `python` ブランチにあります。Rust 版はゴールデンテストで Python 版との出力互換を検証しています。
 
 ---
 
@@ -44,17 +33,11 @@ intelligence 製品の代替を目指すものでもありません。filesystem
 npm install -g dirlens
 ```
 
-機種別のネイティブバイナリ（macOS arm64/x64・Linux arm64/x64・Linux arm64/x64 musl
-（Alpine 等）・Linux ppc64・Linux s390x・Windows x64・Windows arm64）が自動で
-選択されます。Windows でもネイティブな `dirlens.exe` が動作します。
+機種別のネイティブバイナリ（macOS arm64/x64・Linux arm64/x64・Linux arm64/x64 musl（Alpine 等）・Linux ppc64・Linux s390x・Windows x64・Windows arm64）が自動で選択されます。Windows でもネイティブな `dirlens.exe` が動作します。
 
 ### バイナリ直接ダウンロード
 
-[GitHub Releases](https://github.com/igarinpiano/dirlens/releases) から
-お使いのプラットフォームのアーカイブを取得し、PATH の通った場所へ置くだけです。
-npm パッケージが無い armv7（32bit Linux arm）・i686（32bit x86 Linux/Windows）・
-riscv64gc 向けにも、ビルドできたターゲットについてはここに生バイナリを置きます
-（対応する Node.js の公式ビルドが無いため npm では配布していません）。
+[GitHub Releases](https://github.com/igarinpiano/dirlens/releases) からお使いのプラットフォームのアーカイブを取得し、PATH の通った場所へ置くだけです。npm パッケージが無い armv7（32bit Linux arm）・i686（32bit x86 Linux/Windows）・riscv64gc 向けにも、ビルドできたターゲットについてはここに生バイナリを置いてあります（対応する Node.js の公式ビルドが無いため npm では配布していません）。
 
 ```bash
 # 例: macOS (Apple Silicon)
@@ -76,8 +59,7 @@ cargo install dirlens
 cargo binstall dirlens
 ```
 
-crates.io のメタデータから GitHub Releases のビルド済みバイナリを取得します
-（`[package.metadata.binstall]` 対応済み）。コンパイル不要で `cargo install` より高速です。
+crates.io のメタデータから GitHub Releases のビルド済みバイナリを取得します（`[package.metadata.binstall]` 対応済み）。コンパイル不要で `cargo install` より高速です。
 
 ### ソースからビルド
 
@@ -87,15 +69,13 @@ cd dirlens/rust && cargo build --release
 # バイナリ: rust/target/release/dirlens
 ```
 
-> **pip 版について**: `pip install dirlens` は旧 Python 実装（v1.0.x）を配布しています。
-> 現行機能は Rust 版にあります。
+> **pip 版について**: `pip install dirlens` は旧 Python 実装（v1.0.x）を配布しています。現行機能は Rust 版にあります。
 
 ---
 
 ## ひとつの project map、3つの使い方
 
-`dirlens` の `--ai`、`--agent`、`--mcp` は別々の製品機能ではありません。いずれも同じ
-project map を、受け取る相手に合わせて渡すための入口です。
+`dirlens` の `--ai`、`--agent`、`--mcp` は別々の製品機能ではありません。いずれも同じ project map を、受け取る相手に合わせて渡すための入口です。
 
 | 使い方 | 受け取る相手 | 何をするか |
 | --- | --- | --- |
@@ -103,8 +83,7 @@ project map を、受け取る相手に合わせて渡すための入口です�
 | `dirlens --agent` | Claude Code / Codex / Cursor などの coding agent | 色やクリップボードの副作用を省き、構造・規模・重要そうな場所・依存関係をまとめた探索用レポートを出力します。agent そのものではなく、読む前の reconnaissance layer です。 |
 | `dirlens --mcp` | MCP 対応の coding agent | 同じ解析を `analyze`、`outline`、`focus`、`since` などの問い合わせとして公開。必要な情報だけをセッション中に取り直せます。 |
 
-通常の AI チャットでは `--ai` で地図を貼り付け、agent には `--agent` で最初の見取り図を
-渡し、MCP を使う agent には状況に応じて地図の一部を問い合わせてもらう、という使い分けです。
+通常の AI チャットでは `--ai` で地図を貼り付け、agent には `--agent` で最初の見取り図を渡し、MCP を使う agent には状況に応じて地図の一部を問い合わせてもらう、という使い分けです。
 
 ## 最初の一歩
 
@@ -126,8 +105,7 @@ dirlens --agent --budget 3000
 dirlens --mcp-setup
 ```
 
-`--agent` のレポートは、コードの完全な意味モデルではなく、次に読む場所を選ぶための
-地図です。正確な挙動や変更判断は、必ず対象ファイルを読んで確認してください。
+`--agent` のレポートは、コードの完全な意味モデルではなく、次に読む場所を選ぶための地図です。正確な挙動や変更判断は、必ず対象ファイルを読んで確認してください。
 
 ---
 
@@ -152,7 +130,7 @@ Desktop/ (2 dirs, 2 files, 3.74 MB)
   .py ×2  .txt ×1  .zip ×1  .png ×1
 ```
 
-（出力は既定で英語。`--lang ja` で「合計 5 ディレクトリ, 5 ファイル」のような日本語表示になります）
+（出力はデフォルトで英語です。`--lang ja`、設定ファイル（`~/.config/dirlens/config.toml` に `lang = "ja"`）、環境変数 `DIRLENS_LANG=ja` のいずれかを設定すると「合計 5 ディレクトリ, 5 ファイル」のような日本語表示になります）
 
 ### `--ai` — AI チャット貼り付けモード
 
@@ -176,7 +154,7 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
 
 ### `--agent` — エージェント解析モード
 
-推定トークン数・最終コミット・TODO・テスト未整備・エントリーポイント（`*`）・設定ファイル（`⚙`）・関数/クラスのアウトライン・import 依存関係を一括で有効化します（カラーなし・クリップボード不使用、エージェントの自律実行でも安全）:
+推定トークン数・最終コミット・`TODO`・テスト未整備・エントリーポイント（`*`）・設定ファイル（`⚙`）・関数/クラスのアウトライン・`import` 依存関係を一括で有効化します（カラーなし・クリップボード不使用、エージェントの自律実行でも安全）:
 
 ```text
 Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
@@ -212,9 +190,7 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
 
 ## project map に重ねる情報
 
-`dirlens` は、一覧を「より深いコード理解の唯一の答え」にするものではありません。ファイルを
-開く前の見取り図として、filesystem の上に次の情報を重ねます。個々の検出には対象言語や
-縮退時の制限があり、後述の「解析方式と制限」で確認できます。
+`dirlens` は、一覧を「より深いコード理解の唯一の答え」にするものではありません。ファイルを開く前の見取り図として、filesystem の上に次の情報を重ねます。個々の検出には対象言語や縮退時の制限があり、後述の [解析方式と制限](#解析方式と制限について) で確認できます。
 
 - **単一バイナリ** — Python も Node も不要。ダウンロードして置くだけで動く（macOS / Linux / Windows）
 - **tree コマンドとの高い互換性** — **`-a -d -f -g -l -p -u -r -s -t -c -L -D -P -I -n -J --prune` など主要フラグが `tree` と互換**。`dirlens` 独自機能は `-G`（gitignore）・`-S`（サイズ順）・`-e`（拡張子）・`-C`（クリップボード）で提供
@@ -259,11 +235,7 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
 
 ### コードと文脈のレイヤー（`--agent` でまとめて有効化）
 
-AIチャットや coding agent が、コードを読む順番と探索範囲を判断するための手掛かりです。
-個別フラグでも使えます。ファイルの正確な振る舞いを確定する用途ではなく、必要なファイルを
-絞り込んだ後は中身を読んで確認してください。
-**解析は「最良の方式 → 縮退」の多層構成**で、実際に使われた方式は `--check` や
-`--agent --json` の `capabilities` / `analysis` ブロックで機械的に確認できます。
+AIチャットや coding agent が、コードを読む順番と探索範囲を判断するための手掛かりです。個別フラグでも使えます。ファイルの正確な振る舞いを確定する用途ではなく、必要なファイルを絞り込んだ後は中身を読んで確認してください。**解析は「最良の方式 → 縮退」の多層構成**で、実際に使われた方式は `--check` や`--agent --json` の `capabilities` / `analysis` ブロックで機械的に確認できます。
 
 - **トークン数計数** — `-T` でファイルごとのトークン数を表示。**BPE（o200k_base）による正確値**（1ファイルあたりの読み込み上限を超えると比例概算 — JSON では該当ファイルに `tokens_estimated: true` が付く・v1.2.9+）。この上限は既定5MBだが、v1.2.17+ ではホストの物理メモリ量に応じて段階的に引き上がる（`DIRLENS_MAX_FILE_BYTES` で明示指定も可。実際の値は `--check` の `capabilities.max_file_bytes` で確認可能）。縮退時は文字数ベースの概算。サマリーには**言語別トークン内訳**も表示。2回目以降は永続キャッシュにより高速（`--no-cache` で無効化）
 - **git連携** — `-H` で各ファイルの最終コミット情報（メッセージ・相対日時）を表示。直近2000コミットまで走査。変更頻度の高いファイル（ホットスポット）も検出
@@ -475,9 +447,7 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 
 ## 解析方式と制限について
 
-`dirlens` の解析は**「最良の方式を試し、使えない環境では自動的に縮退する」多層構成**です。
-いまどの方式が使われているかは `dirlens --check` で確認できます
-（`--agent --json` の `capabilities` / `analysis` ブロックでも機械的に取得可能）。
+`dirlens` の解析は**「最良の方式を試し、使えない環境では自動的に縮退する」多層構成**です。いまどの方式が使われているかは `dirlens --check` で確認できます（`--agent --json` の `capabilities` / `analysis` ブロックでも機械的に取得可能）。
 
 | 機能 | 第1層（最良） | 縮退層 | 備考 |
 | --- | --- | --- | --- |
@@ -506,9 +476,7 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 
 ### 設定ファイル
 
-グローバル `~/.config/dirlens/config.toml`（`$XDG_CONFIG_HOME` 対応）と、
-対象ディレクトリから上方向に探索した最初の `.dirlens.toml`（プロジェクト設定）を読み込みます。
-優先順は **CLI フラグ > プロジェクト設定 > グローバル設定**。
+グローバル `~/.config/dirlens/config.toml`（`$XDG_CONFIG_HOME` 対応）と、対象ディレクトリから上方向に探索した最初の `.dirlens.toml`（プロジェクト設定）を読み込みます。優先順は **CLI フラグ > プロジェクト設定 > グローバル設定**。
 
 ```toml
 # ~/.config/dirlens/config.toml の例
@@ -543,10 +511,7 @@ paste = ["--ai", "-L", "3"]
 
 ### AIエージェントへの指示テンプレート
 
-エージェント（Claude Code・Cursor等）にプロジェクト探索の手順として `dirlens --agent` を
-使わせたい場合、以下いずれかのテンプレートを `CLAUDE.md`・`.cursorrules` 等の
-グローバルルールファイルにそのまま貼り付けて使えます。用途に応じて使い分けてください
-（各ファイル冒頭の説明は人間向けの案内なので、ファイル内の区切り線から下だけをコピペすれば十分です）:
+エージェント（Claude Code・Cursor等）にプロジェクト探索の手順として `dirlens --agent` を使わせたい場合、以下いずれかのテンプレートを `CLAUDE.md`・`.cursorrules` 等のグローバルルールファイルにそのまま貼り付けて使えます。用途に応じて使い分けてください（各ファイル冒頭の説明は人間向けの案内なので、ファイル内の区切り線から下だけをコピペすれば十分です）:
 
 - **[`AGENT_RULE.md`](AGENT_RULE.md)** — `dirlens`が無い/バージョンが古い環境も含めて動かすテンプレート。存在確認とフォールバック手順を重視
 - **[`AGENT_RULE_STRICT.md`](AGENT_RULE_STRICT.md)** — `dirlens`のCLIが常に使える前提の厳格版（存在確認を省略し、機能を最大限使わせたい場合）
@@ -571,8 +536,7 @@ python3 tests/golden/tier_check.py --bin rust/target/release/dirlens   # gitigno
 python3 tests/golden/ast_check.py  --bin rust/target/release/dirlens   # AST 2段の検証
 ```
 
-旧 Python 実装との互換性検証（`run.py live`）や意図的な差分の台帳は
-`tests/golden/README.md` / `tests/golden/DELTAS.md` を参照してください。
+旧 Python 実装との互換性検証（`run.py live`）や意図的な差分の台帳は`tests/golden/README.md` / `tests/golden/DELTAS.md` を参照してください。
 
 ---
 
