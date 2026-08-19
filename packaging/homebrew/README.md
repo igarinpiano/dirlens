@@ -20,6 +20,6 @@ brew style --formula dirlens
 brew lgtm --online
 ```
 
-The source URL and SHA-256 correspond to the `v1.2.20` tag. When preparing a
+The source URL and SHA-256 correspond to the `v1.2.21` tag. When preparing a
 later release, update both values and run the same validation before submitting
 the Formula update.
