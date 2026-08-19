@@ -14,12 +14,17 @@
 # 既定は push）。publish-all はタグや過去のリリースブランチから実行されることも
 # あるため、対象は常に main を明示的にチェックアウトして作業する（トリガーに使った
 # ref に更新が置かれてしまわないように）。
-#   - push: main に直接コミット・push する。main の branch protection / ruleset で
-#     「変更は必ず PR 経由」が有効な場合、実行に使う GITHUB_TOKEN（github-actions[bot]）
-#     がバイパスリストに入っていないと push が拒否される。バイパスできるアクター/App
-#     を ruleset の bypass list に追加する必要がある場合はリポジトリ設定側の対応が要る。
+#   - push: main に直接コミット・push する（既定）。main は ruleset で「変更は必ず
+#     PR 経由」が有効なため、既定の GITHUB_TOKEN（github-actions[bot]）では拒否される。
+#     このリポジトリは個人所有（Organization 配下ではない）で、ruleset の bypass_actors
+#     は個人所有リポジトリでは GitHub Actions（Integration）を対象にできない仕様のため、
+#     admin（igarinpiano）の fine-grained PAT を Secrets の HOMEBREW_FORMULA_PAT に
+#     登録し、push モードの checkout だけそれを使う（下記 update-homebrew-formula
+#     ジョブ参照）。PAT には対象リポジトリを igarinpiano/dirlens に限定した
+#     Contents: Read and write 権限のみを与えること。未設定のまま push を選ぶと、
+#     checkout 自体は空トークンで成立するが実際の push で認証エラーになって失敗する。
 #   - pr: 使い捨てブランチ chore/homebrew-formula-vX.Y.Z を作って main への PR を開く
-#     （push が使えない設定でも安全に使える）。
+#     （PAT 不要・既定の GITHUB_TOKEN で足りる）。
 #   - skip: 何もしない。
 #
 # crates.io への認証は Trusted Publishing（OIDC・rust-lang/crates-io-auth-action）を使う。
@@ -147,6 +152,14 @@ jobs:
           # publish-all はタグ/過去のブランチから実行されることもあるが、Formula の
           # 更新は常に main の最新状態を土台にする
           ref: main
+          # push モードのみ、admin (igarinpiano) の fine-grained PAT で checkout する。
+          # main は ruleset で保護されており、bypass_actors は個人所有リポジトリでは
+          # GitHub Actions（Integration）を対象にできない（Organization 配下のみ対応、
+          # 2026-08 時点で試して 422 Validation Failed で拒否された）。PAT は
+          # RepositoryRole（admin）としてバイパスできるため、push だけこちらを使う。
+          # 未設定でも空文字列で checkout 自体は失敗しない（push 時に認証エラーで
+          # 分かりやすく失敗する）。pr/skip では通常の GITHUB_TOKEN で十分。
+          token: ${{ inputs.update_homebrew_formula == 'push' && secrets.HOMEBREW_FORMULA_PAT || github.token }}
       - name: Update packaging/homebrew/dirlens.rb for this version
         env:
           GH_TOKEN: ${{ github.token }}
@@ -199,10 +212,10 @@ jobs:
           if [ "$MODE" = "push" ]; then
             git add "$formula" "$readme"
             git commit -m "chore: update Homebrew formula for v$VERSION"
-            # main の branch protection / ruleset で PR 必須が有効な場合、この push は
-            # github-actions[bot] が bypass list に無いと拒否される（拒否時はここで
-            # ジョブが失敗するので、リポジトリ設定側で bypass を許可するか、
-            # update_homebrew_formula を pr に変えて再実行すること）
+            # 認証は上の checkout ステップで設定した HOMEBREW_FORMULA_PAT 依存。
+            # 未設定/期限切れだと push 認証エラーで失敗する（そのときは Secrets の
+            # HOMEBREW_FORMULA_PAT を作成/更新するか、update_homebrew_formula を
+            # pr に変えて再実行すること）
             git push origin main
           else
             branch="chore/homebrew-formula-v$VERSION"
