@@ -9,6 +9,13 @@
 # npm → crates.io の順で実行される）。ある段が失敗/キャンセルされた場合、
 # それより後の段は実行されない（skip とは区別している）。
 #
+# update_homebrew_formula は GitHub Release 作成後、packaging/homebrew/dirlens.rb の
+# url/sha256（と README.md 内のタグ参照）をこのバージョンに合わせて更新する PR を
+# main に対して作る（直push はしない — publish-all はタグや過去のリリースブランチ
+# から実行されることもあり、そのチェックアウト先に対して直接コミットしてしまうと
+# main と無関係な場所に更新が置かれてしまうため、常に main を明示的にチェックアウト
+# して作業する。また "main には必ず PR 経由" のルールにも従う）。
+#
 # crates.io への認証は Trusted Publishing（OIDC・rust-lang/crates-io-auth-action）を使う。
 # 【重要・初回のみ手動作業が必要】Trusted Publisher は「既に一度手動 publish 済みの
 # クレート」にしか設定できない仕様のため、dirlens-core / dirlens（crates/dirlens-cli）を
@@ -39,6 +46,10 @@ on:
         default: true
       publish_crates_io:
         description: "crates.io に公開する"
+        type: boolean
+        default: true
+      update_homebrew_formula:
+        description: "packaging/homebrew/dirlens.rb の url/sha256 をこのバージョンの release tarball に合わせて更新し、main への PR を作る"
         type: boolean
         default: true
 
@@ -110,6 +121,83 @@ jobs:
           gh release create "v$VERSION" \
             --title "dirlens v$VERSION" \
             release/*
+
+  update-homebrew-formula:
+    needs: [check-version, github-release]
+    if: |
+      always() && inputs.update_homebrew_formula &&
+      needs.github-release.result != 'failure' && needs.github-release.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # main への更新ブランチ push に必要
+      pull-requests: write   # gh pr create に必要
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # publish-all はタグ/過去のブランチから実行されることもあるが、Formula の
+          # 更新は常に main の最新状態を土台にする
+          ref: main
+      - name: Update packaging/homebrew/dirlens.rb for this version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          formula="packaging/homebrew/dirlens.rb"
+          readme="packaging/homebrew/README.md"
+          if [ ! -f "$formula" ]; then
+            echo "::notice::$formula が main に無いのでスキップします"
+            exit 0
+          fi
+
+          # publish-all は過去のタグ/ブランチから実行されることもあるため、main の
+          # Formula が既に新しいバージョンを指している場合は巻き戻さない
+          current_version="$(grep -oE 'archive/refs/tags/v[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' "$formula" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+          if [ -n "$current_version" ] && [ "$current_version" != "$VERSION" ]; then
+            highest="$(printf '%s\n%s\n' "$current_version" "$VERSION" | sort -V | tail -1)"
+            if [ "$highest" = "$current_version" ]; then
+              echo "::notice::$formula は既に v$current_version を指しており、v$VERSION より新しいためダウングレードしません"
+              exit 0
+            fi
+          fi
+
+          tarball_url="https://github.com/$REPO/archive/refs/tags/v$VERSION.tar.gz"
+          tmp="$(mktemp)"
+          curl -sfL -o "$tmp" "$tarball_url"
+          sha256="$(sha256sum "$tmp" | cut -d' ' -f1)"
+          rm -f "$tmp"
+
+          sed -i -E "s#(archive/refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)#\1v$VERSION\2#" "$formula"
+          sed -i -E "s/(sha256 \")[0-9a-f]{64}(\")/\1$sha256\2/" "$formula"
+          if [ -f "$readme" ]; then
+            sed -i -E "s/\`v[0-9]+\.[0-9]+\.[0-9]+\`/\`v$VERSION\`/g" "$readme"
+          fi
+
+          if git diff --quiet -- "$formula" "$readme"; then
+            echo "packaging/homebrew は v$VERSION で既に最新です。何もしません。"
+            exit 0
+          fi
+
+          branch="chore/homebrew-formula-v$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$formula" "$readme"
+          git commit -m "chore: update Homebrew formula for v$VERSION"
+          # このブランチは自動更新専用の使い捨てブランチなので、同バージョンの再実行に
+          # 備えて毎回強制上書きする
+          git push -f -u origin "$branch"
+
+          if [ -z "$(gh pr list --head "$branch" --state open --json number -q '.[0].number')" ]; then
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore: update Homebrew formula for v$VERSION" \
+              --body "publish-all の GitHub Release 作成後に自動生成。\`packaging/homebrew/dirlens.rb\` の url/sha256 を v$VERSION の release tarball に合わせて更新します。"
+          else
+            echo "$branch 向けの open な PR が既にあるのでスキップします"
+          fi
 
   npm:
     needs: [check-version, build, github-release]
