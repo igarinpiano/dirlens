@@ -587,6 +587,10 @@ pub fn execute<F: FsProvider + Sync>(
 
     // --budget N: 出力トークンが予算内に収まるまで深さ→アウトラインの順で削る。
     // 自前の BPE でレンダリング結果そのものを測れるのが dirlens の強み。
+    // 末尾に付く "(fitted to --budget ...)" 注記は tree/stdout 上では見せるが、
+    // -C / --ai でクリップボードへ送る内容には含めない（ツール自身の調整ログで
+    // あってツリーの内容物ではないため。コピー時に末尾から取り除くので記録しておく）。
+    let mut budget_note_plain: Option<String> = None;
     if let Some(budget) = cfg.budget {
         let measure = |s: &str| {
             crate::analysis::text_metrics::count_tokens(s, s.len(), None, false, cfg.tokens_bpe)
@@ -713,23 +717,18 @@ pub fn execute<F: FsProvider + Sync>(
             }
             (None, _) => String::new(),
         };
-        text.push_str(&format!(
-            "{}\n",
-            c(
-                &match cfg.lang {
-                    Lang::Ja => format!(
-                        "  (--budget {} に調整: ~{} tok{}{})",
-                        budget, used, depth_note, full_note
-                    ),
-                    Lang::En => format!(
-                        "  (fitted to --budget {}: ~{} tok{}{})",
-                        budget, used, depth_note, full_note
-                    ),
-                },
-                &[DIM],
-                cfg.use_color
-            )
-        ));
+        let note_plain = match cfg.lang {
+            Lang::Ja => format!(
+                "  (--budget {} に調整: ~{} tok{}{})",
+                budget, used, depth_note, full_note
+            ),
+            Lang::En => format!(
+                "  (fitted to --budget {}: ~{} tok{}{})",
+                budget, used, depth_note, full_note
+            ),
+        };
+        text.push_str(&format!("{}\n", c(&note_plain, &[DIM], cfg.use_color)));
+        budget_note_plain = Some(note_plain);
     }
 
     let mut result = RunResult {
@@ -763,7 +762,16 @@ pub fn execute<F: FsProvider + Sync>(
     }
 
     if cfg.copy {
-        let ok = clip.copy(&strip_ansi(&result.stdout));
+        let mut to_copy = strip_ansi(&result.stdout);
+        // "(fitted to --budget ...)" はツリー本体ではなく調整ログなので、
+        // stdout/表示には残すがクリップボードには含めない
+        if let Some(note) = &budget_note_plain {
+            let suffix = format!("{}\n", note);
+            if let Some(stripped) = to_copy.strip_suffix(suffix.as_str()) {
+                to_copy = stripped.to_string();
+            }
+        }
+        let ok = clip.copy(&to_copy);
         let msg = if ok {
             c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
         } else {
