@@ -10,11 +10,17 @@
 # それより後の段は実行されない（skip とは区別している）。
 #
 # update_homebrew_formula は GitHub Release 作成後、packaging/homebrew/dirlens.rb の
-# url/sha256（と README.md 内のタグ参照）をこのバージョンに合わせて更新する PR を
-# main に対して作る（直push はしない — publish-all はタグや過去のリリースブランチ
-# から実行されることもあり、そのチェックアウト先に対して直接コミットしてしまうと
-# main と無関係な場所に更新が置かれてしまうため、常に main を明示的にチェックアウト
-# して作業する。また "main には必ず PR 経由" のルールにも従う）。
+# url/sha256（と README.md 内のタグ参照）をこのバージョンに合わせて更新する（3択、
+# 既定は push）。publish-all はタグや過去のリリースブランチから実行されることも
+# あるため、対象は常に main を明示的にチェックアウトして作業する（トリガーに使った
+# ref に更新が置かれてしまわないように）。
+#   - push: main に直接コミット・push する。main の branch protection / ruleset で
+#     「変更は必ず PR 経由」が有効な場合、実行に使う GITHUB_TOKEN（github-actions[bot]）
+#     がバイパスリストに入っていないと push が拒否される。バイパスできるアクター/App
+#     を ruleset の bypass list に追加する必要がある場合はリポジトリ設定側の対応が要る。
+#   - pr: 使い捨てブランチ chore/homebrew-formula-vX.Y.Z を作って main への PR を開く
+#     （push が使えない設定でも安全に使える）。
+#   - skip: 何もしない。
 #
 # crates.io への認証は Trusted Publishing（OIDC・rust-lang/crates-io-auth-action）を使う。
 # 【重要・初回のみ手動作業が必要】Trusted Publisher は「既に一度手動 publish 済みの
@@ -49,9 +55,13 @@ on:
         type: boolean
         default: true
       update_homebrew_formula:
-        description: "packaging/homebrew/dirlens.rb の url/sha256 をこのバージョンの release tarball に合わせて更新し、main への PR を作る"
-        type: boolean
-        default: true
+        description: "packaging/homebrew/dirlens.rb の url/sha256 をこのバージョンの release tarball に合わせて更新する方法: push=mainに直接push / pr=mainへPRを作る / skip=何もしない（pushにはmainのブランチ保護でGitHub Actionsのバイパス許可が必要）"
+        type: choice
+        options:
+          - push
+          - pr
+          - skip
+        default: push
 
 env:
   CARGO_TERM_COLOR: always
@@ -125,12 +135,12 @@ jobs:
   update-homebrew-formula:
     needs: [check-version, github-release]
     if: |
-      always() && inputs.update_homebrew_formula &&
+      always() && inputs.update_homebrew_formula != 'skip' &&
       needs.github-release.result != 'failure' && needs.github-release.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # main への更新ブランチ push に必要
-      pull-requests: write   # gh pr create に必要
+      contents: write        # push=main直push / pr=更新ブランチpush、いずれにも必要
+      pull-requests: write   # pr モードの gh pr create に必要
     steps:
       - uses: actions/checkout@v7
         with:
@@ -142,6 +152,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.check-version.outputs.version }}
           REPO: ${{ github.repository }}
+          MODE: ${{ inputs.update_homebrew_formula }}
         run: |
           set -euo pipefail
           formula="packaging/homebrew/dirlens.rb"
@@ -179,24 +190,38 @@ jobs:
             exit 0
           fi
 
-          branch="chore/homebrew-formula-v$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
-          git add "$formula" "$readme"
-          git commit -m "chore: update Homebrew formula for v$VERSION"
-          # このブランチは自動更新専用の使い捨てブランチなので、同バージョンの再実行に
-          # 備えて毎回強制上書きする
-          git push -f -u origin "$branch"
+          # 直前の checkout@ref:main が detached HEAD の場合があるので、push/PR どちらの
+          # モードでも main を土台にした通常のローカルブランチであることを保証する
+          git checkout -B main
 
-          if [ -z "$(gh pr list --head "$branch" --state open --json number -q '.[0].number')" ]; then
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "chore: update Homebrew formula for v$VERSION" \
-              --body "publish-all の GitHub Release 作成後に自動生成。\`packaging/homebrew/dirlens.rb\` の url/sha256 を v$VERSION の release tarball に合わせて更新します。"
+          if [ "$MODE" = "push" ]; then
+            git add "$formula" "$readme"
+            git commit -m "chore: update Homebrew formula for v$VERSION"
+            # main の branch protection / ruleset で PR 必須が有効な場合、この push は
+            # github-actions[bot] が bypass list に無いと拒否される（拒否時はここで
+            # ジョブが失敗するので、リポジトリ設定側で bypass を許可するか、
+            # update_homebrew_formula を pr に変えて再実行すること）
+            git push origin main
           else
-            echo "$branch 向けの open な PR が既にあるのでスキップします"
+            branch="chore/homebrew-formula-v$VERSION"
+            git checkout -b "$branch"
+            git add "$formula" "$readme"
+            git commit -m "chore: update Homebrew formula for v$VERSION"
+            # このブランチは自動更新専用の使い捨てブランチなので、同バージョンの再実行に
+            # 備えて毎回強制上書きする
+            git push -f -u origin "$branch"
+
+            if [ -z "$(gh pr list --head "$branch" --state open --json number -q '.[0].number')" ]; then
+              gh pr create \
+                --base main \
+                --head "$branch" \
+                --title "chore: update Homebrew formula for v$VERSION" \
+                --body "publish-all の GitHub Release 作成後に自動生成。\`packaging/homebrew/dirlens.rb\` の url/sha256 を v$VERSION の release tarball に合わせて更新します。"
+            else
+              echo "$branch 向けの open な PR が既にあるのでスキップします"
+            fi
           fi
 
   npm:
