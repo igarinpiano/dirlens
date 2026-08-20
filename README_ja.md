@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-**`dirlens` は、filesystem structure と lightweight code intelligence と AI context をつなぐ project map です。**
+**`dirlens` は、ファイル構成とコードの情報を整理し、AIがプロジェクト全体を把握するための「プロジェクトの地図」を提供します。**
 
 `tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・`git`・トークン数・`TODO`・テストの手掛かり・エントリーポイント・シンボルのアウトライン・ローカル `import` 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AIチャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるようにするための CLI です。
 

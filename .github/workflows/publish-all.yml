@@ -60,7 +60,7 @@ on:
         type: boolean
         default: true
       update_homebrew_formula:
-        description: "packaging/homebrew/dirlens.rb の url/sha256 をこのバージョンの release tarball に合わせて更新する方法: push=mainに直接push / pr=mainへPRを作る / skip=何もしない（pushにはmainのブランチ保護でGitHub Actionsのバイパス許可が必要）"
+        description: "packaging/homebrew/dirlens.rb の url/sha256 をこのバージョンの release tarball に合わせて更新する。push=mainに直接push / pr=mainへPR / skip=何もしない"
         type: choice
         options:
           - push
