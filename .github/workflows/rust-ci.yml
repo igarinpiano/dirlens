@@ -2,7 +2,9 @@
 #
 # ジョブ構成:
 #   test  … unit test（`--test mcp_e2e` の実プロセス MCP stdio テストも含む）+
-#            ゴールデンテスト + 日常的な範疇のフラグ網羅スモーク + 極端な環境
+#            ゴールデンテスト + 日常的な範疇のフラグ網羅スモーク + 永続トークン
+#            キャッシュの実動作確認（生成・キャッシュ有無での出力一致・編集後の
+#            再計算・`--clear-cache`）+ 極端な環境
 #            （巨大ツリー・深い階層・非UTF-8ファイル名・FIFO・ファイルサイズ上限
 #            フォールバック）への耐性チェックを、複数の OS/バージョン/アーキ
 #            テクチャで実行する:
@@ -113,6 +115,56 @@ jobs:
           git ls-files -- rust | "$BIN" --stdin --json > /dev/null
           "$BIN" --agent --json | python3 -c "import json,sys; json.load(sys.stdin)"
           "$BIN" --check || true   # --check は縮退時に意図的に exit 1 を返す（仕様）
+
+      - name: Persistent token cache (populates, reused byte-identically, invalidates on edit, --clear-cache empties it)
+        run: |
+          set -e
+          BIN=rust/target/debug/dirlens
+          TMPROOT=$(mktemp -d)
+          export XDG_CACHE_HOME="$TMPROOT/cache"   # 実行環境のホームキャッシュを汚さない
+          CACHE_DIR="$XDG_CACHE_HOME/dirlens"
+          mkdir -p "$TMPROOT/proj"
+          echo "hello world" > "$TMPROOT/proj/f.txt"
+
+          # -T 無しの実行はキャッシュファイルを作らない
+          "$BIN" "$TMPROOT/proj" > /dev/null
+          if [ -d "$CACHE_DIR" ]; then echo "cache dir created without -T"; exit 1; fi
+
+          # 初回の -T 実行でキャッシュファイルが作られ、エントリが入る
+          "$BIN" -T --json "$TMPROOT/proj" > /tmp/run1.json
+          test -d "$CACHE_DIR" || { echo "cache dir not created after -T run"; exit 1; }
+          CACHE_FILE=$(ls "$CACHE_DIR"/tokens-*.json)
+          python3 -c "
+          import json
+          d = json.load(open('$CACHE_FILE'))
+          assert len(d) > 0, 'cache file has no entries'
+          "
+
+          # キャッシュヒットする2回目の実行、および --no-cache の実行は1回目とバイト一致する
+          # （キャッシュの有無が結果を変えない）
+          "$BIN" -T --json "$TMPROOT/proj" > /tmp/run2.json
+          "$BIN" -T --json --no-cache "$TMPROOT/proj" > /tmp/run3.json
+          diff /tmp/run1.json /tmp/run2.json
+          diff /tmp/run1.json /tmp/run3.json
+
+          # ファイル内容を変える（サイズが変わりキャッシュキーも変わる）と、古いトークン数を
+          # 使い続けず再計算される
+          TOK1=$(python3 -c "import json; print(json.load(open('/tmp/run1.json'))['children'][0]['tokens'])")
+          echo "hello world hello world hello world hello world" > "$TMPROOT/proj/f.txt"
+          "$BIN" -T --json "$TMPROOT/proj" > /tmp/run4.json
+          TOK2=$(python3 -c "import json; print(json.load(open('/tmp/run4.json'))['children'][0]['tokens'])")
+          if [ "$TOK1" = "$TOK2" ]; then echo "stale cache: token count unchanged after file edit ($TOK1)"; exit 1; fi
+
+          # --clear-cache は削除件数を報告し、実際にファイルを消す
+          OUT=$("$BIN" --clear-cache)
+          echo "$OUT" | grep -qE "removed [0-9]+ cache file" || { echo "unexpected --clear-cache output: $OUT"; exit 1; }
+          if ls "$CACHE_DIR"/tokens-*.json >/dev/null 2>&1; then echo "cache files survived --clear-cache"; exit 1; fi
+
+          # クリア後も再実行でき、キャッシュが再生成される
+          "$BIN" -T "$TMPROOT/proj" > /dev/null
+          ls "$CACHE_DIR"/tokens-*.json >/dev/null
+
+          rm -rf "$TMPROOT"
 
       - name: Stress test (wide synthetic tree, ~10k files)
         timeout-minutes: 5

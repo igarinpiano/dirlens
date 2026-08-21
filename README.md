@@ -294,6 +294,10 @@ Environment variables include:
 | `DIRLENS_TOKENS` | Enable or disable token counting. |
 | `DIRLENS_CACHE` | Enable or disable the persistent token cache. |
 
+The persistent token cache lives at `~/.cache/dirlens/` (or `$XDG_CACHE_HOME/dirlens/`), keyed per
+project. Pass `--no-cache` (or set `DIRLENS_CACHE=off`) to skip it for one run, or run
+`dirlens --clear-cache` to delete all cached files.
+
 Example configuration:
 
 ```toml
