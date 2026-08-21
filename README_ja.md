@@ -2,20 +2,20 @@
 
 [English](README.md) | **日本語**
 
-**`dirlens` は、ファイル構成・軽量なコード解析・AI向けの文脈を結びつける「プロジェクトの地図」です。**
+**`dirlens` は、ファイル構成・軽量なコード解析・AI向けの文脈を結びつけるプロジェクトの地図です。**
 
-`tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・`git`・トークン数・`TODO`・テストの手掛かり・エントリーポイント・シンボルのアウトライン・ローカル `import` 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AIチャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるようにするための CLI です。
+`tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・`git`・トークン数・`TODO`・テストの手掛かり・エントリーポイント・シンボルのアウトライン・ローカル `import` 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AIチャットへ文脈を渡すときも、コーディングエージェントが探索を始めるときも、同じ地図を使えるようにするための CLI です。
 
 ```text
-filesystem tree
-      + project metadata / git
-      + lightweight code structure
-      + dependency / impact hints
-      + token / context awareness
-      └── one project map for humans, AI chats, and coding agents
+ファイルシステムツリー
+      + プロジェクトのメタデータ / git
+      + 軽量なコード構造
+      + 依存関係・影響範囲のヒント
+      + トークン数・コンテキストの把握
+      └── 人間・AIチャット・コーディングエージェントのための、ひとつのプロジェクトの地図
 ```
 
-`dirlens` は `tree` を置き換える用途にも使えますが、単に tree の機能を増やすことが目的ではありません。また、深い意味検索・LSP・symbol graph・knowledge graph を提供する codeintelligence 製品の代替を目指すものでもありません。filesystem だけを見る tree と、コードの意味を深く追う仕組みの間で、**今どこに何があり、次にどこを読めばよいか**を人間にも機械にも読みやすく示します。
+`dirlens` は `tree` を置き換える用途にも使えますが、単に `tree` の機能を増やすものではありません。また、深い意味検索・LSP・シンボルグラフ・ナレッジグラフを提供するコードインテリジェンス製品の代替を目指すものでもありません。ファイルシステムだけを見る `tree` と、コードの意味を深く追う仕組みの間で、**今どこに何があり、次にどこを読めばよいか**を人間にも機械にも読みやすく示します。
 
 **単一バイナリ（Rust 製）・ランタイム依存ゼロ**で、主要な `tree` フラグとの互換性も備えています。
 
@@ -114,6 +114,10 @@ dirlens --mcp-setup
 
 ### 基本のツリー表示
 
+```bash
+dirlens --lang ja
+```
+
 ```text
 Desktop/ (2 dirs, 2 files, 3.74 MB)
 ├── EmptyDir/ (0 dirs, 0 files, 0 bytes)
@@ -127,11 +131,11 @@ Desktop/ (2 dirs, 2 files, 3.74 MB)
 ├── archive.zip (3 MB)
 └── readme.txt (50 KB)
 
-  Total  5 directories,  5 files
-  .py ×2  .txt ×1  .zip ×1  .png ×1
+  合計  5 ディレクトリ,  5 ファイル
+  .py ×2  .png ×1  .zip ×1  .txt ×1
 ```
 
-（出力はデフォルトで英語です。`--lang ja`、設定ファイル（`~/.config/dirlens/config.toml` に `lang = "ja"`）、環境変数 `DIRLENS_LANG=ja` のいずれかを設定すると「合計 5 ディレクトリ, 5 ファイル」のような日本語表示になります）
+（出力はデフォルトで英語です。上の例のように `--lang ja` を付けるか、設定ファイルで `lang = "ja"`、または環境変数 `DIRLENS_LANG=ja` を設定しても同じ日本語表示になります）
 
 ### `--ai` — AI チャット貼り付けモード
 
