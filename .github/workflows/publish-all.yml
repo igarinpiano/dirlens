@@ -338,3 +338,12 @@ jobs:
           else
             cargo publish -p dirlens
           fi
+      # cargo publish のローカル検証ビルドが残す target/package/<crate>-<version>/ を
+      # Swatinem/rust-cache の post-job クリーンアップが tests/target・tests/trybuild
+      # 前提で opendir しようとして ENOENT エラー注釈を出す（本crateはtrybuild未使用で
+      # 両ディレクトリとも存在しない）。job失敗はしないが誤検知なので、そのpost-hookが
+      # 走る前に該当ディレクトリごと消しておく。
+      - name: cargo publish が残した target/package を掃除する
+        if: always()
+        working-directory: rust
+        run: rm -rf target/package
