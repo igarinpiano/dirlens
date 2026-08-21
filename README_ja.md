@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-**`dirlens` は、ファイル構成とコードの情報を整理し、AIがプロジェクト全体を把握するための「プロジェクトの地図」を提供します。**
+**`dirlens` は、ファイル構成・軽量なコード解析・AI向けの文脈を結びつける「プロジェクトの地図」です。**
 
 `tree` のようにディレクトリ構造を入口にしながら、その同じ地図にサイズ・更新日時・`git`・トークン数・`TODO`・テストの手掛かり・エントリーポイント・シンボルのアウトライン・ローカル `import` 関係・設定ファイルを重ねます。人間がプロジェクトを見渡すときも、AIチャットへ文脈を渡すときも、coding agent が探索を始めるときも、同じ地図を使えるようにするための CLI です。
 
@@ -79,6 +79,7 @@ cd dirlens/rust && cargo build --release
 
 | 使い方 | 受け取る相手 | 何をするか |
 | --- | --- | --- |
+| 通常の CLI | 人間 | インタラクティブに閲覧する、または `tree` の代替として使う |
 | `dirlens --ai` | 人間が使う通常の AI チャット | `.gitignore` を反映した日時付きの Markdown をクリップボードへコピー。Finder のスクリーンショットや素の tree より、構造化されたプロジェクトの文脈を渡せます。 |
 | `dirlens --agent` | Claude Code / Codex / Cursor などの coding agent | 色やクリップボードの副作用を省き、構造・規模・重要そうな場所・依存関係をまとめた探索用レポートを出力します。agent そのものではなく、読む前の reconnaissance layer です。 |
 | `dirlens --mcp` | MCP 対応の coding agent | 同じ解析を `analyze`、`outline`、`focus`、`since` などの問い合わせとして公開。必要な情報だけをセッション中に取り直せます。 |
@@ -359,7 +360,29 @@ dirlens --no-color > dirlens.txt   # テキストファイルに書き出す
 
 ---
 
+## 大きなリポジトリでの出力予算
+
+チャットや agent に大きな project map を渡す前に、まず見積もる:
+
+```bash
+dirlens --agent --estimate
+```
+
+そのうえで、出力の上限（トークン予算）を決める:
+
+```bash
+dirlens --agent --budget 3000
+```
+
+`dirlens` は深さ→解析注釈→ツリー行の順に削って予算内に収める。省略した件数と実測トークン数を報告するので、予算を上げる価値があるかどうかをそこで判断できる。
+
+`-L`（深さ制限）はツリー表示だけを浅くする。プロジェクト全体の解析集計は常にフルスキャンを反映する。ディレクトリサイズは常にディスク上の生サイズで、ツリーの各エントリと違い gitignore 除外の対象外 — サイズに gitignore 対象が含まれているからといって、それが解析対象になったとは限らない。
+
+---
+
 ## オプション一覧
+
+`dirlens --help` を実行すると、そのバージョンでの正確なオプション一覧を確認できます。
 
 | オプション | 省略形 | 説明 |
 | --------------------- | -------------- | ------------------------------------------------------------- |
@@ -531,6 +554,7 @@ tests/golden/              # ゴールデンテスト（スナップショット
 
 ```bash
 cd rust && cargo build --release && cargo test --workspace
+cargo run -- --agent -L 2   # デバッグビルドで動作確認
 python3 tests/golden/run.py verify --bin rust/target/release/dirlens   # スナップショット照合
 python3 tests/golden/tier_check.py --bin rust/target/release/dirlens   # gitignore 2層の検証
 python3 tests/golden/ast_check.py  --bin rust/target/release/dirlens   # AST 2段の検証
