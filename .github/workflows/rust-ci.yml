@@ -134,11 +134,14 @@ jobs:
           "$BIN" -T --json "$TMPROOT/proj" > /tmp/run1.json
           test -d "$CACHE_DIR" || { echo "cache dir not created after -T run"; exit 1; }
           CACHE_FILE=$(ls "$CACHE_DIR"/tokens-*.json)
+          # パスは埋め込まず python の別引数として渡す。Windows の Git Bash は
+          # 「引数まるごとがパスに見える」場合だけネイティブ exe 向けに変換するため、
+          # 文字列の中に埋め込むと変換されず native な python.exe が解決できなくなる。
           python3 -c "
-          import json
-          d = json.load(open('$CACHE_FILE'))
+          import json, sys
+          d = json.load(open(sys.argv[1]))
           assert len(d) > 0, 'cache file has no entries'
-          "
+          " "$CACHE_FILE"
 
           # キャッシュヒットする2回目の実行、および --no-cache の実行は1回目とバイト一致する
           # （キャッシュの有無が結果を変えない）
@@ -149,10 +152,10 @@ jobs:
 
           # ファイル内容を変える（サイズが変わりキャッシュキーも変わる）と、古いトークン数を
           # 使い続けず再計算される
-          TOK1=$(python3 -c "import json; print(json.load(open('/tmp/run1.json'))['children'][0]['tokens'])")
+          TOK1=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['children'][0]['tokens'])" /tmp/run1.json)
           echo "hello world hello world hello world hello world" > "$TMPROOT/proj/f.txt"
           "$BIN" -T --json "$TMPROOT/proj" > /tmp/run4.json
-          TOK2=$(python3 -c "import json; print(json.load(open('/tmp/run4.json'))['children'][0]['tokens'])")
+          TOK2=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['children'][0]['tokens'])" /tmp/run4.json)
           if [ "$TOK1" = "$TOK2" ]; then echo "stale cache: token count unchanged after file edit ($TOK1)"; exit 1; fi
 
           # --clear-cache は削除件数を報告し、実際にファイルを消す
