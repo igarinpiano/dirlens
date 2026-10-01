@@ -18,9 +18,11 @@
 #      ため、素の `cargo build --target` では対象アーキ用の C クロスコンパイラが無く
 #      失敗する。cross はこれを Docker イメージ側で解決する。
 #
-# npm パッケージ化されるのはこのうち Node.js が公式バイナリを配っている
-# os/cpu の組み合わせのみ（rust/npm/assemble.py 参照）。armv7 / i686 / riscv64gc は
-# GitHub Releases の生バイナリとしてのみ配布される（対応する Node.js ビルドが無いため）。
+# npm パッケージ化されるのはこのうち rust/npm/assemble.py の TARGETS にある
+# os/cpu の組み合わせのみ。armv7 / i686（Linux・Windows）/ riscv64gc は GitHub Releases の
+# 生バイナリとしてのみ配布する（設計判断）。i686 Linux と riscv64 は Node.js の公式ビルドが
+# 無い。armv7 と 32bit Windows は Node 22 LTS までは公式ビルドがあるが、それぞれ
+# Node 24 / Node 23 で廃止され今後のサポートが見込めないため npm では配らない。
 name: build-matrix
 
 on:
@@ -43,12 +45,6 @@ jobs:
             os: macos-26-intel   # Intel Mac 対応の最終 macOS。以降の macos-latest が
                                  # x86_64 クロスコンパイルに対応する保証が無いため固定
             cross: false
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            cross: false
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-26.04-arm
-            cross: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             cross: false
@@ -58,7 +54,19 @@ jobs:
           - target: i686-pc-windows-msvc
             os: windows-latest   # MSVC は既定で x86 クロスツールを含むため同一 host で足りる
             cross: false
-          # ── cross（Docker）経由の Linux 他アーキテクチャ ─────────
+          # ── cross（Docker）経由の Linux ──────────────────────────
+          # glibc 版の x86_64 / aarch64 も cross でビルドする。glibc 版バイナリは
+          # ビルドしたホストの glibc のシンボルバージョンを要求するため、ネイティブの
+          # ubuntu-latest（24.04 = glibc 2.39）や ubuntu-26.04-arm でビルドすると
+          # Ubuntu 22.04 / Debian 12 / RHEL 9 等で起動できなくなる（v1.2.20〜v1.2.22 で
+          # 実際に GLIBC_2.39 要求に退行した）。cross のイメージは古い glibc で
+          # リンクするため互換範囲が広い。下限は後段の "Check glibc floor" で検査する。
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             cross: true
@@ -105,6 +113,21 @@ jobs:
         if: matrix.cross
         working-directory: rust
         run: cross build --release -p dirlens --target ${{ matrix.target }}
+      - name: Check glibc floor
+        # glibc 版 Linux バイナリが要求する GLIBC シンボルバージョンの最大値が
+        # MAX_GLIBC 以下であることを配布前に検査する（RHEL 8 / Debian 10 = 2.28 を
+        # 下限としてサポート）。readelf はアーキテクチャ非依存で ELF を読める。
+        if: contains(matrix.target, '-linux-gnu')
+        env:
+          MAX_GLIBC: "2.28"
+        run: |
+          bin="rust/target/${{ matrix.target }}/release/dirlens"
+          need="$(readelf -V --wide "$bin" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -1)"
+          echo "max GLIBC required by ${{ matrix.target }}: ${need:-none}"
+          if [ -n "$need" ] && [ "$(printf '%s\n%s\n' "$need" "$MAX_GLIBC" | sort -V | tail -1)" != "$MAX_GLIBC" ]; then
+            echo "::error::${{ matrix.target }} requires GLIBC_$need (> $MAX_GLIBC). Build it on an older glibc (cross image) instead of a native runner."
+            exit 1
+          fi
       - name: Collect
         run: |
           mkdir -p out/${{ matrix.target }}

@@ -33,10 +33,16 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-26-intel   # Intel Mac 対応の最終 macOS。以降の macos-latest が
                                  # x86_64 クロスコンパイルに対応する保証が無いため固定
+          # Linux（glibc）は zig 経由で manylinux_2_28（glibc 2.28）向けにリンクする。
+          # ネイティブの ubuntu-latest / ubuntu-26.04-arm で素直にビルドすると、ホストの
+          # 新しい glibc（2.39 等）を要求する wheel になり古いディストリビューションで
+          # 動かない。maturin の manylinux 準拠チェックが要求 glibc の上限も検査する。
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            linux_args: --zig --compatibility manylinux_2_28
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-26.04-arm
+            os: ubuntu-latest
+            linux_args: --zig --compatibility manylinux_2_28
           - target: x86_64-pc-windows-msvc
             os: windows-latest
     runs-on: ${{ matrix.os }}
@@ -67,10 +73,10 @@ jobs:
             exit 1
           fi
       - name: Install maturin
-        run: pip install "maturin>=1,<2"
+        run: pip install "maturin[zig]>=1,<2"
       - name: Build wheel
         working-directory: rust
-        run: maturin build --release --target ${{ matrix.target }} --out ../dist
+        run: maturin build --release --target ${{ matrix.target }} --out ../dist ${{ matrix.linux_args }}
       - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.target }}
