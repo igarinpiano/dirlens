@@ -15,13 +15,15 @@ use crate::provider::FsProvider;
 use crate::session::Session;
 
 /// フィルタ適用済みの全ファイル（rel, size）と全ディレクトリ（rel, size）を収集する。
+/// `dirs` が None ならディレクトリサイズ（du 相当の全サブツリー走査）を計算しない
+/// （--dupes / --compare はファイル単位の情報しか使わない）。
 pub fn collect_files<F: FsProvider>(
     sess: &Session<F>,
     path: &Path,
     cfg: &Cfg,
     active_pats: &Arc<Vec<String>>,
     files: &mut Vec<(String, u64)>,
-    dirs: &mut Vec<(String, u64)>,
+    mut dirs: Option<&mut Vec<(String, u64)>>,
 ) {
     let cur_pats = extend_pats(sess, active_pats, path, cfg);
     let Some((sub_dirs, sub_files)) = filter_entries(sess, path, cfg, &cur_pats) else {
@@ -32,9 +34,11 @@ pub fn collect_files<F: FsProvider>(
         files.push((relpath_slash(&f.path, &cfg.root), sz));
     }
     for d in sub_dirs {
-        let (sz, _) = sess.dir_size(&d.path);
-        dirs.push((relpath_slash(&d.path, &cfg.root), sz));
-        collect_files(sess, &d.path, cfg, &cur_pats, files, dirs);
+        if let Some(dirs) = dirs.as_deref_mut() {
+            let (sz, _) = sess.dir_size(&d.path);
+            dirs.push((relpath_slash(&d.path, &cfg.root), sz));
+        }
+        collect_files(sess, &d.path, cfg, &cur_pats, files, dirs.as_deref_mut());
     }
 }
 
@@ -47,7 +51,7 @@ pub fn render_top<F: FsProvider>(
 ) -> String {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
-    collect_files(sess, &cfg.root, cfg, active_pats, &mut files, &mut dirs);
+    collect_files(sess, &cfg.root, cfg, active_pats, &mut files, Some(&mut dirs));
     files.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     dirs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
@@ -106,8 +110,7 @@ pub fn render_dupes<F: FsProvider>(
     active_pats: &Arc<Vec<String>>,
 ) -> String {
     let mut files = Vec::new();
-    let mut dirs = Vec::new();
-    collect_files(sess, &cfg.root, cfg, active_pats, &mut files, &mut dirs);
+    collect_files(sess, &cfg.root, cfg, active_pats, &mut files, None);
 
     // サイズでグループ化（0 バイトは除外・巨大ファイルはスキップ）
     let mut by_size: HashMap<u64, Vec<String>> = HashMap::new();
@@ -192,13 +195,18 @@ pub fn render_compare<F: FsProvider>(
     let root_a = cfg.root.clone();
 
     let mut files_a = Vec::new();
-    let mut dirs_a = Vec::new();
-    collect_files(sess, &root_a, cfg, active_pats, &mut files_a, &mut dirs_a);
+    collect_files(sess, &root_a, cfg, active_pats, &mut files_a, None);
 
+    // B 側は B 自身のルート .gitignore を起点にする（A の active_pats を流用すると
+    // extend_pats がルートで早期 return するため B 直下の .gitignore が読まれない）
     cfg.root = other_root.to_path_buf();
+    let pats_b: Arc<Vec<String>> = if cfg.use_gitignore {
+        sess.load_gitignore(other_root)
+    } else {
+        Arc::new(Vec::new())
+    };
     let mut files_b = Vec::new();
-    let mut dirs_b = Vec::new();
-    collect_files(sess, other_root, cfg, active_pats, &mut files_b, &mut dirs_b);
+    collect_files(sess, other_root, cfg, &pats_b, &mut files_b, None);
     cfg.root = root_a.clone();
 
     let map_a: HashMap<String, u64> = files_a.into_iter().collect();

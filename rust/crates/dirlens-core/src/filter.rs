@@ -169,8 +169,20 @@ pub fn has_content<F: FsProvider>(
     }
 }
 
+/// 時刻キー。NaN（壊れた/ネットワーク FS の異常な時刻）は stat 失敗と同じ 0.0 に
+/// 寄せる。NaN が混じると partial_cmp が None を返して比較が全順序でなくなり、
+/// 並び順が入力順に依存して非決定的になる（Rust 1.81+ の sort は全順序違反で
+/// panic しうる）。
 fn stat_f64<F: FsProvider>(sess: &Session<F>, e: &Entry, pick: fn(&crate::provider::StatInfo) -> f64) -> f64 {
-    sess.fs.stat(&e.path, true).map(|st| pick(&st)).unwrap_or(0.0)
+    sanitize_time_key(sess.fs.stat(&e.path, true).map(|st| pick(&st)).unwrap_or(0.0))
+}
+
+fn sanitize_time_key(t: f64) -> f64 {
+    if t.is_nan() {
+        0.0
+    } else {
+        t
+    }
 }
 
 fn stat_size<F: FsProvider>(sess: &Session<F>, e: &Entry) -> u64 {
@@ -221,5 +233,23 @@ pub fn sort_entries<F: FsProvider>(
         stable_sort_by_key(dirs, dk, rev);
         let fk: Vec<String> = files.iter().map(|e| py_casefold(&e.name)).collect();
         stable_sort_by_key(files, fk, rev);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nan_time_keys_sort_deterministically() {
+        // NaN を含むキーでも、入力順に依らず同じ結果になる（NaN は 0.0 扱い）
+        let raw = [3.0, f64::NAN, 1.0, f64::NAN, 2.0];
+        let keys: Vec<f64> = raw.iter().map(|t| sanitize_time_key(*t)).collect();
+        let mut v: Vec<usize> = (0..raw.len()).collect();
+        stable_sort_by_key(&mut v, keys.clone(), true);
+        assert_eq!(v, vec![0, 4, 2, 1, 3]);
+        let mut w: Vec<usize> = (0..raw.len()).collect();
+        stable_sort_by_key(&mut w, keys, false);
+        assert_eq!(w, vec![1, 3, 2, 4, 0]);
     }
 }

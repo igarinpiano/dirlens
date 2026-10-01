@@ -587,10 +587,10 @@ pub fn execute<F: FsProvider + Sync>(
 
     // --budget N: 出力トークンが予算内に収まるまで深さ→アウトラインの順で削る。
     // 自前の BPE でレンダリング結果そのものを測れるのが dirlens の強み。
-    // 末尾に付く "(fitted to --budget ...)" 注記は tree/stdout 上では見せるが、
-    // -C / --ai でクリップボードへ送る内容には含めない（ツール自身の調整ログで
-    // あってツリーの内容物ではないため。コピー時に末尾から取り除くので記録しておく）。
-    let mut budget_note_plain: Option<String> = None;
+    // 末尾の "(fitted to --budget ...)" 注記は stdout と -C / --ai のクリップボード
+    // の両方に残す。深さの削減だけで収まった場合は省略マーカーが出ないため、
+    // この注記が「ツリーが切り詰められている」ことを伝える唯一の手掛かりになる
+    // （貼り付け先の AI が浅いプロジェクトと誤認しないように）。
     if let Some(budget) = cfg.budget {
         let measure = |s: &str| {
             crate::analysis::text_metrics::count_tokens(s, s.len(), None, false, cfg.tokens_bpe)
@@ -678,7 +678,8 @@ pub fn execute<F: FsProvider + Sync>(
             }
             // 見積もりで削りすぎた分を、予算に収まる範囲で1行ずつ戻す
             let mut back_steps = 0;
-            while omitted > 0 && back_steps < 64 {
+            // （tree.len() < all_tree.len() は omitted > 0 と同値だが、添字の安全性を明示する）
+            while omitted > 0 && tree.len() < all_tree.len() && back_steps < 64 {
                 let candidate = format!(
                     "{}\n{}\n{}\n{}",
                     tree.join("\n"),
@@ -700,6 +701,12 @@ pub fn execute<F: FsProvider + Sync>(
                     omitted_marker(omitted),
                     tail_str
                 );
+                used = measure(&text);
+            } else if tree.len() == all_tree.len() {
+                // 1行も間引けなかった（ルート行だけのツリー）か、全行を戻せた場合。
+                // 本文は元のままなので「この階層を全て表示するには」の案内は出さない
+                // （既に全て表示しているため矛盾する）
+                level_full_cost = None;
                 used = measure(&text);
             }
         }
@@ -728,7 +735,6 @@ pub fn execute<F: FsProvider + Sync>(
             ),
         };
         text.push_str(&format!("{}\n", c(&note_plain, &[DIM], cfg.use_color)));
-        budget_note_plain = Some(note_plain);
     }
 
     let mut result = RunResult {
@@ -762,16 +768,7 @@ pub fn execute<F: FsProvider + Sync>(
     }
 
     if cfg.copy {
-        let mut to_copy = strip_ansi(&result.stdout);
-        // "(fitted to --budget ...)" はツリー本体ではなく調整ログなので、
-        // stdout/表示には残すがクリップボードには含めない
-        if let Some(note) = &budget_note_plain {
-            let suffix = format!("{}\n", note);
-            if let Some(stripped) = to_copy.strip_suffix(suffix.as_str()) {
-                to_copy = stripped.to_string();
-            }
-        }
-        let ok = clip.copy(&to_copy);
+        let ok = clip.copy(&strip_ansi(&result.stdout));
         let msg = if ok {
             c(cfg.lang.t().copy_ok, &[BOLD, GREEN], cfg.use_color)
         } else {

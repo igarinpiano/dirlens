@@ -36,8 +36,10 @@ pub(crate) fn worker_cap(cfg: &Cfg) -> usize {
 }
 
 /// レンダリング（および -L 切り詰め時の全階層集計）で参照されるファイルを列挙する。
-/// symlink ディレクトリは循環回避のため辿らない（辿った先のファイルはキャッシュ
-/// ミスで直列計算に落ちるだけで、結果は変わらない）。
+/// -l（follow_syms）時は render_node / collect_deep_stats と同じ規則で symlink
+/// ディレクトリも辿り、祖先の実パス集合で循環を打ち切る（レンダリングと同じ
+/// ファイル集合をウォームするため）。
+#[allow(clippy::too_many_arguments)]
 fn collect_files<F: FsProvider>(
     sess: &Session<F>,
     path: &Path,
@@ -45,6 +47,7 @@ fn collect_files<F: FsProvider>(
     active_pats: &Arc<Vec<String>>,
     depth: i64,
     visit_limit: Option<i64>,
+    seen: &mut Vec<PathBuf>,
     out: &mut Vec<(Entry, String)>,
 ) {
     if let Some(md) = visit_limit {
@@ -52,6 +55,30 @@ fn collect_files<F: FsProvider>(
             return;
         }
     }
+    if cfg.follow_syms {
+        let real = sess.fs.real_path(path);
+        if seen.contains(&real) {
+            return;
+        }
+        seen.push(real);
+    }
+    collect_files_inner(sess, path, cfg, active_pats, depth, visit_limit, seen, out);
+    if cfg.follow_syms {
+        seen.pop();
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_files_inner<F: FsProvider>(
+    sess: &Session<F>,
+    path: &Path,
+    cfg: &Cfg,
+    active_pats: &Arc<Vec<String>>,
+    depth: i64,
+    visit_limit: Option<i64>,
+    seen: &mut Vec<PathBuf>,
+    out: &mut Vec<(Entry, String)>,
+) {
     let cur_pats = extend_pats(sess, active_pats, path, cfg);
     let Some((dirs, files)) = filter_entries(sess, path, cfg, &cur_pats) else {
         return;
@@ -61,8 +88,9 @@ fn collect_files<F: FsProvider>(
         out.push((f, rel));
     }
     for d in dirs {
-        if d.is_dir_nofollow {
-            collect_files(sess, &d.path, cfg, &cur_pats, depth + 1, visit_limit, out);
+        let is_dir_entry = d.is_dir_nofollow || (cfg.follow_syms && d.is_symlink && d.is_dir_follow);
+        if is_dir_entry {
+            collect_files(sess, &d.path, cfg, &cur_pats, depth + 1, visit_limit, seen, out);
         }
     }
 }
@@ -99,7 +127,8 @@ pub fn warm_extras_parallel<F: FsProvider + Sync>(
     };
 
     let mut targets: Vec<(Entry, String)> = Vec::new();
-    collect_files(sess, &cfg.root, cfg, active_pats, 0, visit_limit, &mut targets);
+    let mut seen: Vec<PathBuf> = Vec::new();
+    collect_files(sess, &cfg.root, cfg, active_pats, 0, visit_limit, &mut seen, &mut targets);
     if targets.len() < 2 {
         return;
     }
@@ -200,7 +229,28 @@ fn scan_frontier_parallel<F: FsProvider + Sync>(
     out.into_inner().unwrap()
 }
 
+/// このモードの出力がディレクトリサイズ（du 相当の全サブツリー走査）を参照するか。
+/// --check / 単一ファイル系（stdin / focus / pack）/ 図・CSV 出力 / api_diff /
+/// --dupes / --compare はディレクトリサイズを一切表示しないため、全ツリーの stat
+/// 走査をプリウォームすると（ホームディレクトリ等で）無駄に何十秒もかかる。
+pub fn dir_sizes_needed(cfg: &Cfg) -> bool {
+    !cfg.check
+        && cfg.stdin_files.is_none()
+        && cfg.focus.is_none()
+        && cfg.pack.is_empty()
+        && !cfg.export_mermaid
+        && !cfg.export_dot
+        && !cfg.export_csv
+        && cfg.api_diff.is_none()
+        && !cfg.dupes
+        && cfg.compare.is_none()
+}
+
 /// ルート配下の全ディレクトリサイズを並列で先に計算し、sz_cache を埋める。
+/// ディレクトリサイズは -G の影響を受けない生ディスクサイズ（du 相当・仕様）なので、
+/// gitignore 済みのサブツリー（node_modules/ 等）も枝刈りできない — 表示される
+/// 祖先（少なくともルート）の合計に含まれるため、ここで省いても直列の dir_size が
+/// 同じ走査をやり直すだけになる。走査そのものが不要なモードは dir_sizes_needed で弾く。
 /// 単一コアでは何もしない（レンダリング中の直列 dir_size に任せる）。
 pub fn warm_dir_sizes_parallel<F: FsProvider + Sync>(sess: &Session<F>, root: &Path, cfg: &Cfg) {
     let cores = std::thread::available_parallelism()

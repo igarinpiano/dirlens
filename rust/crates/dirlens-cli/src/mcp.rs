@@ -136,6 +136,15 @@ fn run_dirlens(mut a: Args) -> RunResult {
     res
 }
 
+/// estimate が失敗したときに添えるホスト応答上限の注記（見積もり表の文言と揃える）。
+fn estimate_cap_note(cap: i64) -> String {
+    format!(
+        "note: host response cap is ~{} tokens — when retrying, pass a budget below the cap (e.g. {}).\n",
+        cap,
+        (cap - 5000).max(cap * 4 / 5)
+    )
+}
+
 /// ツール実行。成功時は (テキスト, is_error=false)。
 fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
     let path = args_val
@@ -336,12 +345,20 @@ fn run_tool(name: &str, args_val: &Map<String, Value>) -> (String, bool) {
         _ => false,
     };
 
+    let estimate_cap = a.estimate_cap;
     let res = run_dirlens(a);
     if res.exit_code != 0 {
-        (
-            if res.stderr.is_empty() { res.stdout } else { res.stderr },
-            true,
-        )
+        let mut msg = if res.stderr.is_empty() { res.stdout } else { res.stderr };
+        // estimate 要求が見積もり表に届く前（パス解決・引数検証）で失敗した場合も、
+        // ホスト応答上限は伝える。表が出ないと上限を知らないまま無制限で再試行し、
+        // 応答上限超過で失敗し続けるため
+        if let Some(cap) = estimate_cap {
+            if !msg.ends_with('\n') {
+                msg.push('\n');
+            }
+            msg.push_str(&estimate_cap_note(cap));
+        }
+        (msg, true)
     } else if flatten {
         match serde_json::from_str::<Value>(&res.stdout) {
             Ok(root) => {
@@ -694,5 +711,17 @@ mod tests {
             file_with_outline.is_some(),
             "expected at least one file child with an 'outline' annotation"
         );
+    }
+
+    /// estimate が見積もり表に届く前に失敗しても（例: 存在しないパス）、エラー応答に
+    /// ホスト応答上限が含まれる。
+    #[test]
+    fn analyze_estimate_error_still_reports_host_cap() {
+        let mut args_val = Map::new();
+        args_val.insert("path".into(), json!("/definitely/not/a/real/dirlens/path"));
+        args_val.insert("estimate".into(), json!(true));
+        let (text, is_error) = run_tool("analyze", &args_val);
+        assert!(is_error, "expected an error for a missing path: {text}");
+        assert!(text.contains("host response cap"), "cap note missing: {text}");
     }
 }

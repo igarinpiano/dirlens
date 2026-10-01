@@ -263,4 +263,57 @@ mod tests {
         assert!(out_ja.contains("合計"));
         assert!(out_ja.contains("解析方式:"));
     }
+
+    /// --budget の調整注記は stdout だけでなく -C / --ai のクリップボードにも残る
+    /// （深さの削減だけで収まった場合、切り詰めを伝える手掛かりはこの注記だけ）。
+    /// 極小予算でもルート行・省略マーカー・注記が揃い、stdout と一致する。
+    #[test]
+    fn budget_note_is_kept_in_clipboard_copy() {
+        use super::{MemFs, ROOT};
+        use dirlens_core::provider::{ClipboardProvider, NoGit};
+        use dirlens_core::{run, Args};
+        use std::cell::RefCell;
+
+        struct Capture(RefCell<Option<String>>);
+        impl ClipboardProvider for Capture {
+            fn copy(&self, text: &str) -> bool {
+                *self.0.borrow_mut() = Some(text.to_string());
+                true
+            }
+        }
+
+        let mut files = String::new();
+        for i in 0..40 {
+            if i > 0 {
+                files.push(',');
+            }
+            files.push_str(&format!(
+                r#"{{"path": "d{}/sub/f{}.py", "content": "def f():\n    return {}\n", "mtime": 1740000000.0}}"#,
+                i % 5, i, i
+            ));
+        }
+        let manifest: super::Manifest = serde_json::from_str(&format!(
+            r#"{{"now": 1750000000.0, "files": [{}]}}"#,
+            files
+        ))
+        .unwrap();
+        let fs = MemFs::from_manifest(&manifest);
+
+        for budget in [300i64, 1] {
+            let args = Args {
+                path: ROOT.to_string(),
+                copy: true,
+                budget: Some(budget),
+                no_color: true,
+                ..Default::default()
+            };
+            let clip = Capture(RefCell::new(None));
+            let res = run(args, &fs, &NoGit, &clip, false);
+            assert_eq!(res.exit_code, 0, "{}", res.stderr);
+            assert!(res.stdout.contains("fitted to --budget"), "{}", res.stdout);
+            let copied = clip.0.borrow().clone().expect("clipboard must be written");
+            assert_eq!(copied, res.stdout, "clipboard must match stdout (budget {})", budget);
+            assert!(copied.starts_with("project/"), "root line must survive: {}", copied);
+        }
+    }
 }

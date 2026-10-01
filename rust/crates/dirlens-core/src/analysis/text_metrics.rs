@@ -37,32 +37,49 @@ fn bpe_encoder() -> Option<&'static tiktoken_rs::CoreBPE> {
 /// fancy-regex 自身が検知して安全に `Err` を返している値なので、catch_unwind で
 /// 捕まえれば通常の panic として回収できる（実測: 空白の無い2MB超の1トークンで
 /// 確実に再現する — 改行の無い巨大な1行や連続したbase64/バイナリ様データ等）。
-/// 捕まえた場合は Tier2 ヒューリスティックへ縮退する。デフォルトの panic hook が
-/// 出す "thread panicked at ..." はこの既知ケースでは煩わしいだけなのでこの1件に
-/// 限って抑制する（他の panic は通常どおり出力する）。
+/// 捕まえた場合は Tier2 ヒューリスティックへ縮退する。
+///
+/// panic hook はライブラリからは置き換えない（プロセス全体のグローバル状態で、
+/// 埋め込み先や他クレートのフックと競合するため）。この既知ケースのデフォルト
+/// 出力（"thread panicked at ..."）を黙らせたいバイナリは、起動時に
+/// `install_quiet_bpe_panic_hook()` を明示的に呼ぶ（dirlens CLI はそうしている）。
 #[cfg(feature = "tokens-bpe")]
 fn bpe_encode_len(enc: &tiktoken_rs::CoreBPE, text: &str) -> Option<usize> {
-    use std::cell::Cell;
     use std::panic::{self, AssertUnwindSafe};
-    use std::sync::Once;
 
-    thread_local! {
-        static SUPPRESS: Cell<bool> = const { Cell::new(false) };
-    }
+    BPE_PANIC_EXPECTED.with(|c| c.set(true));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| enc.encode_ordinary(text)));
+    BPE_PANIC_EXPECTED.with(|c| c.set(false));
+    result.ok().map(|v| v.len())
+}
+
+thread_local! {
+    /// このスレッドが BPE 計数中（＝起きうる panic が既知の回収対象）か。
+    static BPE_PANIC_EXPECTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 現在のスレッドで起きている panic が、BPE 計数中の既知ケース（catch_unwind で
+/// 回収して Tier2 へ縮退する）かどうか。独自の panic hook を持つ埋め込み側が
+/// 自前で出力を抑制したい場合に使う。
+pub fn in_expected_bpe_panic() -> bool {
+    BPE_PANIC_EXPECTED.with(|c| c.get())
+}
+
+/// 既存の panic hook を包み、BPE 計数中の既知 panic の出力だけを抑制するフックを
+/// 入れる（それ以外の panic は元のフックへ渡す）。グローバル状態を変えるため、
+/// プロセスの持ち主であるバイナリが起動時に一度だけ明示的に呼ぶこと。
+pub fn install_quiet_bpe_panic_hook() {
+    use std::panic;
+    use std::sync::Once;
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
-        let default_hook = panic::take_hook();
+        let prev = panic::take_hook();
         panic::set_hook(Box::new(move |info| {
-            if !SUPPRESS.with(Cell::get) {
-                default_hook(info);
+            if !in_expected_bpe_panic() {
+                prev(info);
             }
         }));
     });
-
-    SUPPRESS.with(|c| c.set(true));
-    let result = panic::catch_unwind(AssertUnwindSafe(|| enc.encode_ordinary(text)));
-    SUPPRESS.with(|c| c.set(false));
-    result.ok().map(|v| v.len())
 }
 
 /// このビルドで BPE 計数が使えるか（--check / capabilities 用）。

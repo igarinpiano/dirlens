@@ -122,7 +122,10 @@ pub fn extend_pats<F: FsProvider>(
     for pat in local.iter() {
         let neg = pat.starts_with('!');
         let p = pat.trim_start_matches('!');
-        if p.starts_with('/') {
+        // rel_dir が "." になるのは path がルートと字句的に異なるが同一ディレクトリ
+        // を指す場合（"root/." 等）だけ。その場合アンカー付きパターンはルート相対の
+        // まま使う（"/./foo" にすると is_ignored のマッチが一切効かなくなる）
+        if p.starts_with('/') && rel_dir != "." {
             out.push(format!("{}/{}{}", if neg { "!" } else { "" }, rel_dir, p));
         } else {
             out.push(pat.clone());
