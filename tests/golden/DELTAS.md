@@ -291,6 +291,22 @@ Rust 版既定動作（`record --bin`）で意図的に更新している。こ�
 - 内容: 永続トークンキャッシュ（`~/.cache/dirlens/tokens-*.json`）を手動で
   全削除して終了するフラグ。dirlens.py に無い Rust 版独自機能。
 
+### 25. `--compare` の比較先 `.gitignore`・バイナリ拡張子の内容判定ほか（v1.2.23）
+- 対象ケース: なし（golden に `--compare` ケースは無く、バイナリ拡張子の
+  フィクスチャ `big.bin` / `image.png` は先頭に NUL を含むため判定が変わらない。
+  回帰テスト `dirlens-cli/tests/cli_regressions.rs`）
+- 内容:
+  - `--compare DIR -G`: 比較先 B 側にも B 自身のルート `.gitignore` を適用する。
+    dirlens.py（と v1.2.22 以前の Rust 版）は A の無視パターンを B の走査に
+    使い回すため、B 直下の `.gitignore` が一切読まれず、B 側で無視されるべき
+    ファイルが「Only in the second tree」に混入した。**`DIRLENS_COMPAT=python`
+    でも修正後の挙動**（Python 版の不具合を再現する意味が無いため）。
+  - バイナリ拡張子（`.png` 等）のファイルも先頭 8KB を嗅ぎ、NUL を含まない妥当な
+    UTF-8 ならテキストとしてトークン・TODO・アウトラインを取る（Python 版は拡張子
+    のみで判定）。`DIRLENS_COMPAT=python` では従来どおり拡張子のみ。
+  - `--ai` / `-C` + `--budget` のクリップボードに `(fitted to --budget …)` 注記を
+    残す（v1.2.21〜v1.2.22 は除去していた。stdout と同一内容に戻した）。
+
 ## 差分に該当しないもの（バイト一致を維持）
 
 - tree 互換フラグ全般・テキスト/JSON/HTML の構造・サマリ行

@@ -37,7 +37,9 @@ npm install -g dirlens
 
 ### バイナリ直接ダウンロード
 
-[GitHub Releases](https://github.com/igarinpiano/dirlens/releases) からお使いのプラットフォームのアーカイブを取得し、PATH の通った場所へ置くだけです。npm パッケージが無い armv7（32bit Linux arm）・i686（32bit x86 Linux/Windows）・riscv64gc 向けにも、ビルドできたターゲットについてはここに生バイナリを置いてあります（対応する Node.js の公式ビルドが無いため npm では配布していません）。
+[GitHub Releases](https://github.com/igarinpiano/dirlens/releases) からお使いのプラットフォームのアーカイブを取得し、PATH の通った場所へ置くだけです。npm パッケージが無い armv7（32bit Linux arm）・i686（32bit x86 Linux/Windows）・riscv64gc 向けにも、ビルドできたターゲットについてはここに生バイナリを置いてあります。これらを npm で配布していないのは、i686 Linux と riscv64 には Node.js の公式ビルドが無く、armv7 と 32bit Windows の公式ビルドも Node 22 LTS を最後に廃止されているためです。
+
+glibc 版の Linux バイナリ（`*-unknown-linux-gnu`）は古い glibc でリンクしており、glibc 2.28 以降（RHEL/Rocky 8+・Debian 10+・Ubuntu 20.04+ など）で動作します。それより古い環境や glibc の無い環境では `*-unknown-linux-musl`（静的リンク）版を使ってください。
 
 ```bash
 # 例: macOS (Apple Silicon)
@@ -232,7 +234,7 @@ Project/ (2 dirs, 2 files, 29.31 KB, 1 week ago)
 - **重複ファイル検出** — `--dupes` で同一内容のファイル群と無駄容量を検出
 - **ディレクトリ比較** — `--compare DIR` で2つのツリーの追加/削除/変更を表示
 - **設定ファイル** — `~/.config/dirlens/config.toml` とプロジェクトの `.dirlens.toml` で
-  デフォルトフラグや名前付きプリセット（`--preset`）を定義
+  デフォルトフラグを定義（名前付きプリセット `--preset` はグローバル設定のみ）
 - **シェル補完 / man** — `--completions <shell>` / `--man` で生成
 - **機密ファイル警告** — `--ai`/`-C` のコピー内容に `.env`・秘密鍵らしきファイルが
   含まれる場合に stderr へ警告
@@ -479,7 +481,7 @@ dirlens --agent --budget 3000
 | 機能 | 第1層（最良） | 縮退層 | 備考 |
 | --- | --- | --- | --- |
 | `.gitignore`（`-G`） | `git check-ignore`（本物の git エンジン。ネスト・`!` 否定・`**`・グローバル除外・`.git/info/exclude` 完全対応） | 内蔵マッチャ（基本パターンのみの近似） | git 不在・非リポジトリで縮退 |
-| トークン数（`-T`） | BPE（o200k_base）による正確値。データはバイナリに同梱。結果は `~/.cache/dirlens/` に永続キャッシュ | 文字数ベースの概算 | 読み込み上限（既定5MB、v1.2.17+ はホストのメモリ量に応じて15/30/50/80MBまで段階的に引き上がる。`DIRLENS_MAX_FILE_BYTES` で明示指定可）を超えるファイルは第1層でも比例概算（JSON では `tokens_estimated: true` が付く・v1.2.9+）。実際の上限値は `--check` の `capabilities.max_file_bytes` で確認可能。モデルによりトークナイザは異なるため、他社モデルでは目安。通常ファイル以外（FIFO・ソケット・デバイス）は読まずサイズ 0 扱い（v1.2.12+。v1.2.11 以前は FIFO を含むディレクトリで永久にブロックした） |
+| トークン数（`-T`） | BPE（o200k_base）による正確値。データはバイナリに同梱。結果は `~/.cache/dirlens/` に永続キャッシュ | 文字数ベースの概算 | 読み込み上限（既定5MB、v1.2.17+ はホストのメモリ量に応じて15/30/50/80MBまで段階的に引き上がる。`DIRLENS_MAX_FILE_BYTES` で明示指定可）を超えるファイルは第1層でも比例概算（JSON では `tokens_estimated: true` が付く・v1.2.9+）。実際の上限値は `--check` の `capabilities.max_file_bytes` で確認可能。モデルによりトークナイザは異なるため、他社モデルでは目安。通常ファイル以外（FIFO・ソケット・デバイス）は読まずサイズ 0 扱い（v1.2.12+。v1.2.11 以前は FIFO を含むディレクトリで永久にブロックした）。バイナリ拡張子（`.png`・`.zip` 等）のファイルも先頭 8KB を嗅ぎ、NUL を含まない妥当な UTF-8 ならテキストとして解析する（拡張子を偽装したテキストのトークン・TODO も拾う・v1.2.23+） |
 | アウトライン（`-O`/`-A`） | 言語別 AST パーサ（Python=rustpython / JS・TS=oxc / Rust=syn / Go・C・Java・Ruby・PHP・C#・Kotlin・Swift=tree-sitter）。HTML はインライン `<script>` 内の JS を抽出してアウトライン（v1.2.5+・`src` 付き外部スクリプトは対象外）。文字列内の偽検出なし。doc 1行目・行範囲も取得。Python の `public` 判定はスコープ対応（v1.2.9+）: 関数内のローカル定義とそのメンバは非公開、クラスメソッドはクラス自身が公開の場合のみ名前で判定。ネストしたシンボルには外側シンボル名が付く（JSON は `parent`、テキストは `def Class.method` / `fn Type::method` 表示・v1.2.10+）。JSON の `outline_method`（"ast"/"regex"）でどちらの層かを判別できる（v1.2.11+） | 正規表現による簡易抽出（Python/JS・TS/Go/Rust のみ。doc・行範囲なし・公開判定は名前のみ） | 構文エラーのあるファイルは自動で縮退層へ |
 | import グラフ（`-M`/`--focus`） | AST/構文抽出 + マニフェスト解決（tsconfig `paths`/`baseUrl`・package.json `imports`・go.mod・Rust モジュールツリー・Java/Kotlin FQCN・PHP `use`/`require`・Ruby `require_relative`）。Rust はネストした Cargo.toml をクレート境界として検出しクレート単位で解決＝モノレポ/ワークスペース対応（v1.2.7+）。`mod` 宣言のみのエッジは循環依存の検出から除外（v1.2.7+） | 正規表現 + 相対パス解決 | node_modules 等の外部パッケージ実体は対象外（external 扱い）。C#/Swift はローカル解決なし。tsconfig/package.json imports/go.mod はスキャンルートのもののみ読むため、ネストした JS/Go サブプロジェクトの `--focus` には注意書きが付く |
 | テスト欠落検知（`-V`） | 命名規則 + テストファイルからの推移的 import 追跡 + Rust インラインテスト検出 | 命名規則のみ | 実際のカバレッジは見ていない。判定対象は `.py/.js/.jsx/.ts/.tsx/.go`（＋AST有効時の `.rs`）のみで、対象外のファイルは `--json` で `has_test: null`（v1.2.5+）。Rust の `lib.rs`/`main.rs`/`mod.rs` は名前で判定対象から免除される（re-export・配線ファイルの定番名でノイズになるため。ロジック満載の lib.rs もフラグが立たない点に注意） |
@@ -498,7 +500,7 @@ dirlens --agent --budget 3000
 | `DIRLENS_AST=off` | AST 解析を無効化し正規表現層に固定 |
 | `DIRLENS_TOKENS=heuristic` | トークン計数を文字数概算に固定 |
 | `DIRLENS_MAX_WORKERS=N` | 並列解析のワーカースレッド数の上限（既定 64）。実効スレッド数は `min(N, 論理コア数, 対象ファイル数)`。64 コア超のマシンで上限を上げる、または CPU 制限付きコンテナ等で下げるのに使う（`1` で実質直列。出力は値に依らず不変） |
-| `DIRLENS_MAX_FILE_BYTES=N` | トークン計数・BPE正確値の対象にする1ファイルあたりの読み込み上限（バイト）を明示指定する。既定はホストの物理メモリ量に応じた自動判定（v1.2.17+。8GB未満は5MB、以降16/32/64GB刻みで15/30/50/80MB）。実際の値は `--check` の `capabilities.max_file_bytes` で確認可能 |
+| `DIRLENS_MAX_FILE_BYTES=N` | トークン計数・BPE正確値の対象にする1ファイルあたりの読み込み上限（バイト）を明示指定する。既定はホストの物理メモリ量に応じた自動判定（v1.2.17+。8GB未満は5MB、以降16/32/64GB刻みで15/30/50/80MB）。実際の値は `--check` の `capabilities.max_file_bytes` で確認可能。不正値（1 以上の整数でない）は警告を出したうえで自動判定にフォールバックする |
 | `DIRLENS_COMPAT=python` | 上記の縮退すべて＋日本語出力＋精度注記/`schema_version` 抑止＋トークン読み込み上限を固定5MBに固定（旧 Python 版とバイト一致になる検証用モード） |
 
 ### 設定ファイル
@@ -520,6 +522,8 @@ paste = ["--ai", "-L", "3"]
 対応キー: `lang` / `gitignore` / `all` / `date` / `emoji` / `markdown` / `no_color` /
 `bar` / `prune` / `filesfirst` / `follow` / `full_path` / `depth` / `min_size` /
 `max_size` / `exclude` / `include` / `[presets]`
+
+`[presets]` は**グローバル設定でのみ有効**です。プロジェクトの `.dirlens.toml` はスキャン対象のツリー内にあるため、そこに書いたプリセットは警告付きで無視されます（スキャン対象のディレクトリが自分の解析に `-C` などのフラグを注入できないようにするため）。
 
 ---
 
