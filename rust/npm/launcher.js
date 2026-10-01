@@ -54,31 +54,63 @@ function resolveFromPkg(pkg, exe) {
   }
 }
 
-function findBinary() {
-  const key = `${process.platform} ${process.arch}`;
+// Returns { path, pkg, muslFallback } for the binary to run, or { error }.
+// muslFallback is true when the host is musl but only the glibc build was
+// found (e.g. npm < 9 installed it, or the musl package was omitted). That
+// glibc binary usually can't start on musl (no glibc dynamic loader), and the
+// spawn then fails with a bare ENOENT, so the caller explains it instead.
+function findBinary({ platform = process.platform, arch = process.arch, musl = isMusl, resolve = resolveFromPkg } = {}) {
+  const key = `${platform} ${arch}`;
   const entry = PLATFORMS[key];
-  if (!entry) {
-    console.error(`dirlens: unsupported platform (${key})`);
-    process.exit(1);
-  }
-  const exe = process.platform === "win32" ? "dirlens.exe" : "dirlens";
-  const candidates = entry.muslPkg && isMusl() ? [entry.muslPkg, entry.pkg] : [entry.pkg];
+  if (!entry) return { error: `dirlens: unsupported platform (${key})` };
+  const exe = platform === "win32" ? "dirlens.exe" : "dirlens";
+  const onMusl = Boolean(entry.muslPkg) && musl();
+  const candidates = onMusl ? [entry.muslPkg, entry.pkg] : [entry.pkg];
   for (const pkg of candidates) {
-    const resolved = resolveFromPkg(pkg, exe);
-    if (resolved) return resolved;
+    const resolved = resolve(pkg, exe);
+    if (resolved) return { path: resolved, pkg, muslFallback: onMusl && pkg !== entry.muslPkg };
   }
-  console.error(
-    `dirlens: could not find binary package ${candidates.join(" / ")}.\n` +
-      "Try re-running npm install, or reinstall without the --force option."
-  );
-  process.exit(1);
+  return {
+    error:
+      `dirlens: could not find binary package ${candidates.join(" / ")}.\n` +
+      "Try re-running npm install, or reinstall without the --force option.",
+  };
 }
 
-const result = spawnSync(findBinary(), process.argv.slice(2), {
-  stdio: "inherit",
-});
-if (result.error) {
-  console.error(`dirlens: failed to launch: ${result.error.message}`);
-  process.exit(1);
+// Message for a failed spawn. A glibc build started on a musl host fails with
+// ENOENT (its ELF interpreter is missing), which on its own looks like the
+// binary itself is missing.
+function launchErrorMessage(found, error, arch = process.arch) {
+  let msg = `dirlens: failed to launch: ${error.message}`;
+  if (found.muslFallback && error.code === "ENOENT") {
+    const muslPkg = PLATFORMS[`linux ${arch}`] && PLATFORMS[`linux ${arch}`].muslPkg;
+    msg +=
+      `\ndirlens: this looks like a musl system (Alpine, etc.), but only the glibc build (${found.pkg}) is installed,` +
+      " and it cannot run without glibc." +
+      `\nInstall the musl build: npm install -g ${muslPkg}` +
+      " (or reinstall dirlens with npm 9+ without --omit=optional / --no-optional).";
+  }
+  return msg;
 }
-process.exit(result.status === null ? 1 : result.status);
+
+function main() {
+  const found = findBinary();
+  if (found.error) {
+    console.error(found.error);
+    process.exit(1);
+  }
+  const result = spawnSync(found.path, process.argv.slice(2), {
+    stdio: "inherit",
+  });
+  if (result.error) {
+    console.error(launchErrorMessage(found, result.error));
+    process.exit(1);
+  }
+  process.exit(result.status === null ? 1 : result.status);
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = { PLATFORMS, findBinary, launchErrorMessage };

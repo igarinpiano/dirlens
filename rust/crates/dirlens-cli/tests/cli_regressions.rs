@@ -94,3 +94,63 @@ fn invalid_max_file_bytes_warns_and_matches_unset_limit() {
     assert!(warn.contains("invalid DIRLENS_MAX_FILE_BYTES"), "{}", warn);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// 永続トークンキャッシュのキーは (rel, size, mtime, 方式, 読み込み上限)。
+/// - (size, mtime) が同じなら内容に関わらずキャッシュが使われる（＝本当に参照されている）
+/// - 同じサイズのまま内容を書き換えても、mtime が変われば再計算される
+#[test]
+fn token_cache_is_keyed_on_mtime_even_when_size_is_unchanged() {
+    use std::time::{Duration, SystemTime};
+
+    let root = temp_dir("cache_mtime");
+    let proj = root.join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
+    let file = proj.join("f.txt");
+    let t0 = SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    let write = |content: &str, mtime: SystemTime| {
+        std::fs::write(&file, content).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+    };
+    let tokens = |extra: &[&str]| -> i64 {
+        let out = Command::new(env!("CARGO_BIN_EXE_dirlens"))
+            .args(["-T", "--json", "--no-config"])
+            .args(extra)
+            .arg(&proj)
+            .env("XDG_CACHE_HOME", root.join("cache"))
+            .env_remove("DIRLENS_CACHE")
+            .env_remove("DIRLENS_COMPAT")
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        v["children"][0]["tokens"].as_i64().unwrap()
+    };
+
+    // 同じバイト数でトークン数が大きく異なる2つの内容
+    let a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n";
+    let b = "a b c d e f g h i j k l m n o p q r s t\n";
+    assert_eq!(a.len(), b.len());
+
+    write(a, t0);
+    let tok_a = tokens(&[]);
+    write(b, t0);
+    let tok_b_fresh = tokens(&["--no-cache"]);
+    assert_ne!(tok_a, tok_b_fresh, "test contents must differ in token count");
+
+    // (size, mtime) 不変 → キャッシュ値（a のトークン数）がそのまま使われる
+    assert_eq!(tokens(&[]), tok_a, "cache must be consulted when size and mtime are unchanged");
+
+    // 同サイズ・mtime だけ進める → 再計算される
+    write(b, t0 + Duration::from_secs(10));
+    assert_eq!(tokens(&[]), tok_b_fresh, "same-size edit with a new mtime must invalidate the cache");
+
+    // mtime のサブ秒差（ナノ秒精度のキー）でも再計算される
+    write(a, t0 + Duration::from_secs(10) + Duration::from_millis(1));
+    assert_eq!(tokens(&[]), tok_a);
+
+    let _ = std::fs::remove_dir_all(&root);
+}
