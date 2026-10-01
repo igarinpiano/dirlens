@@ -1,8 +1,8 @@
 class Dirlens < Formula
   desc "Project map for filesystem structure and code intelligence"
   homepage "https://github.com/igarinpiano/dirlens"
-  url "https://github.com/igarinpiano/dirlens/archive/refs/tags/v1.2.22.tar.gz"
-  sha256 "acf9ac667106ce8d4758ef861c88ad4c1c53bd8277cb81dc53ec0fa9faefbd47"
+  url "https://github.com/igarinpiano/dirlens/archive/refs/tags/v1.2.23.tar.gz"
+  sha256 "3434792140d30b8dd0e53dc92bd505401b6e9232a0a14282335f59ba2835e158"
   license "Apache-2.0"
   head "https://github.com/igarinpiano/dirlens.git", branch: "main"
 
