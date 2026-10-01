@@ -146,6 +146,7 @@ jobs:
     permissions:
       contents: write        # push=main直push / pr=更新ブランチpush、いずれにも必要
       pull-requests: write   # pr モードの gh pr create に必要
+      actions: write         # pr モードで rust-ci を workflow_dispatch で起動するのに必要
     steps:
       - uses: actions/checkout@v7
         with:
@@ -184,6 +185,14 @@ jobs:
               echo "::notice::$formula は既に v$current_version を指しており、v$VERSION より新しいためダウングレードしません"
               exit 0
             fi
+          fi
+
+          # タグ v$VERSION が無いと tarball が 404 になり curl が失敗する。
+          # publish_github_release=false でまだ GitHub Release（タグ）を作っていない
+          # 実行では、失敗させずに Formula 更新だけをスキップする
+          if ! git ls-remote --exit-code --tags "https://github.com/$REPO.git" "refs/tags/v$VERSION" > /dev/null; then
+            echo "::warning::タグ v$VERSION がまだ無いため Homebrew Formula の更新をスキップします（GitHub Release を作成してから update_homebrew_formula だけを選んで再実行してください）"
+            exit 0
           fi
 
           tarball_url="https://github.com/$REPO/archive/refs/tags/v$VERSION.tar.gz"
@@ -235,6 +244,11 @@ jobs:
             else
               echo "$branch 向けの open な PR が既にあるのでスキップします"
             fi
+            # GITHUB_TOKEN による push / PR 作成では pull_request トリガーの rust-ci が
+            # 起動しない（GitHub の仕様）。main の必須チェックが付かずマージできなく
+            # なるため、workflow_dispatch（GITHUB_TOKEN からでも起動できる）で同じ
+            # コミットに対して明示的に走らせる
+            gh workflow run rust-ci.yml --ref "$branch"
           fi
 
   npm:

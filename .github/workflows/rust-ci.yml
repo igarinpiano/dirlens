@@ -23,6 +23,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # publish-all の Homebrew pr モードが作る PR 用。GITHUB_TOKEN で作った PR では
+  # pull_request トリガーが起動しない（GitHub の仕様）が、workflow_dispatch は
+  # GITHUB_TOKEN からでも起動でき、同じコミットに必須チェックが付く。
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -168,6 +172,32 @@ jobs:
           ls "$CACHE_DIR"/tokens-*.json >/dev/null
 
           rm -rf "$TMPROOT"
+
+      - name: npm launcher unit tests
+        run: node --test rust/npm/launcher.test.js
+
+      - name: npm launcher on musl (glibc-only install explains the failure)
+        # musl ホスト（Alpine）に glibc 版パッケージしか入っていない状況を再現する。
+        # glibc 版は ELF インタプリタ（ld-linux）が無いため spawn が ENOENT で失敗し、
+        # launcher はその原因（musl 版パッケージが必要）を案内しなければならない。
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -e
+          E2E=$(mktemp -d)
+          mkdir -p "$E2E/node_modules/dirlens/bin" "$E2E/node_modules/dirlens-bin-linux-x64/bin"
+          cp rust/npm/launcher.js "$E2E/node_modules/dirlens/bin/dirlens.js"
+          cp rust/target/debug/dirlens "$E2E/node_modules/dirlens-bin-linux-x64/bin/dirlens"
+          # glibc ホストではそのまま起動できる
+          node "$E2E/node_modules/dirlens/bin/dirlens.js" --version
+          # Alpine では起動に失敗し、musl 版の導入を案内する
+          set +e
+          out=$(docker run --rm -v "$E2E:/e2e" node:22-alpine node /e2e/node_modules/dirlens/bin/dirlens.js --version 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          [ "$code" -ne 0 ] || { echo "expected a launch failure on musl"; exit 1; }
+          echo "$out" | grep -q "npm install -g dirlens-bin-linux-x64-musl" || { echo "missing musl guidance"; exit 1; }
+          rm -rf "$E2E"
 
       - name: Stress test (wide synthetic tree, ~10k files)
         timeout-minutes: 5
