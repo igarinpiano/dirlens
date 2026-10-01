@@ -42,8 +42,8 @@ jobs:
           - ubuntu-24.04       # ubuntu-latestより古い glibc（22.04系は2026年9月から非推奨）
           - ubuntu-26.04-arm
           - ubuntu-24.04-arm   # ネイティブ ARM64 Linux（release の
-                               # aarch64-unknown-linux-gnu は ubuntu-26.04-arm
-                               # だが、テストではより古い 24.04 系も見る）
+                               # *-linux-gnu は cross の古い glibc イメージで
+                               # ビルドする。テストではネイティブの 24.04 系も見る）
     runs-on: ${{ matrix.os }}
     defaults:
       run:
