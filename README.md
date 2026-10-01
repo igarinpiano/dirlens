@@ -33,11 +33,13 @@ Output is English by default. Use `--lang ja`, set `lang = "ja"` in `~/.config/d
 npm install -g dirlens
 ```
 
-The package automatically selects a native binary for macOS arm64/x64; Linux arm64/x64, musl x64 (Alpine), ppc64, and s390x; and Windows x64/arm64. Windows runs a native `dirlens.exe`.
+The package automatically selects a native binary for macOS arm64/x64; Linux arm64/x64, musl arm64/x64 (Alpine, etc.), ppc64, and s390x; and Windows x64/arm64. Windows runs a native `dirlens.exe`.
 
 ### Download a binary
 
-Download the archive for your platform from [GitHub Releases](https://github.com/igarinpiano/dirlens/releases), then put the binary on your `PATH`. Release binaries are also provided, where available, for armv7 (32-bit Linux ARM), i686 (32-bit Linux/Windows), and riscv64gc; these targets are not available from npm because Node.js does not publish official builds for them.
+Download the archive for your platform from [GitHub Releases](https://github.com/igarinpiano/dirlens/releases), then put the binary on your `PATH`. Release binaries are also provided, where available, for armv7 (32-bit Linux ARM), i686 (32-bit Linux/Windows), and riscv64gc. These targets are not published to npm: Node.js has no official builds for i686 Linux or riscv64, and dropped its official armv7 and 32-bit Windows builds after Node 22 LTS.
+
+The glibc Linux binaries (`*-unknown-linux-gnu`) are linked against an old glibc and run on glibc 2.28 or newer (e.g. RHEL/Rocky 8+, Debian 10+, Ubuntu 20.04+). On older or glibc-less systems, use the `*-unknown-linux-musl` (statically linked) build.
 
 ```bash
 # Example: macOS (Apple Silicon)
@@ -115,19 +117,28 @@ dirlens --mcp-setup
 
 ### Basic tree
 
-```text
-$ dirlens -L 2
-my-project/ (4 dirs, 10 files, 42.1 KB, 2 hours ago)
-├── src/ (1 dir, 4 files, 18.4 KB, 10 minutes ago)
-│   ├── lib.rs (8.2 KB, 10 minutes ago)
-│   ├── main.rs (3.1 KB, 2 hours ago)
-│   └── utils/ (2 files, 7.1 KB, 1 hour ago)
-├── tests/ (2 files, 9.4 KB, 1 hour ago)
-├── Cargo.toml (1.3 KB, 2 hours ago)
-└── README.md (13.0 KB, 3 days ago)
-
-Total  4 directories, 10 files
+```bash
+dirlens
 ```
+
+```text
+Desktop/ (2 dirs, 2 files, 3.74 MB)
+├── EmptyDir/ (0 dirs, 0 files, 0 bytes)
+├── Project/ (2 dirs, 1 file, 712 KB)
+│   ├── assets/ (1 dir, 0 files, 512 KB)
+│   │   └── images/ (0 dirs, 1 file, 512 KB)
+│   │       └── logo.png (512 KB)
+│   ├── src/ (0 dirs, 1 file, 80 KB)
+│   │   └── util.py (80 KB)
+│   └── main.py (120 KB)
+├── archive.zip (3 MB)
+└── readme.txt (50 KB)
+
+  Total  5 directories,  5 files
+  .py ×2  .png ×1  .zip ×1  .txt ×1
+```
+
+Each directory line shows its direct children (`dirs`/`files`) and its total size. Add `-D` for modification times, `-L N` to limit depth, or `--lang ja` for Japanese output.
 
 ### `--ai`: paste-ready AI context
 
@@ -247,7 +258,7 @@ The analysis is deliberately lightweight. It is a navigation aid, not a replacem
 - **Largest-files list** — `--top N` shows a flat list without the tree, useful for disk cleanup
 - **Duplicate detection** — `--dupes` finds files with identical content and the wasted space
 - **Directory comparison** — `--compare DIR` shows additions/deletions/changes between two trees
-- **Config files** — `~/.config/dirlens/config.toml` and a project's `.dirlens.toml` define default flags and named presets (`--preset`)
+- **Config files** — `~/.config/dirlens/config.toml` and a project's `.dirlens.toml` define default flags; named presets (`--preset`) are read from the global config only
 - **Shell completions / man page** — `--completions <shell>` / `--man`
 - **Secret-file warning** — copying via `--ai`/`-C` warns on stderr if the content looks like it contains a `.env` file or a private key
 - **Progress spinner** — long scans show a spinner on the terminal (suppressed when not attached to one)
@@ -494,7 +505,7 @@ Run `dirlens --help` for the authoritative, version-specific option list.
 | Feature | Best tier | Fallback | Notes |
 | --- | --- | --- | --- |
 | `.gitignore` (`-G`) | `git check-ignore` — the real git engine (nested rules, `!` negation, `**`, global excludes, `.git/info/exclude`) | Builtin matcher (an approximation covering basic patterns only) | Falls back when git or a repository isn't available |
-| Token counts (`-T`) | Exact `o200k_base` BPE (vocabulary data ships in the binary); results are cached persistently, see [Configuration](#configuration) | Character-count heuristic | Files above the per-file read limit (5 MB by default, scaling up to 15/30/50/80 MB based on host memory; override with `DIRLENS_MAX_FILE_BYTES`) are proportionally estimated even on the best tier, flagged as `tokens_estimated: true` in JSON. The active limit is visible via `--check`'s `capabilities.max_file_bytes`. Tokenizers differ by model, so counts are only a rough guide outside the OpenAI family. Non-regular files (FIFOs, sockets, devices) are treated as size 0 and never read |
+| Token counts (`-T`) | Exact `o200k_base` BPE (vocabulary data ships in the binary); results are cached persistently, see [Configuration](#configuration) | Character-count heuristic | Files above the per-file read limit (5 MB by default, scaling up to 15/30/50/80 MB based on host memory; override with `DIRLENS_MAX_FILE_BYTES`) are proportionally estimated even on the best tier, flagged as `tokens_estimated: true` in JSON. The active limit is visible via `--check`'s `capabilities.max_file_bytes`. Tokenizers differ by model, so counts are only a rough guide outside the OpenAI family. Non-regular files (FIFOs, sockets, devices) are treated as size 0 and never read. Files with a binary extension (`.png`, `.zip`, …) are sniffed: if the first 8 KB is NUL-free valid UTF-8 they are analyzed as text, so a disguised text file still gets tokens/TODOs |
 | Outlines (`-O`/`-A`) | Per-language AST parsers (Python, JavaScript/TypeScript, Rust, Go, C, Java, Ruby, PHP, C#, Kotlin, Swift). HTML outlines inline `<script>` blocks (external `src` scripts are not followed). No false positives from string literals; captures the first doc line and the line range. Python's public/private judgment is scope-aware — a local `def`/`class` inside a function and its members are private; a class's methods are judged public only if the class itself is public. Nested symbols carry their enclosing symbol's name (`parent` in JSON; `def Class.method` / `fn Type::method` in text) | Regex extraction (no doc line or line range; visibility judged by name only) | A syntax error in a file falls back automatically; JSON's `outline_method` (`"ast"`/`"regex"`) reports which tier actually ran |
 | Import graph (`-M`/`--focus`) | AST extraction plus manifest resolution (TypeScript `paths`/`baseUrl`, package.json `imports`, `go.mod`, Rust's module tree, Java/Kotlin FQCNs, PHP `use`/`require`, Ruby `require_relative`). Nested `Cargo.toml` files are detected as crate boundaries, so monorepos/workspaces resolve per crate. Edges from a bare `mod` declaration are excluded from cycle detection | Regex plus relative-path resolution | External packages (e.g. inside `node_modules`) are never resolved to source and are reported as external. C#/Swift have no local resolution. `tsconfig`/`package.json` `imports`/`go.mod` are read only from the scan root, so `--focus` on a file inside a nested JS/Go sub-project carries a caveat note |
 | Missing-test detection (`-V`) | Naming conventions plus transitive imports from test files plus Rust inline-test detection | Naming conventions only | This is not code coverage. Only `.py/.js/.jsx/.ts/.tsx/.go` (plus `.rs` when AST is enabled) are judged; other files report `has_test: null` in JSON. Rust's `lib.rs`/`main.rs`/`mod.rs` are exempt by name (they're typically re-export/wiring files) — note this also means a `lib.rs` full of real logic won't be flagged either |
@@ -512,8 +523,8 @@ Environment variables include:
 | --- | --- |
 | `DIRLENS_LANG` | Default language, for example `ja`. |
 | `DIRLENS_CONFIG` | Set to `off` to skip loading all config files (also: `--no-config`). |
-| `DIRLENS_MAX_FILE_BYTES` | Maximum bytes read per file for analysis. |
-| `DIRLENS_MAX_WORKERS` | Override the parallel-worker limit. |
+| `DIRLENS_MAX_FILE_BYTES` | Maximum bytes read per file for analysis. An invalid value (not an integer ≥ 1) prints a warning and falls back to the automatic, memory-based limit. |
+| `DIRLENS_MAX_WORKERS` | Override the parallel-worker limit (invalid values print a warning and are ignored). |
 | `DIRLENS_GITIGNORE` | Enable or disable gitignore handling. |
 | `DIRLENS_AST` | Enable or disable AST analysis. |
 | `DIRLENS_TOKENS` | Enable or disable token counting. |
@@ -541,6 +552,8 @@ paste = ["--ai", "-L", "3"]
 ```
 
 Supported keys: `lang`, `gitignore`, `all`, `date`, `emoji`, `markdown`, `no_color`, `bar`, `prune`, `filesfirst`, `follow`, `full_path`, `depth`, `min_size`, `max_size`, `exclude`, `include`, and `[presets]`.
+
+`[presets]` is honored **only in the global config**. A project's `.dirlens.toml` lives inside the tree being scanned, so presets there are ignored with a warning — otherwise a scanned directory could inject flags (such as `-C`) into its own analysis.
 
 ## Notes and caveats
 
