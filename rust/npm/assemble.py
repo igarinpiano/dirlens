@@ -5,9 +5,9 @@
   <dir>/ 配下に「<target>/dirlens(.exe)」の形で機種別バイナリが置かれている想定
   （reusable-build-matrix.yml がビルドする全ターゲット。TARGETS に無いものは
   npm パッケージ化されない＝ GitHub Releases の生バイナリのみで配布される。
-  対象を絞っているのは Node.js が公式バイナリを配っていない os/cpu の組み合わせ
-  （armv7 の 32bit linux-arm・i686 系・riscv64gc）に npm パッケージを作っても
-  インストールする Node.js ランタイム自体が存在せず無意味なため）。
+  armv7（32bit linux-arm）・i686 系・riscv64gc を外しているのは設計判断:
+  i686 Linux と riscv64gc は Node.js の公式ビルドが無く、armv7 と 32bit Windows は
+  Node 22 LTS までは公式ビルドがあるが Node 24 / Node 23 で廃止されたため）。
 
 出力: --out <dir> に本体パッケージ dirlens/ と機種別パッケージ dirlens-bin-*/ を生成する。
 公開は所有者が手動で行う（CI は dry-run / artifacts の生成までに留める）。
@@ -37,7 +37,7 @@ TARGETS = {
     "aarch64-pc-windows-msvc": ("dirlens-bin-win32-arm64", ["win32"], ["arm64"], None, "dirlens.exe"),
 }
 
-DESCRIPTION = "ファイルサイズ・AI/エージェント解析つきディレクトリツリー表示ツール（tree 互換）"
+DESCRIPTION = "tree-compatible directory tree with file sizes and AI/agent-oriented code analysis"
 REPO = "git+https://github.com/igarinpiano/dirlens.git"
 
 
