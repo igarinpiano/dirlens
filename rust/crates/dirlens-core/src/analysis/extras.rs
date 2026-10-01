@@ -42,6 +42,21 @@ pub struct HeavyExtras {
     pub outline_method: Option<&'static str>,
 }
 
+/// バイナリ拡張子のファイルを嗅ぐ長さ（NUL 検出と同じ 8KB）。
+const SNIFF_LEN: usize = 8192;
+
+/// 先頭バイト列がテキストに見えるか: 空でなく、NUL を含まず、UTF-8 として妥当
+/// （末尾で途切れたマルチバイト文字は許容）。
+fn looks_like_text(head: &[u8]) -> bool {
+    if head.is_empty() || head.contains(&0u8) {
+        return false;
+    }
+    match std::str::from_utf8(head) {
+        Ok(_) => true,
+        Err(e) => e.error_len().is_none(),
+    }
+}
+
 /// 本文読込を伴う重い解析（tokens / lines / todos / outline）を計算する。
 /// I/O と CPU（BPE トークナイズ・AST パース）が集中するため、native では
 /// これを全ファイル分だけ事前に並列実行して `Session` にキャッシュする。
@@ -60,6 +75,19 @@ pub fn compute_heavy_extras<F: FsProvider>(
     // 本文はここで一度だけ読み込んで共有する
     let need_text = cfg.show_tokens || cfg.show_todo || cfg.show_outline;
     let mut is_binary = is_probably_binary(&entry.name);
+    // 拡張子だけでバイナリと決め打ちすると、拡張子を偽装したテキスト（例: TODO を
+    // 書いた payload.png）のトークン・TODO が丸ごと見えなくなる。バイナリ拡張子でも
+    // 先頭を嗅いで「NUL を含まない妥当な UTF-8」ならテキストとして扱う（実際の
+    // 画像・アーカイブ等はヘッダ近傍に NUL や不正な UTF-8 を必ず含むので、先頭
+    // 8KB を読むだけで弾ける）。互換モード（Python 版とのバイト一致）では従来どおり
+    // 拡張子のみで判定する。
+    if need_text && is_binary && !cfg.suppress_notes {
+        if let Some(head) = sess.fs.read_prefix(&entry.path, SNIFF_LEN) {
+            if looks_like_text(&head) {
+                is_binary = false;
+            }
+        }
+    }
     let mut text = String::new();
     let mut byte_len: usize = 0;
     let mut truncated = false;
@@ -224,4 +252,22 @@ pub fn reading_order_candidates(cfg: &Cfg, top_n: usize, limit: usize) -> Vec<St
     }
     cand.truncate(limit);
     cand
+}
+
+#[cfg(test)]
+mod tests {
+    use super::looks_like_text;
+
+    #[test]
+    fn sniff_accepts_disguised_text_and_rejects_real_binaries() {
+        assert!(looks_like_text(b"# TODO: hidden note\nprint(1)\n"));
+        // 末尾で途切れたマルチバイト文字は許容（8KB 境界で切れうる）
+        assert!(looks_like_text(&"日本語".as_bytes()[..7]));
+        // PNG / JPEG / ZIP の実ヘッダ・PDF のバイナリコメント行・空ファイル
+        assert!(!looks_like_text(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"));
+        assert!(!looks_like_text(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00"));
+        assert!(!looks_like_text(b"PK\x03\x04\x14\x00\x00\x00"));
+        assert!(!looks_like_text(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n"));
+        assert!(!looks_like_text(b""));
+    }
 }

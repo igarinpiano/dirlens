@@ -39,12 +39,11 @@ pub(crate) fn apply(cfg: &mut Cfg) -> EnvConfig {
     }
     // 並列ワーカー数の上限の上書き（DIRLENS_MAX_WORKERS）。高コア機で既定 64 を
     // 超えて使いたい場合や、CPU 制限付きコンテナ等で絞りたい場合に指定する。
-    // 1 未満・数値でない値は無視して既定に従う。
+    // 1 未満・数値でない値は警告して既定に従う。
     if let Ok(v) = std::env::var("DIRLENS_MAX_WORKERS") {
-        if let Ok(n) = v.trim().parse::<usize>() {
-            if n >= 1 {
-                cfg.max_workers = Some(n);
-            }
+        match crate::sysmem::parse_positive(&v) {
+            Some(n) => cfg.max_workers = Some(n),
+            None => warn_invalid("DIRLENS_MAX_WORKERS", &v),
         }
     }
     // 本文読み込み・BPE正確計数の対象にする1ファイルあたりの上限（既定 5MB）を、
@@ -54,8 +53,15 @@ pub(crate) fn apply(cfg: &mut Cfg) -> EnvConfig {
     // 失敗時は total_memory_bytes() が None を返し、resolve_text_read_limit が
     // default（＝ここに渡す既存の cfg.text_read_limit = TEXT_READ_LIMIT）へ
     // フォールバックする（sysmem::tests で分岐を個別に検証済み）。
+    // 不正値（typo・0 等）は警告したうえで未指定と同じ扱い（動的上限）にする。
+    let max_file_bytes = std::env::var("DIRLENS_MAX_FILE_BYTES").ok();
+    if let Some(v) = max_file_bytes.as_deref() {
+        if crate::sysmem::parse_positive(v).is_none() {
+            warn_invalid("DIRLENS_MAX_FILE_BYTES", v);
+        }
+    }
     cfg.text_read_limit = crate::sysmem::resolve_text_read_limit(
-        std::env::var("DIRLENS_MAX_FILE_BYTES").ok().as_deref(),
+        max_file_bytes.as_deref(),
         compat_python,
         crate::sysmem::total_memory_bytes(),
         cfg.text_read_limit,
@@ -67,6 +73,15 @@ pub(crate) fn apply(cfg: &mut Cfg) -> EnvConfig {
         cfg.show_status = false;
     }
     EnvConfig { compat_python }
+}
+
+/// 1 以上の整数を期待する環境変数に不正値が入っていたときの警告（stderr）。
+/// 黙って無視すると typo に気付けず、既定値で動いていることが分からない。
+fn warn_invalid(name: &str, value: &str) {
+    eprintln!(
+        "dirlens: ignoring invalid {}={:?} (expected an integer >= 1; using the default)",
+        name, value
+    );
 }
 
 /// 永続トークンキャッシュ（DIRLENS_CACHE=off で無効化）を使うか。互換モードでは

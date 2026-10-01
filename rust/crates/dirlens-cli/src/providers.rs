@@ -495,6 +495,13 @@ mod tests {
         assert_eq!(StdFs.read_prefix(&fifo, 1024), None);
         assert_eq!(StdFs.read_prefix(&regular, 1024).as_deref(), Some(&b"x = 1\n"[..]));
 
+        // stat(follow) の mode は FIFO を通常ファイル（S_IFREG）と区別する。
+        // report::nested_manifest_hint 等の「通常ファイルか」判定はこれに依存する
+        // （FIFO の go.mod / tsconfig.json を通常ファイルと誤認しない）
+        let fifo_mode = StdFs.stat(&fifo, true).unwrap().mode & 0o170000;
+        assert_eq!(fifo_mode, 0o010000);
+        assert_eq!(StdFs.stat(&regular, true).unwrap().mode & 0o170000, 0o100000);
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -103,10 +103,13 @@ fn global_config_path() -> Option<PathBuf> {
 
 /// 対象ディレクトリから上方向へ `.dirlens.toml` を探す。
 fn project_config_path(target: &Path) -> Option<PathBuf> {
-    let mut dir = if target.is_absolute() {
-        target.to_path_buf()
-    } else {
-        std::env::current_dir().ok()?.join(target)
+    // 実パスへ正規化してから遡る。`current_dir().join(".")` のままだと警告に
+    // `…/./.dirlens.toml` が残り、`..` を含む相対パスでは字句的な pop が実際の
+    // 親ディレクトリとずれる
+    let mut dir = match std::fs::canonicalize(target) {
+        Ok(p) => p,
+        Err(_) if target.is_absolute() => target.to_path_buf(),
+        Err(_) => std::env::current_dir().ok()?.join(target),
     };
     loop {
         let cand = dir.join(".dirlens.toml");

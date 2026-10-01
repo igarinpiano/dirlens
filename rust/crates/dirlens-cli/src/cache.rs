@@ -54,12 +54,24 @@ fn clear_dir(dir: &Path) -> std::io::Result<usize> {
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.starts_with("tokens-") && name.ends_with(".json") {
+        // 中断されたプロセスが残した flush の一時ファイル（*.json.tmp.*）も掃除する
+        if name.starts_with("tokens-") && (name.ends_with(".json") || name.contains(".json.tmp")) {
             std::fs::remove_file(entry.path())?;
             removed += 1;
         }
     }
     Ok(removed)
+}
+
+/// flush 用の一時ファイル名（`tokens-<hash>.json.tmp.<pid>.<nanos>`）。
+fn tmp_path(p: &Path) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let mut name = p.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".tmp.{}.{}", std::process::id(), nanos));
+    p.with_file_name(name)
 }
 
 /// エントリ数の上限（超えたら古い集合ごと捨てて作り直す）。
@@ -118,9 +130,18 @@ impl StdCache {
             let _ = std::fs::create_dir_all(dir);
         }
         if let Ok(json) = serde_json::to_string(&st.map) {
-            let tmp = p.with_extension("json.tmp");
+            // 一時ファイル名はプロセスごとに一意にする（固定名だと同じルートを
+            // 並列に走らせた複数プロセスが同じ tmp に書き込み合い、壊れた JSON が
+            // rename されてキャッシュ全損になりうる）。rename は同一ディレクトリ内で
+            // アトミックなので、読み手は常に完全な旧版か新版のどちらかを見る
+            // （同時書き込みは最後の rename が勝つだけ）。
+            let tmp = tmp_path(p);
             if std::fs::write(&tmp, json).is_ok() {
-                let _ = std::fs::rename(&tmp, p);
+                if std::fs::rename(&tmp, p).is_err() {
+                    let _ = std::fs::remove_file(&tmp);
+                }
+            } else {
+                let _ = std::fs::remove_file(&tmp);
             }
         }
     }
@@ -169,6 +190,67 @@ mod tests {
         // 2回目は0件（既に消えている）で、存在しないファイルの再削除でエラーにならない。
         assert_eq!(clear_dir(&dir).unwrap(), 0);
 
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn flush_tmp_names_are_unique_and_cleaned_by_clear() {
+        let p = PathBuf::from("/x/tokens-0123.json");
+        let a = tmp_path(&p);
+        let name = a.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("tokens-0123.json.tmp."), "{}", name);
+        assert!(name.contains(&std::process::id().to_string()));
+        assert_eq!(a.parent(), p.parent());
+
+        let dir = std::env::temp_dir().join(format!(
+            "dirlens_clear_tmp_test_{}_{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tokens-abc.json.tmp.123.456"), "{").unwrap();
+        assert_eq!(clear_dir(&dir).unwrap(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn concurrent_flushes_never_leave_corrupt_json() {
+        // 同じキャッシュファイルへ複数スレッド（＝並列プロセス相当）が同時に flush
+        // しても、最終的なファイルは常に完全な JSON で、tmp も残らない。
+        let dir = std::env::temp_dir().join(format!(
+            "dirlens_flush_race_{}_{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tokens-race.json");
+        std::thread::scope(|scope| {
+            for t in 0..8 {
+                let path = path.clone();
+                scope.spawn(move || {
+                    for i in 0..20 {
+                        let c = StdCache {
+                            path: Some(path.clone()),
+                            state: Mutex::new(CacheState {
+                                map: HashMap::new(),
+                                loaded: true,
+                                dirty: false,
+                            }),
+                        };
+                        c.put(&format!("k{}-{}", t, i), "x".repeat(4096));
+                        c.flush();
+                    }
+                });
+            }
+        });
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(serde_json::from_str::<HashMap<String, String>>(&text).is_ok());
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

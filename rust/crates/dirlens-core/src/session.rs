@@ -20,7 +20,10 @@ pub struct Session<'a, F: FsProvider> {
     /// 重い解析結果（tokens / lines / todos / outline）の事前計算キャッシュ。
     /// native では走査前に全ファイル分を並列計算して埋める。読み出しはあくまで
     /// 高速化用のウォーマーで、未登録ならその場で直列計算するため結果は同一。
-    heavy_cache: Mutex<HashMap<PathBuf, Arc<HeavyExtras>>>,
+    /// 値は Arc で包まない: ウォーマはスレッドスコープ終了までに登録を終え、
+    /// 以後キャッシュが唯一の所有者になる。evict モードの remove は常にムーブで
+    /// 取り出せる（以前の Arc::try_unwrap → 失敗時ディープクローンの経路を排除）。
+    heavy_cache: Mutex<HashMap<PathBuf, HeavyExtras>>,
     /// heavy_cache を「読み出し時に破棄する」モード。各ファイルをちょうど一度しか
     /// 参照しない単発レンダリング（budget/estimate 無し・deep-stats 集計無しの
     /// text / json）では、描画が進むにつれ消費済みエントリを解放してピークメモリを
@@ -59,12 +62,13 @@ impl<'a, F: FsProvider> Session<'a, F> {
             let mut cache = self.heavy_cache.lock().unwrap();
             if self.heavy_evict.load(Ordering::Relaxed) {
                 if let Some(v) = cache.remove(&entry.path) {
-                    // 取り出した Arc はキャッシュが唯一の所有者だったので、通常は
-                    // ムーブで取り出せる（ディープクローンは発生しない）。
-                    return Arc::try_unwrap(v).unwrap_or_else(|a| (*a).clone());
+                    // キャッシュが唯一の所有者なのでムーブで取り出す（クローン無し）
+                    return v;
                 }
             } else if let Some(v) = cache.get(&entry.path) {
-                return (**v).clone();
+                // 複数パス（--budget / --estimate / deep-stats）では同じファイルを
+                // 再参照するため保持したままコピーを返す
+                return v.clone();
             }
         }
         compute_heavy_extras(self, entry, rel, cfg)
@@ -81,7 +85,7 @@ impl<'a, F: FsProvider> Session<'a, F> {
         self.heavy_cache
             .lock()
             .unwrap()
-            .insert(path, Arc::new(heavy));
+            .insert(path, heavy);
     }
 
     /// ワーカー 1 本分の結果をまとめて登録する（ロック取得を per-item ではなく
@@ -92,7 +96,7 @@ impl<'a, F: FsProvider> Session<'a, F> {
         }
         let mut cache = self.heavy_cache.lock().unwrap();
         for (path, heavy) in items {
-            cache.insert(path, Arc::new(heavy));
+            cache.insert(path, heavy);
         }
     }
 

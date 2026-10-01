@@ -377,6 +377,10 @@ fn enable_color() -> bool {
 }
 
 fn main() {
+    // 既知の BPE panic（tiktoken-rs 内部・catch_unwind で回収済み）の
+    // "thread panicked at ..." 出力だけを抑える。グローバルな panic hook の変更は
+    // ライブラリ（dirlens-core）ではなくプロセスの持ち主であるここで行う。
+    dirlens_core::analysis::text_metrics::install_quiet_bpe_panic_hook();
     let mut lang = detect_lang();
     let mut m = build_command(lang).get_matches();
 
@@ -642,8 +646,11 @@ fn main() {
     // レベル同期の並列 BFS で走査して sz_cache を埋める（従来のトップ直下だけの
     // プリフェッチと違い、巨大サブツリーも複数スレッドで分担して負荷が偏らない）。
     // 出力は直列 dir_size とバイト一致する。単一コアでは何もせず直列に任せる。
+    // --check や単一ファイル系などディレクトリサイズを表示しないモードでは走査しない。
     #[cfg(feature = "parallel")]
-    dirlens_core::warm::warm_dir_sizes_parallel(&sess, &cfg.root.clone(), &cfg);
+    if dirlens_core::warm::dir_sizes_needed(&cfg) {
+        dirlens_core::warm::warm_dir_sizes_parallel(&sess, &cfg.root.clone(), &cfg);
+    }
 
     let res = execute(&mut sess, &mut cfg, &git, &clip);
     spin.stop();
